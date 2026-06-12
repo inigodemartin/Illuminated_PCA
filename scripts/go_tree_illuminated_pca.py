@@ -242,22 +242,18 @@ def create_node(dot, go_id, description, png_path, highlight=False):
 
 def add_level_ordering(dot, nodes_by_level):
     """
-    Force all nodes at the same tree depth onto the same rank, ordered
-    left-to-right by GO ID. Together with sorting node/edge creation
-    elsewhere, this makes the rendered tree fully reproducible: the same
-    query always produces the same layout.
+    Nudge nodes at the same tree depth into left-to-right order by GO ID,
+    without forcing them onto the same Graphviz rank (GO terms can have
+    multiple parents at different depths, and a hard `rank=same` there
+    can fight the hierarchy edges and break the level-by-level layout).
+    `constraint=false` keeps these edges out of the ranking entirely, so
+    they only influence ordering, not which row a node ends up in.
     """
     for level in sorted(nodes_by_level):
         ids_sorted = sorted(nodes_by_level[level])
 
-        with dot.subgraph() as s:
-            s.attr(rank="same")
-
-            for go_id in ids_sorted:
-                s.node(_nid(go_id))
-
-            for a, b in zip(ids_sorted, ids_sorted[1:]):
-                s.edge(_nid(a), _nid(b), style="invis")
+        for a, b in zip(ids_sorted, ids_sorted[1:]):
+            dot.edge(_nid(a), _nid(b), style="invis", constraint="false")
 
 
 def plot_go_descendants(go_id, descendants, go_desc, parent_to_children, output_file="go_descendants"):
