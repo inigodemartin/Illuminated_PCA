@@ -158,116 +158,144 @@ def sanitize(text):
         .replace(">", "&gt;")
     )
 
+
+# ---------------------------------------------------------------------- #
+#  Node rendering: every node gets the same fixed size, regardless of    #
+#  how long its GO description is.                                       #
+# ---------------------------------------------------------------------- #
+
+NODE_WIDTH = 220        # fixed width (pt) for every tree node
+IMG_HEIGHT = 160         # fixed height (pt) for the embedded PCA plot
+DESC_WRAP_WIDTH = 28     # characters per description line
+DESC_MAX_LINES = 2       # description lines before truncating with "…"
+
+
+def enhance_image_quality(png_path, target_size=(1000, 1000)):
+    """
+    Improve image quality before inserting into a Graphviz node.
+    """
+    if not os.path.exists(png_path):
+        return png_path
+
+    enhanced_path = png_path.replace('.png', '_enhanced.png')
+
+    try:
+        with Image.open(png_path) as img:
+
+            img.thumbnail(target_size, Image.Resampling.LANCZOS)
+
+            from PIL import ImageEnhance
+
+            enhancer = ImageEnhance.Sharpness(img)
+            img = enhancer.enhance(1.5)
+
+            img.save(enhanced_path, 'PNG', optimize=False, dpi=(300, 300))
+            return enhanced_path
+
+    except Exception as e:
+        print(f"Warning: Could not enhance {png_path}: {e}")
+        return png_path
+
+
+def format_description(description):
+    """
+    Sanitize, wrap and truncate a GO description to at most
+    DESC_MAX_LINES lines of DESC_WRAP_WIDTH characters each, so it never
+    makes a node wider or noticeably taller than its fixed size.
+    """
+    br = '<BR ALIGN="LEFT"/>'
+
+    text = sanitize(description)
+    lines = wrap_text(text, width=DESC_WRAP_WIDTH).split(br)
+
+    if len(lines) > DESC_MAX_LINES:
+        lines = lines[:DESC_MAX_LINES]
+        lines[-1] = lines[-1].rstrip() + "…"
+
+    return br.join(lines)
+
+
+def create_node(dot, go_id, description, png_path, highlight=False):
+    """
+    Add a fixed-size node with the GO ID, its (wrapped) description and
+    its illuminated PCA plot.
+    """
+    enhanced_png = enhance_image_quality(png_path)
+    abs_path = os.path.abspath(enhanced_png)
+
+    header_bg = "#ffffcc" if highlight else "#6FACE8"
+
+    safe_go_id = sanitize(go_id)
+    safe_description = format_description(description)
+
+    label = f'''<
+<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4" WIDTH="{NODE_WIDTH}" ALIGN="LEFT">
+    <TR><TD WIDTH="{NODE_WIDTH}" BGCOLOR="{header_bg}" ALIGN="LEFT" VALIGN="TOP">
+            <FONT POINT-SIZE="12"><B>{safe_go_id}</B></FONT><BR ALIGN="LEFT"/>
+            <FONT POINT-SIZE="10">{safe_description}</FONT>
+        </TD></TR>
+    <TR><TD WIDTH="{NODE_WIDTH}" HEIGHT="{IMG_HEIGHT}" FIXEDSIZE="TRUE"><IMG SRC="{abs_path}" SCALE="TRUE"/></TD></TR>
+</TABLE>>'''
+
+    dot.node(_nid(go_id), label=label)
+
+
+def add_level_ordering(dot, nodes_by_level):
+    """
+    Force all nodes at the same tree depth onto the same rank, ordered
+    left-to-right by GO ID. Together with sorting node/edge creation
+    elsewhere, this makes the rendered tree fully reproducible: the same
+    query always produces the same layout.
+    """
+    for level in sorted(nodes_by_level):
+        ids_sorted = sorted(nodes_by_level[level])
+
+        with dot.subgraph() as s:
+            s.attr(rank="same")
+
+            for go_id in ids_sorted:
+                s.node(_nid(go_id))
+
+            for a, b in zip(ids_sorted, ids_sorted[1:]):
+                s.edge(_nid(a), _nid(b), style="invis")
+
+
 def plot_go_descendants(go_id, descendants, go_desc, parent_to_children, output_file="go_descendants"):
-
-
-    def enhance_image_quality(png_path, target_size=(1000, 1000)):
-        """
-        Improve image quality before inserting into Graphviz node.
-        """
-        if not os.path.exists(png_path):
-            return png_path
-
-        enhanced_path = png_path.replace('.png', '_enhanced.png')
-
-        try:
-            with Image.open(png_path) as img:
-
-                img.thumbnail(target_size, Image.Resampling.LANCZOS)
-
-                from PIL import ImageEnhance
-
-                enhancer = ImageEnhance.Sharpness(img)
-                img = enhancer.enhance(1.5)
-
-                img.save(
-                    enhanced_path,
-                    'PNG',
-                    optimize=False,
-                    dpi=(300, 300)
-                )
-
-                return enhanced_path
-
-        except Exception as e:
-            print(f"Warning: Could not enhance {png_path}: {e}")
-            return png_path
 
     dot = Digraph(comment=f"GO descendants of {go_id}")
 
     dot.attr(rankdir="TB", bgcolor="white")
     dot.attr("node", shape="plain")
-    dot.attr(nodesep="0.2")
-    dot.attr(ranksep="0.2")
+    dot.attr(nodesep="0.3")
+    dot.attr(ranksep="0.4")
     dot.attr(splines="polyline")
     dot.attr(ratio="compress")
 
-    def _nid(go_id):
-        return go_id.replace(':', '_')
-
-    def create_node(dot, go_id, description, png_path, highlight=False):
-
-        enhanced_png = enhance_image_quality(png_path)
-
-        if highlight:
-            header_bg = "#ffffcc"
-            font_color = "black"
-        else:
-            header_bg = "#6FACE8"
-            font_color = "black"
-        abs_path = os.path.abspath(enhanced_png)
-
-
-        safe_go_id = sanitize(go_id)
-        safe_description = sanitize(description[:100])    
-
-        label = f'''<
-<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4" WIDTH="250" ALIGN="LEFT">
-    <TR><TD BGCOLOR="{header_bg}" ALIGN="LEFT" VALIGN="MIDDLE">
-            <FONT COLOR="{font_color}" POINT-SIZE="16"><B>{safe_go_id}</B>
-            </FONT>
-            <BR/>
-            <FONT POINT-SIZE="16">{safe_description}</FONT>
-        </TD></TR>
-    <TR><TD><IMG SRC="{abs_path}" SCALE="TRUE"/></TD></TR>
-</TABLE>>'''
-
-        dot.node(_nid(go_id), label=label)
-
     # Query node
     query_png = f"illuminated_pca_{go_id.replace(':', '_')}.png"
+    create_node(dot, go_id, go_desc.get(go_id, "unknown"), query_png, highlight=True)
 
-    create_node(
-        dot,
-        go_id,
-        go_desc.get(go_id, "unknown"),
-        query_png,
-        highlight=True
-    )
-
-    # Descendant nodes
-    for desc_id, info in descendants.items():
-
+    # Descendant nodes, in a fixed (sorted) order for reproducibility
+    for desc_id, info in sorted(descendants.items()):
         desc_png = f"illuminated_pca_{desc_id.replace(':', '_')}.png"
-
-        create_node(
-            dot,
-            desc_id,
-            info["desc"],
-            desc_png,
-            highlight=False
-        )
+        create_node(dot, desc_id, info["desc"], desc_png, highlight=False)
 
     # Edges
     all_nodes = set(descendants.keys()) | {go_id}
 
-    for parent in all_nodes:
-
-        for child in parent_to_children.get(parent, []):
-
+    for parent in sorted(all_nodes):
+        for child in sorted(parent_to_children.get(parent, [])):
             if child in all_nodes:
-
                 dot.edge(_nid(parent), _nid(child))
+
+    # Order nodes within each tree depth by GO ID so the layout is
+    # identical across runs
+    nodes_by_level = defaultdict(list)
+    nodes_by_level[0].append(go_id)
+    for desc_id, info in descendants.items():
+        nodes_by_level[info["level"]].append(desc_id)
+
+    add_level_ordering(dot, nodes_by_level)
 
     # Save graphviz source
     gv_file = f"{output_file}.gv"
@@ -304,109 +332,59 @@ def plot_go_descendants(go_id, descendants, go_desc, parent_to_children, output_
 
 def plot_go_ancestors(go_id, ancestors, go_desc, child_to_parents, output_file="go_ancestors"):
 
-    def enhance_image_quality(png_path, target_size=(1000, 1000)):  # Aumentado a 500x500
-        """Mejora la calidad de la imagen antes de insertarla"""
-        if not os.path.exists(png_path):
-            return png_path
-        
-        enhanced_path = png_path.replace('.png', '_enhanced.png')
-        
-        try:
-            with Image.open(png_path) as img:
-                # Redimensionar con alta calidad - TAMAÑO MÁS GRANDE
-                img.thumbnail(target_size, Image.Resampling.LANCZOS)
-                # Aumentar contraste y nitidez para mejor visualización
-                from PIL import ImageEnhance
-                enhancer = ImageEnhance.Sharpness(img)
-                img = enhancer.enhance(1.5)
-                
-                # Guardar con alta calidad
-                img.save(enhanced_path, 'PNG', optimize=False, dpi=(300, 300))
-                return enhanced_path
-        except Exception as e:
-            print(f"Warning: Could not enhance {png_path}: {e}")
-            return png_path
-    
     dot = Digraph(comment=f"GO ancestors of {go_id}")
 
     dot.attr(rankdir="TB", bgcolor="white")
     dot.attr("node", shape="plain")
-    dot.attr(nodesep="0.2")  # Aumentado para más espacio entre nodos
-    dot.attr(ranksep="0.2")  # Aumentado para más espacio entre niveles
+    dot.attr(nodesep="0.3")
+    dot.attr(ranksep="0.4")
     dot.attr(splines="polyline")
     dot.attr(ratio="compress")
-    
-    def _nid(go_id):
-        return go_id.replace(':', '_')
-    
-    def create_node(dot, go_id, description, png_path, highlight=False):
-        # Mejorar la imagen
-        enhanced_png = enhance_image_quality(png_path)
-        
-        if highlight:
-            header_bg = "#ffffcc"
-            font_color = "black"
-        else:
-            header_bg = "#6FACE8"
-            font_color = "black"
-        
-        # Usar imagen mejorada con ruta absoluta
-        abs_path = os.path.abspath(enhanced_png)
-        
-        # IMAGEN MÁS GRANDE - Aumentado WIDTH y HEIGHT a 400
-        label = f'''<
-<TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4" WIDTH="250" ALIGN="LEFT">
-    <TR><TD BGCOLOR="{header_bg}"  ALIGN="LEFT" VALIGN="MIDDLE">
-        <FONT COLOR="{font_color}" POINT-SIZE="16"><B>{go_id}</B></FONT><BR/>
-        <FONT POINT-SIZE="16">{description[:100]}</FONT>
-    </TD></TR>
-    <TR><TD><IMG SRC="{abs_path}"  SCALE="TRUE"/></TD></TR>
-</TABLE>>'''
-        
-        dot.node(_nid(go_id), label=label)
 
     # Query node
     query_png = f"illuminated_pca_{go_id.replace(':', '_')}.png"
     create_node(dot, go_id, go_desc.get(go_id, "unknown"), query_png, highlight=True)
 
-    # Ancestor nodes
-    for anc_id, info in ancestors.items():
+    # Ancestor nodes, in a fixed (sorted) order for reproducibility
+    for anc_id, info in sorted(ancestors.items()):
         anc_png = f"illuminated_pca_{anc_id.replace(':', '_')}.png"
         create_node(dot, anc_id, info["desc"], anc_png, highlight=False)
 
     # Edges
     all_nodes = set(ancestors.keys()) | {go_id}
-    for child in all_nodes:
-        for parent in child_to_parents.get(child, []):
+    for child in sorted(all_nodes):
+        for parent in sorted(child_to_parents.get(child, [])):
             if parent in all_nodes:
                 dot.edge(_nid(parent), _nid(child))
 
-    # Renderizar a PNG con alta resolución
-    # Primero guardar el archivo .gv
+    # Order nodes within each tree depth by GO ID so the layout is
+    # identical across runs
+    nodes_by_level = defaultdict(list)
+    nodes_by_level[0].append(go_id)
+    for anc_id, info in ancestors.items():
+        nodes_by_level[info["level"]].append(anc_id)
+
+    add_level_ordering(dot, nodes_by_level)
+
+    # Save graphviz source and render
     gv_file = f"{output_file}.gv"
     dot.save(gv_file)
-    
-    # Renderizar con alta resolución y tamaño de página más grande
-    subprocess.run(f'dot -Tpng -Gdpi=300 -Gsize="40,40" "{gv_file}" -o "{output_file}.png"', shell=True)
-    # subprocess.run(f'dot -Tpng -Gdpi=600 -Gsize="40,40" "{gv_file}" -o "{output_file}_600dpi.png"', shell=True)
-    # subprocess.run(f'dot -Tsvg "{gv_file}" -o "{output_file}.svg"', shell=True)
-    
-    # Limpiar archivos temporales
+
+    subprocess.run(
+        f'dot -Tpng -Gdpi=300 -Gsize="40,40" "{gv_file}" -o "{output_file}.png"',
+        shell=True
+    )
+
     os.remove(gv_file)
-    
-    # Limpiar imágenes mejoradas temporales
+
     for anc_id in ancestors:
         anc_enhanced = f"illuminated_pca_{anc_id.replace(':', '_')}_enhanced.png"
         if os.path.exists(anc_enhanced):
             os.remove(anc_enhanced)
-    
+
     query_enhanced = f"illuminated_pca_{go_id.replace(':', '_')}_enhanced.png"
     if os.path.exists(query_enhanced):
         os.remove(query_enhanced)
-    
-    # print(f"High resolution PNG saved: {output_file}.png (300 DPI)")
-    # print(f"Ultra high resolution PNG: {output_file}_600dpi.png (600 DPI)")
-    # print(f"Vector SVG saved: {output_file}.svg (infinitely scalable)")
 
     return f"{output_file}.png"
 
