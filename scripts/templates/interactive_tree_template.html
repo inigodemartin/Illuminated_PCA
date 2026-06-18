@@ -97,14 +97,14 @@
     color: #475569;
     margin-top: 2px;
   }
-  #open-panels {
+  .panel-zone {
     display: flex;
     flex-direction: row;
     flex-wrap: wrap;
     justify-content: center;
     align-items: flex-start;
     gap: 16px;
-    padding: 8px 24px 60px;
+    margin-bottom: 16px;
   }
   .panel {
     background: #fff;
@@ -271,7 +271,6 @@
 <div id="tree-container">
   <svg id="connector-overlay"></svg>
 </div>
-<div id="open-panels"></div>
 <div id="tooltip" class="hidden"></div>
 
 <script id="go-tree-data" type="application/json">__INTERACTIVE_GO_TREE_DATA__</script>
@@ -460,6 +459,54 @@
     img.src = url;
   }
 
+  var LEGEND_ROW_H = 20;
+  var LEGEND_SWATCH = 10;
+  var LEGEND_GAP = 16;
+  var LEGEND_CHAR_PX = 6.3;
+
+  function packLegendRows(legendGroups, rowMaxWidth) {
+    var rows = [[]];
+    var rowWidth = 0;
+    legendGroups.forEach(function (g) {
+      var itemWidth = LEGEND_SWATCH + 4 + g.length * LEGEND_CHAR_PX + LEGEND_GAP;
+      if (rowWidth + itemWidth > rowMaxWidth && rows[rows.length - 1].length > 0) {
+        rows.push([]);
+        rowWidth = 0;
+      }
+      rows[rows.length - 1].push({ name: g, width: itemWidth });
+      rowWidth += itemWidth;
+    });
+    return rows;
+  }
+
+  function appendLegendRows(svgNS, parentSvg, rows, originX, originY) {
+    rows.forEach(function (row, rowIdx) {
+      var x = originX;
+      var y = originY + rowIdx * LEGEND_ROW_H + LEGEND_ROW_H / 2;
+      row.forEach(function (item) {
+        var swatch = document.createElementNS(svgNS, "circle");
+        swatch.setAttribute("cx", x + LEGEND_SWATCH / 2);
+        swatch.setAttribute("cy", y);
+        swatch.setAttribute("r", LEGEND_SWATCH / 2);
+        swatch.setAttribute("fill", DATA.groups[item.name] || "#999");
+        swatch.setAttribute("stroke", "black");
+        swatch.setAttribute("stroke-width", "0.5");
+        parentSvg.appendChild(swatch);
+
+        var label = document.createElementNS(svgNS, "text");
+        label.setAttribute("x", x + LEGEND_SWATCH + 4);
+        label.setAttribute("y", y + 4);
+        label.setAttribute("font-family", "Arial, Helvetica, sans-serif");
+        label.setAttribute("font-size", "11");
+        label.setAttribute("fill", "#1a1a1a");
+        label.textContent = item.name;
+        parentSvg.appendChild(label);
+
+        x += item.width;
+      });
+    });
+  }
+
   // Composes a standalone SVG (title, plot, axis labels, legend) around a
   // clone of the live scatter SVG, so the exported PNG carries the same
   // context as the on-screen panel instead of just bare dots.
@@ -469,23 +516,8 @@
     var TITLE_H = 26;
     var Y_LABEL_W = 18;
     var X_LABEL_H = 20;
-    var LEGEND_ROW_H = 20;
-    var LEGEND_SWATCH = 10;
-    var LEGEND_GAP = 16;
-    var CHAR_PX = 6.3;
 
-    var rowMaxWidth = Y_LABEL_W + PLOT_W;
-    var rows = [[]];
-    var rowWidth = 0;
-    legendGroups.forEach(function (g) {
-      var itemWidth = LEGEND_SWATCH + 4 + g.length * CHAR_PX + LEGEND_GAP;
-      if (rowWidth + itemWidth > rowMaxWidth && rows[rows.length - 1].length > 0) {
-        rows.push([]);
-        rowWidth = 0;
-      }
-      rows[rows.length - 1].push({ name: g, width: itemWidth });
-      rowWidth += itemWidth;
-    });
+    var rows = packLegendRows(legendGroups, Y_LABEL_W + PLOT_W);
     var legendH = rows.length * LEGEND_ROW_H;
 
     var totalW = MARGIN * 2 + Y_LABEL_W + PLOT_W;
@@ -541,32 +573,7 @@
     xLabel.textContent = PC1_LABEL;
     exportSvg.appendChild(xLabel);
 
-    var legendTop = MARGIN + TITLE_H + PLOT_H + X_LABEL_H;
-    rows.forEach(function (row, rowIdx) {
-      var x = MARGIN + Y_LABEL_W;
-      var y = legendTop + rowIdx * LEGEND_ROW_H + LEGEND_ROW_H / 2;
-      row.forEach(function (item) {
-        var swatch = document.createElementNS(svgNS, "circle");
-        swatch.setAttribute("cx", x + LEGEND_SWATCH / 2);
-        swatch.setAttribute("cy", y);
-        swatch.setAttribute("r", LEGEND_SWATCH / 2);
-        swatch.setAttribute("fill", DATA.groups[item.name] || "#999");
-        swatch.setAttribute("stroke", "black");
-        swatch.setAttribute("stroke-width", "0.5");
-        exportSvg.appendChild(swatch);
-
-        var label = document.createElementNS(svgNS, "text");
-        label.setAttribute("x", x + LEGEND_SWATCH + 4);
-        label.setAttribute("y", y + 4);
-        label.setAttribute("font-family", "Arial, Helvetica, sans-serif");
-        label.setAttribute("font-size", "11");
-        label.setAttribute("fill", "#1a1a1a");
-        label.textContent = item.name;
-        exportSvg.appendChild(label);
-
-        x += item.width;
-      });
-    });
+    appendLegendRows(svgNS, exportSvg, rows, MARGIN + Y_LABEL_W, MARGIN + TITLE_H + PLOT_H + X_LABEL_H);
 
     return { svg: exportSvg, width: totalW, height: totalH };
   }
@@ -767,7 +774,6 @@
     return panel;
   }
 
-  var openPanelsContainer = document.getElementById("open-panels");
   var openNodes = {};
   var openPanelElements = {};
 
@@ -775,28 +781,15 @@
     return s.replace(/[:"\\]/g, "\\$&");
   }
 
-  // Reading order for open panels: same top-to-bottom order the tree
-  // itself uses (so the panel area never looks "out of sync" with the
-  // hierarchy above it), tie-broken by GO id.
-  function levelSortValue(level) {
-    return DATA.meta.mode === "ancestors" ? -level : level;
-  }
-
-  function reorderOpenPanels() {
-    Object.keys(openNodes)
-      .sort(function (a, b) {
-        var diff = levelSortValue(nodesById[a].level) - levelSortValue(nodesById[b].level);
-        return diff !== 0 ? diff : a.localeCompare(b);
-      })
-      .forEach(function (goId) { openPanelsContainer.appendChild(openPanelElements[goId]); });
-  }
-
-  // Panels live in a single shared area below the whole tree, never
-  // interleaved between levels -- opening/closing any number of them
-  // never shifts a single node box, and the tree's hierarchy/levels stay
-  // exactly as laid out.
+  // Panels expand right under their own node's row, in that level's
+  // panel-zone -- so a PCA always opens "in the tree", next to its GO,
+  // not in some unrelated area of the page. Multiple panels opened from
+  // the same level share that level's zone, side by side (wrapping/
+  // shrinking via CSS), keeping that level's row order intact; opening a
+  // panel pushes the levels below it down, same as any inline accordion.
   function toggleNode(goId) {
     var box = document.querySelector('.node-box[data-go-id="' + cssEscape(goId) + '"]');
+    var zone = box.closest(".level-row").querySelector(".panel-zone");
 
     if (openNodes[goId]) {
       delete openNodes[goId];
@@ -807,9 +800,13 @@
       openNodes[goId] = true;
       box.classList.add("expanded");
       var panel = buildPanel(nodesById[goId]);
+      panel.setAttribute("data-panel-for", goId);
       openPanelElements[goId] = panel;
-      openPanelsContainer.appendChild(panel);
-      reorderOpenPanels();
+      zone.appendChild(panel);
+
+      var siblings = Array.prototype.slice.call(zone.children);
+      siblings.sort(function (a, b) { return a.getAttribute("data-panel-for").localeCompare(b.getAttribute("data-panel-for")); });
+      siblings.forEach(function (el) { zone.appendChild(el); });
     }
     requestAnimationFrame(drawConnectors);
   }
@@ -898,7 +895,11 @@
         nodeRow.appendChild(box);
       });
 
+      var panelZone = document.createElement("div");
+      panelZone.className = "panel-zone";
+
       rowWrap.appendChild(nodeRow);
+      rowWrap.appendChild(panelZone);
       container.appendChild(rowWrap);
     });
   }
@@ -967,32 +968,96 @@
     return g;
   }
 
+  // Snapshots every currently open panel exactly where it already sits
+  // (header text, the live plot at its live size, axis labels), all read
+  // from their live rects -- so the tree export shows PCAs expanded in
+  // place, matching the on-screen page instead of a separately-laid-out
+  // grid.
+  function buildOpenPanelsSnapshot(svgNS, containerRect) {
+    var g = document.createElementNS(svgNS, "g");
+
+    Object.keys(openPanelElements).forEach(function (goId) {
+      var panelEl = openPanelElements[goId];
+      var node = nodesById[goId];
+      var panelRect = panelEl.getBoundingClientRect();
+      var px = panelRect.left - containerRect.left + container.scrollLeft;
+      var py = panelRect.top - containerRect.top + container.scrollTop;
+
+      var card = document.createElementNS(svgNS, "rect");
+      card.setAttribute("x", px); card.setAttribute("y", py);
+      card.setAttribute("width", panelRect.width); card.setAttribute("height", panelRect.height);
+      card.setAttribute("rx", 8);
+      card.setAttribute("fill", "#ffffff");
+      card.setAttribute("stroke", "#cbd5e1");
+      g.appendChild(card);
+
+      var headerEl = panelEl.querySelector(".panel-header h3");
+      var headerRect = headerEl.getBoundingClientRect();
+      var headerText = document.createElementNS(svgNS, "text");
+      headerText.setAttribute("x", headerRect.left - containerRect.left + container.scrollLeft);
+      headerText.setAttribute("y", headerRect.top - containerRect.top + container.scrollTop + headerRect.height / 2 + 4);
+      headerText.setAttribute("font-family", "Arial, Helvetica, sans-serif");
+      headerText.setAttribute("font-size", "13");
+      headerText.setAttribute("font-weight", "bold");
+      headerText.textContent = node.go_id + " — " + node.description + " (IC " + formatIc(node.ic) + ")";
+      g.appendChild(headerText);
+
+      var liveSvg = panelEl.querySelector("svg.scatter");
+      var svgRect = liveSvg.getBoundingClientRect();
+      var plotClone = liveSvg.cloneNode(true);
+      plotClone.removeAttribute("class");
+      plotClone.setAttribute("width", svgRect.width);
+      plotClone.setAttribute("height", svgRect.height);
+      plotClone.setAttribute("x", svgRect.left - containerRect.left + container.scrollLeft);
+      plotClone.setAttribute("y", svgRect.top - containerRect.top + container.scrollTop);
+      g.appendChild(plotClone);
+
+      var yLabelSpan = panelEl.querySelector(".axis-label-y span");
+      if (yLabelSpan) {
+        var yr = yLabelSpan.getBoundingClientRect();
+        var yx = yr.left - containerRect.left + container.scrollLeft + yr.width / 2;
+        var yy = yr.top - containerRect.top + container.scrollTop + yr.height / 2;
+        var yText = document.createElementNS(svgNS, "text");
+        yText.setAttribute("transform", "translate(" + yx + "," + yy + ") rotate(-90)");
+        yText.setAttribute("text-anchor", "middle");
+        yText.setAttribute("font-family", "Arial, Helvetica, sans-serif");
+        yText.setAttribute("font-size", "10");
+        yText.setAttribute("fill", "#555");
+        yText.textContent = yLabelSpan.textContent;
+        g.appendChild(yText);
+      }
+
+      var xLabelEl = panelEl.querySelector(".axis-label-x");
+      if (xLabelEl) {
+        var xr = xLabelEl.getBoundingClientRect();
+        var xText = document.createElementNS(svgNS, "text");
+        xText.setAttribute("x", xr.left - containerRect.left + container.scrollLeft + xr.width / 2);
+        xText.setAttribute("y", xr.top - containerRect.top + container.scrollTop + xr.height / 2 + 4);
+        xText.setAttribute("text-anchor", "middle");
+        xText.setAttribute("font-family", "Arial, Helvetica, sans-serif");
+        xText.setAttribute("font-size", "10");
+        xText.setAttribute("fill", "#555");
+        xText.textContent = xLabelEl.textContent;
+        g.appendChild(xText);
+      }
+    });
+
+    return g;
+  }
+
   function downloadFullTreePng() {
     var svgNS = "http://www.w3.org/2000/svg";
     var MARGIN = 20;
+    var containerRect = container.getBoundingClientRect();
 
     var treeW = container.scrollWidth;
     var treeH = container.scrollHeight;
-    var treeGroup = buildTreeBoxesAndConnectors(svgNS);
 
-    var sortedGoIds = Object.keys(openNodes).sort(function (a, b) {
-      var diff = levelSortValue(nodesById[a].level) - levelSortValue(nodesById[b].level);
-      return diff !== 0 ? diff : a.localeCompare(b);
-    });
-    var panelExports = sortedGoIds.map(function (goId) {
-      var liveSvg = openPanelElements[goId].querySelector("svg.scatter");
-      return buildExportSvg(nodesById[goId], liveSvg, ALL_GROUPS);
-    });
+    var legendRows = packLegendRows(ALL_GROUPS, treeW);
+    var legendH = ALL_GROUPS.length ? legendRows.length * LEGEND_ROW_H + 10 : 0;
 
-    var panelW = panelExports.length ? panelExports[0].width : 0;
-    var panelH = panelExports.length ? panelExports[0].height : 0;
-    var cols = panelExports.length ? Math.max(1, Math.min(4, Math.floor(treeW / (panelW + MARGIN)))) : 1;
-    var rows = panelExports.length ? Math.ceil(panelExports.length / cols) : 0;
-    var panelsAreaW = panelExports.length ? cols * (panelW + MARGIN) : 0;
-    var panelsAreaH = panelExports.length ? rows * (panelH + MARGIN) : 0;
-
-    var masterW = Math.max(treeW, panelsAreaW) + MARGIN * 2;
-    var masterH = treeH + (panelExports.length ? MARGIN + panelsAreaH : 0) + MARGIN * 2;
+    var masterW = treeW + MARGIN * 2;
+    var masterH = treeH + legendH + MARGIN * 2;
 
     var masterSvg = document.createElementNS(svgNS, "svg");
     masterSvg.setAttribute("width", masterW);
@@ -1005,17 +1070,13 @@
     bg.setAttribute("fill", "#ffffff");
     masterSvg.appendChild(bg);
 
-    treeGroup.setAttribute("transform", "translate(" + ((masterW - treeW) / 2) + "," + MARGIN + ")");
-    masterSvg.appendChild(treeGroup);
+    var contentGroup = document.createElementNS(svgNS, "g");
+    contentGroup.setAttribute("transform", "translate(" + MARGIN + "," + MARGIN + ")");
+    contentGroup.appendChild(buildTreeBoxesAndConnectors(svgNS));
+    contentGroup.appendChild(buildOpenPanelsSnapshot(svgNS, containerRect));
+    masterSvg.appendChild(contentGroup);
 
-    var gridOffsetX = (masterW - panelsAreaW) / 2;
-    var gridTop = treeH + MARGIN * 2;
-    panelExports.forEach(function (pe, idx) {
-      var col = idx % cols, row = Math.floor(idx / cols);
-      pe.svg.setAttribute("x", gridOffsetX + col * (panelW + MARGIN) + MARGIN / 2);
-      pe.svg.setAttribute("y", gridTop + row * (panelH + MARGIN));
-      masterSvg.appendChild(pe.svg);
-    });
+    appendLegendRows(svgNS, masterSvg, legendRows, MARGIN, treeH + MARGIN + 10);
 
     downloadSvgAsPng(masterSvg, masterW, masterH, "go_tree_" + DATA.meta.root.replace(":", "_"));
   }

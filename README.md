@@ -160,15 +160,18 @@ count, its total protein count, and what share of its proteome that GO
 term represents. No server or internet connection is needed — the file
 works fully offline, just open it in a browser.
 
-Opened PCAs live in one shared area below the whole tree (not interleaved
-between levels), so the tree's boxes and hierarchy never move or reflow
-no matter how many panels are open at once — panels just wrap/shrink to
-fit. "Expand all PCAs"/"Collapse all PCAs" buttons in the header open or
-close every node at once. Each panel can be downloaded individually as a
-PNG (title, axis variance labels and taxon legend included), and
-"Download tree PNG" exports the whole tree plus every currently-open PCA
-as one image. Each node also shows its GO Information Content (IC), from
-the bundled `data/All_GOs_ic.tsv`.
+A PCA always expands right under its own node, in that level's row — not
+in some unrelated part of the page — so the tree stays easy to read even
+with several open at once: panels opened from the same level share that
+row side by side, wrapping/shrinking to fit, while levels below are
+simply pushed down, same as any inline accordion. "Expand all PCAs"/
+"Collapse all PCAs" buttons in the header open or close every node at
+once. Each panel can be downloaded individually as a PNG (title, axis
+variance labels and taxon legend included), and "Download tree PNG"
+exports the whole tree exactly as shown on screen — boxes, connectors and
+every currently-expanded PCA in place — as one image. Each node also
+shows its GO Information Content (IC), from the bundled
+`data/All_GOs_ic.tsv`.
 
 Differences from the PNG pipeline:
 
