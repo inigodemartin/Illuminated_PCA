@@ -165,6 +165,26 @@
   .legend-action:hover {
     background: #e2e8f0;
   }
+  .threshold-row {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    font-size: 12px;
+    margin-bottom: 8px;
+    color: #334155;
+  }
+  .threshold-row label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .threshold-input {
+    width: 70px;
+    padding: 2px 4px;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    font-size: 12px;
+  }
   .panel-close {
     cursor: pointer;
     border: none;
@@ -397,9 +417,23 @@
     tooltip.classList.add("hidden");
   }
 
+  // A point is hidden if its taxonomic group is toggled off, or its raw
+  // GO count falls outside this panel's own [min, max] threshold (each
+  // panel keeps its own threshold in its dataset, since a meaningful
+  // count range differs wildly between GO terms).
+  function isCircleHidden(group, count, panelEl) {
+    if (hiddenGroups[group]) return true;
+    var minVal = panelEl.dataset.minCount !== "" ? parseFloat(panelEl.dataset.minCount) : null;
+    var maxVal = panelEl.dataset.maxCount !== "" ? parseFloat(panelEl.dataset.maxCount) : null;
+    if (minVal !== null && !isNaN(minVal) && count < minVal) return true;
+    if (maxVal !== null && !isNaN(maxVal) && count > maxVal) return true;
+    return false;
+  }
+
   function applyGroupVisibility(panelEl) {
     panelEl.querySelectorAll("circle[data-group]").forEach(function (c) {
-      c.style.display = hiddenGroups[c.getAttribute("data-group")] ? "none" : "";
+      var count = parseFloat(c.getAttribute("data-count"));
+      c.style.display = isCircleHidden(c.getAttribute("data-group"), count, panelEl) ? "none" : "";
     });
   }
 
@@ -581,6 +615,8 @@
   function buildPanel(node) {
     var panel = document.createElement("div");
     panel.className = "panel";
+    panel.dataset.minCount = "";
+    panel.dataset.maxCount = "";
 
     var header = document.createElement("div");
     header.className = "panel-header";
@@ -651,6 +687,40 @@
     var countArr = DATA.species.map(function (_, i) { return counts[String(i)] || 0; });
     var groupArr = DATA.species.map(function (s) { return s.group; });
     var styles = computeAlphaSize(countArr, groupArr, DATA.meta.no_outliers);
+    var maxObservedCount = Math.max.apply(null, countArr);
+
+    var thresholdRow = document.createElement("div");
+    thresholdRow.className = "threshold-row";
+
+    var minLabel = document.createElement("label");
+    minLabel.appendChild(document.createTextNode("Min count:"));
+    var minInput = document.createElement("input");
+    minInput.type = "number";
+    minInput.min = "0";
+    minInput.placeholder = "0";
+    minInput.className = "threshold-input";
+    minInput.oninput = function () {
+      panel.dataset.minCount = minInput.value;
+      applyGroupVisibility(panel);
+    };
+    minLabel.appendChild(minInput);
+
+    var maxLabel = document.createElement("label");
+    maxLabel.appendChild(document.createTextNode("Max count:"));
+    var maxInput = document.createElement("input");
+    maxInput.type = "number";
+    maxInput.min = "0";
+    maxInput.placeholder = maxObservedCount > 0 ? String(maxObservedCount) : "none";
+    maxInput.className = "threshold-input";
+    maxInput.oninput = function () {
+      panel.dataset.maxCount = maxInput.value;
+      applyGroupVisibility(panel);
+    };
+    maxLabel.appendChild(maxInput);
+
+    thresholdRow.appendChild(minLabel);
+    thresholdRow.appendChild(maxLabel);
+    panel.appendChild(thresholdRow);
 
     var svgNS = "http://www.w3.org/2000/svg";
     var svg = document.createElementNS(svgNS, "svg");
@@ -745,7 +815,8 @@
       c.setAttribute("stroke", "black");
       c.setAttribute("stroke-width", "0.4");
       c.setAttribute("data-group", s.group);
-      c.style.display = hiddenGroups[s.group] ? "none" : "";
+      c.setAttribute("data-count", countArr[i]);
+      c.style.display = isCircleHidden(s.group, countArr[i], panel) ? "none" : "";
       c.addEventListener("mouseenter", function (evt) { if (!isPanning) showTooltip(evt, s, countArr[i]); });
       c.addEventListener("mousemove", function (evt) { if (!isPanning) moveTooltip(evt); });
       c.addEventListener("mouseleave", hideTooltip);
