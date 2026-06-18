@@ -13,8 +13,9 @@ is specific to this script.
 from pathlib import Path
 import argparse
 import json
-from collections import defaultdict, deque
+from collections import defaultdict
 
+import numpy as np
 import pandas as pd
 from sklearn.decomposition import TruncatedSVD
 from sklearn.preprocessing import StandardScaler
@@ -90,17 +91,57 @@ def rgb_to_hex(rgb):
     return "#{:02x}{:02x}{:02x}".format(int(r * 255), int(g * 255), int(b * 255))
 
 
-def all_descendants_including_self(go_id, parent_to_children):
-    """BFS over the full ontology's parent->children map."""
-    out = {go_id}
-    queue = deque([go_id])
-    while queue:
-        current = queue.popleft()
-        for child in parent_to_children.get(current, []):
-            if child not in out:
-                out.add(child)
-                queue.append(child)
-    return out
+def build_descendant_sum_cache(parent_to_children, own_vector, n_species):
+    """
+    Returns a function go_id -> per-species count vector summed over
+    go_id + all its descendants, memoized across calls via an iterative
+    post-order traversal (no recursion -- a real ontology's ancestor
+    chains can run thousands of terms deep, which blew Python's
+    recursion limit in an earlier, recursive version of this).
+
+    Earlier version of this memoized full descendant-*id-set* per node
+    instead of a count vector; for a deep/broad real ontology that's
+    O(V^2) ids materialized (every node's set can be a sizeable fraction
+    of the whole ontology) and exhausted memory. A fixed-size numpy
+    vector per node is O(V * n_species) total instead, however big the
+    ontology, and is exactly what's needed here anyway (we only ever sum
+    counts, never inspect which ids contributed).
+
+    Query-tree nodes (ancestors of a broad/shallow term especially, whose
+    own descendant subtrees overlap heavily) used to each trigger an
+    independent full BFS+sum; memoizing means every node's vector is
+    computed once and reused, however many of the N query nodes need it.
+    """
+    memo = {}
+    zeros = np.zeros(n_species, dtype="int64")
+
+    def compute(root):
+        if root in memo:
+            return memo[root]
+
+        stack = [root]
+        on_path = set()
+        while stack:
+            node = stack[-1]
+            if node in memo:
+                stack.pop()
+                continue
+            if node in on_path:
+                total = own_vector(node).copy()
+                for child in parent_to_children.get(node, []):
+                    total += memo.get(child, zeros)
+                memo[node] = total
+                on_path.discard(node)
+                stack.pop()
+                continue
+            on_path.add(node)
+            for child in parent_to_children.get(node, []):
+                if child not in memo and child not in on_path:
+                    stack.append(child)
+
+        return memo[root]
+
+    return compute
 
 
 def compute_topological_levels(root, all_nodes, edges, plot_descendants):
@@ -122,17 +163,30 @@ def compute_topological_levels(root, all_nodes, edges, plot_descendants):
     # (closer to the root). Descendants mode: walk via its parents instead.
     neighbors = parents_of if plot_descendants else children_of
 
+    # Iterative post-order (no recursion): a query term's ancestor chain
+    # in a real ontology can run thousands of terms deep, which is enough
+    # to blow Python's default recursion limit.
     levels = {}
-
-    def recurse(node):
-        if node in levels:
-            return levels[node]
-        ups = neighbors.get(node, [])
-        levels[node] = 1 + max(recurse(n) for n in ups) if ups else 0
-        return levels[node]
-
-    for node in all_nodes:
-        recurse(node)
+    for root in all_nodes:
+        if root in levels:
+            continue
+        stack = [root]
+        on_path = set()
+        while stack:
+            node = stack[-1]
+            if node in levels:
+                stack.pop()
+                continue
+            if node in on_path:
+                ups = neighbors.get(node, [])
+                levels[node] = 1 + max((levels.get(n, 0) for n in ups), default=-1) if ups else 0
+                on_path.discard(node)
+                stack.pop()
+                continue
+            on_path.add(node)
+            for n in neighbors.get(node, []):
+                if n not in levels and n not in on_path:
+                    stack.append(n)
     return levels
 
 
@@ -182,17 +236,22 @@ def build_node_counts(node_ids, raw_full_df, species, parent_to_children, count_
     Always computed from the *full* raw matrix (not the rare-column-filtered
     one used for PCA), matching how illumination counts work today.
     """
+    species_df = raw_full_df.loc[species]
+    col_index = {go_id: i for i, go_id in enumerate(species_df.columns)}
+    values = species_df.to_numpy(dtype="int64")
+    n_species = len(species)
+    zeros = np.zeros(n_species, dtype="int64")
+
+    def own_vector(go_id):
+        idx = col_index.get(go_id)
+        return values[:, idx] if idx is not None else zeros
+
+    sum_cache = build_descendant_sum_cache(parent_to_children, own_vector, n_species) if count_descendants else None
+
     counts = {}
     for go_id in node_ids:
-        targets = all_descendants_including_self(go_id, parent_to_children) if count_descendants else {go_id}
-        valid_cols = [g for g in targets if g in raw_full_df.columns]
-
-        sparse = {}
-        if valid_cols:
-            summed = raw_full_df.loc[species, valid_cols].sum(axis=1)
-            for idx, value in enumerate(summed.values):
-                if value > 0:
-                    sparse[str(idx)] = int(value)
+        vector = sum_cache(go_id) if count_descendants else own_vector(go_id)
+        sparse = {str(idx): int(value) for idx, value in enumerate(vector) if value > 0}
         counts[go_id] = sparse
     return counts
 
