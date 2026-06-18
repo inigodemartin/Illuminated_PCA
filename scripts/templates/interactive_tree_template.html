@@ -119,6 +119,23 @@
   .panel-reset:hover {
     background: #e2e8f0;
   }
+  .legend-actions {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .legend-action {
+    cursor: pointer;
+    border: 1px solid #cbd5e1;
+    background: #f8fafc;
+    border-radius: 4px;
+    font-size: 11px;
+    padding: 2px 8px;
+    color: #334155;
+  }
+  .legend-action:hover {
+    background: #e2e8f0;
+  }
   .panel-close {
     cursor: pointer;
     border: none;
@@ -334,6 +351,62 @@
     });
   }
 
+  function syncLegendCheckboxes() {
+    document.querySelectorAll("input[data-group-checkbox]").forEach(function (cb) {
+      cb.checked = !hiddenGroups[cb.getAttribute("data-group-checkbox")];
+    });
+  }
+
+  function refreshAllPanels() {
+    document.querySelectorAll(".panel").forEach(applyGroupVisibility);
+    syncLegendCheckboxes();
+  }
+
+  function setAllGroupsHidden(hidden) {
+    DATA.species.forEach(function (s) { hiddenGroups[s.group] = hidden; });
+    refreshAllPanels();
+  }
+
+  var PNG_EXPORT_SCALE = 2;
+
+  function downloadSvgAsPng(svg, filenameBase) {
+    var clone = svg.cloneNode(true);
+    clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+
+    var outW = PLOT_W * PNG_EXPORT_SCALE;
+    var outH = PLOT_H * PNG_EXPORT_SCALE;
+
+    var svgString = new XMLSerializer().serializeToString(clone);
+    var svgBlob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+    var url = URL.createObjectURL(svgBlob);
+
+    var img = new Image();
+    img.onload = function () {
+      var canvas = document.createElement("canvas");
+      canvas.width = outW;
+      canvas.height = outH;
+      var ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, outW, outH);
+      ctx.drawImage(img, 0, 0, outW, outH);
+      URL.revokeObjectURL(url);
+
+      canvas.toBlob(function (blob) {
+        var a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = filenameBase + ".png";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }, "image/png");
+    };
+    img.onerror = function () {
+      URL.revokeObjectURL(url);
+      window.alert("Could not export this PCA as PNG.");
+    };
+    img.src = url;
+  }
+
   function buildPanel(node) {
     var panel = document.createElement("div");
     panel.className = "panel";
@@ -351,6 +424,11 @@
     resetBtn.textContent = "Reset zoom";
     headerButtons.appendChild(resetBtn);
 
+    var downloadBtn = document.createElement("button");
+    downloadBtn.className = "panel-reset";
+    downloadBtn.textContent = "Download PNG";
+    headerButtons.appendChild(downloadBtn);
+
     var closeBtn = document.createElement("button");
     closeBtn.className = "panel-close";
     closeBtn.textContent = "✕";
@@ -363,16 +441,31 @@
     var groupsPresent = {};
     DATA.species.forEach(function (s) { groupsPresent[s.group] = true; });
 
+    var legendActions = document.createElement("div");
+    legendActions.className = "legend-actions";
+    var selectAllBtn = document.createElement("button");
+    selectAllBtn.className = "legend-action";
+    selectAllBtn.textContent = "Select all";
+    selectAllBtn.onclick = function () { setAllGroupsHidden(false); };
+    var selectNoneBtn = document.createElement("button");
+    selectNoneBtn.className = "legend-action";
+    selectNoneBtn.textContent = "Select none";
+    selectNoneBtn.onclick = function () { setAllGroupsHidden(true); };
+    legendActions.appendChild(selectAllBtn);
+    legendActions.appendChild(selectNoneBtn);
+    panel.appendChild(legendActions);
+
     var legend = document.createElement("div");
     legend.className = "legend";
     Object.keys(groupsPresent).sort().forEach(function (g) {
       var label = document.createElement("label");
       var cb = document.createElement("input");
       cb.type = "checkbox";
+      cb.setAttribute("data-group-checkbox", g);
       cb.checked = !hiddenGroups[g];
       cb.onchange = function () {
         hiddenGroups[g] = !cb.checked;
-        document.querySelectorAll(".panel").forEach(applyGroupVisibility);
+        refreshAllPanels();
       };
       var swatch = document.createElement("span");
       swatch.className = "swatch";
@@ -404,6 +497,10 @@
     resetBtn.onclick = function () {
       viewBox.x = 0; viewBox.y = 0; viewBox.w = PLOT_W; viewBox.h = PLOT_H;
       applyViewBox();
+    };
+
+    downloadBtn.onclick = function () {
+      downloadSvgAsPng(svg, "illuminated_pca_" + node.go_id.replace(":", "_"));
     };
 
     var minViewW = PLOT_W * MIN_VIEW_FRACTION;
@@ -446,16 +543,23 @@
       svg.classList.remove("panning");
     });
 
+    function styleAxisLine(line) {
+      line.setAttribute("class", "axis-line");
+      line.setAttribute("stroke", "#9ca3af");
+      line.setAttribute("stroke-dasharray", "4 3");
+      line.setAttribute("stroke-width", "1");
+    }
+
     var axisX = document.createElementNS(svgNS, "line");
     axisX.setAttribute("x1", 0); axisX.setAttribute("x2", PLOT_W);
     axisX.setAttribute("y1", scaleY(0)); axisX.setAttribute("y2", scaleY(0));
-    axisX.setAttribute("class", "axis-line");
+    styleAxisLine(axisX);
     svg.appendChild(axisX);
 
     var axisY = document.createElementNS(svgNS, "line");
     axisY.setAttribute("y1", 0); axisY.setAttribute("y2", PLOT_H);
     axisY.setAttribute("x1", scaleX(0)); axisY.setAttribute("x2", scaleX(0));
-    axisY.setAttribute("class", "axis-line");
+    styleAxisLine(axisY);
     svg.appendChild(axisY);
 
     DATA.species.forEach(function (s, i) {
