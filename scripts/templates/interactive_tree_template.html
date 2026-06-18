@@ -369,12 +369,12 @@
 
   var PNG_EXPORT_SCALE = 2;
 
-  function downloadSvgAsPng(svg, filenameBase) {
+  function downloadSvgAsPng(svg, width, height, filenameBase) {
     var clone = svg.cloneNode(true);
     clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
 
-    var outW = PLOT_W * PNG_EXPORT_SCALE;
-    var outH = PLOT_H * PNG_EXPORT_SCALE;
+    var outW = Math.round(width * PNG_EXPORT_SCALE);
+    var outH = Math.round(height * PNG_EXPORT_SCALE);
 
     var svgString = new XMLSerializer().serializeToString(clone);
     var svgBlob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
@@ -405,6 +405,115 @@
       window.alert("Could not export this PCA as PNG.");
     };
     img.src = url;
+  }
+
+  // Composes a standalone SVG (title, plot, axis labels, legend) around a
+  // clone of the live scatter SVG, so the exported PNG carries the same
+  // context as the on-screen panel instead of just bare dots.
+  function buildExportSvg(node, liveSvg, legendGroups) {
+    var svgNS = "http://www.w3.org/2000/svg";
+    var MARGIN = 14;
+    var TITLE_H = 26;
+    var Y_LABEL_W = 18;
+    var X_LABEL_H = 20;
+    var LEGEND_ROW_H = 20;
+    var LEGEND_SWATCH = 10;
+    var LEGEND_GAP = 16;
+    var CHAR_PX = 6.3;
+
+    var rowMaxWidth = Y_LABEL_W + PLOT_W;
+    var rows = [[]];
+    var rowWidth = 0;
+    legendGroups.forEach(function (g) {
+      var itemWidth = LEGEND_SWATCH + 4 + g.length * CHAR_PX + LEGEND_GAP;
+      if (rowWidth + itemWidth > rowMaxWidth && rows[rows.length - 1].length > 0) {
+        rows.push([]);
+        rowWidth = 0;
+      }
+      rows[rows.length - 1].push({ name: g, width: itemWidth });
+      rowWidth += itemWidth;
+    });
+    var legendH = rows.length * LEGEND_ROW_H;
+
+    var totalW = MARGIN * 2 + Y_LABEL_W + PLOT_W;
+    var totalH = MARGIN * 2 + TITLE_H + PLOT_H + X_LABEL_H + legendH;
+
+    var exportSvg = document.createElementNS(svgNS, "svg");
+    exportSvg.setAttribute("width", totalW);
+    exportSvg.setAttribute("height", totalH);
+    exportSvg.setAttribute("viewBox", "0 0 " + totalW + " " + totalH);
+
+    var bg = document.createElementNS(svgNS, "rect");
+    bg.setAttribute("x", 0); bg.setAttribute("y", 0);
+    bg.setAttribute("width", totalW); bg.setAttribute("height", totalH);
+    bg.setAttribute("fill", "#ffffff");
+    exportSvg.appendChild(bg);
+
+    var title = document.createElementNS(svgNS, "text");
+    title.setAttribute("x", totalW / 2);
+    title.setAttribute("y", MARGIN + 16);
+    title.setAttribute("text-anchor", "middle");
+    title.setAttribute("font-family", "Arial, Helvetica, sans-serif");
+    title.setAttribute("font-size", "14");
+    title.setAttribute("font-weight", "bold");
+    title.textContent = node.go_id + " — " + node.description;
+    exportSvg.appendChild(title);
+
+    var plotSvg = liveSvg.cloneNode(true);
+    plotSvg.removeAttribute("class");
+    plotSvg.setAttribute("x", MARGIN + Y_LABEL_W);
+    plotSvg.setAttribute("y", MARGIN + TITLE_H);
+    exportSvg.appendChild(plotSvg);
+
+    var yLabel = document.createElementNS(svgNS, "text");
+    var yLabelX = MARGIN + 10;
+    var yLabelY = MARGIN + TITLE_H + PLOT_H / 2;
+    yLabel.setAttribute("transform", "translate(" + yLabelX + "," + yLabelY + ") rotate(-90)");
+    yLabel.setAttribute("text-anchor", "middle");
+    yLabel.setAttribute("font-family", "Arial, Helvetica, sans-serif");
+    yLabel.setAttribute("font-size", "11");
+    yLabel.setAttribute("fill", "#555");
+    yLabel.textContent = PC2_LABEL;
+    exportSvg.appendChild(yLabel);
+
+    var xLabel = document.createElementNS(svgNS, "text");
+    xLabel.setAttribute("x", MARGIN + Y_LABEL_W + PLOT_W / 2);
+    xLabel.setAttribute("y", MARGIN + TITLE_H + PLOT_H + 14);
+    xLabel.setAttribute("text-anchor", "middle");
+    xLabel.setAttribute("font-family", "Arial, Helvetica, sans-serif");
+    xLabel.setAttribute("font-size", "11");
+    xLabel.setAttribute("fill", "#555");
+    xLabel.textContent = PC1_LABEL;
+    exportSvg.appendChild(xLabel);
+
+    var legendTop = MARGIN + TITLE_H + PLOT_H + X_LABEL_H;
+    rows.forEach(function (row, rowIdx) {
+      var x = MARGIN + Y_LABEL_W;
+      var y = legendTop + rowIdx * LEGEND_ROW_H + LEGEND_ROW_H / 2;
+      row.forEach(function (item) {
+        var swatch = document.createElementNS(svgNS, "circle");
+        swatch.setAttribute("cx", x + LEGEND_SWATCH / 2);
+        swatch.setAttribute("cy", y);
+        swatch.setAttribute("r", LEGEND_SWATCH / 2);
+        swatch.setAttribute("fill", DATA.groups[item.name] || "#999");
+        swatch.setAttribute("stroke", "black");
+        swatch.setAttribute("stroke-width", "0.5");
+        exportSvg.appendChild(swatch);
+
+        var label = document.createElementNS(svgNS, "text");
+        label.setAttribute("x", x + LEGEND_SWATCH + 4);
+        label.setAttribute("y", y + 4);
+        label.setAttribute("font-family", "Arial, Helvetica, sans-serif");
+        label.setAttribute("font-size", "11");
+        label.setAttribute("fill", "#1a1a1a");
+        label.textContent = item.name;
+        exportSvg.appendChild(label);
+
+        x += item.width;
+      });
+    });
+
+    return { svg: exportSvg, width: totalW, height: totalH };
   }
 
   function buildPanel(node) {
@@ -440,6 +549,7 @@
 
     var groupsPresent = {};
     DATA.species.forEach(function (s) { groupsPresent[s.group] = true; });
+    var legendGroupNames = Object.keys(groupsPresent).sort();
 
     var legendActions = document.createElement("div");
     legendActions.className = "legend-actions";
@@ -457,7 +567,7 @@
 
     var legend = document.createElement("div");
     legend.className = "legend";
-    Object.keys(groupsPresent).sort().forEach(function (g) {
+    legendGroupNames.forEach(function (g) {
       var label = document.createElement("label");
       var cb = document.createElement("input");
       cb.type = "checkbox";
@@ -500,7 +610,8 @@
     };
 
     downloadBtn.onclick = function () {
-      downloadSvgAsPng(svg, "illuminated_pca_" + node.go_id.replace(":", "_"));
+      var built = buildExportSvg(node, svg, legendGroupNames);
+      downloadSvgAsPng(built.svg, built.width, built.height, "illuminated_pca_" + node.go_id.replace(":", "_"));
     };
 
     var minViewW = PLOT_W * MIN_VIEW_FRACTION;
