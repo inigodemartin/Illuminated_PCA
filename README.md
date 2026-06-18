@@ -166,10 +166,12 @@ with several open at once: panels opened from the same level share that
 row side by side, wrapping/shrinking to fit, while levels below are
 simply pushed down, same as any inline accordion. "Expand all PCAs"/
 "Collapse all PCAs" buttons in the header open or close every node at
-once. Each panel also has its own "Min count"/"Max count" fields: set
-either (or both) to only plot species whose GO count for that node falls
-in that range, e.g. min=10 hides every species annotated fewer than 10
-times. Each panel can be downloaded individually as a PNG (title, axis
+once. A fixed sidebar holds the taxon legend/select-all-none (one shared
+copy that controls every open panel, instead of repeating it in each
+one) and a "Min"/"Max" count threshold per currently-open PCA: set either
+to only plot species whose GO count for that node falls in that range,
+e.g. min=10 hides every species annotated fewer than 10 times for that
+term. Each panel can be downloaded individually as a PNG (title, axis
 variance labels and taxon legend included), and "Download tree PNG"
 exports the whole tree exactly as shown on screen — boxes, connectors and
 every currently-expanded PCA in place, thresholds and all — as one image.
