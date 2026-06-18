@@ -13,7 +13,7 @@ is specific to this script.
 from pathlib import Path
 import argparse
 import json
-from collections import deque
+from collections import defaultdict, deque
 
 import pandas as pd
 from sklearn.decomposition import TruncatedSVD
@@ -82,16 +82,45 @@ def all_descendants_including_self(go_id, parent_to_children):
     return out
 
 
+def compute_topological_levels(root, all_nodes, edges, plot_descendants):
+    """
+    Longest-path layering, the same property Graphviz's own rank assignment
+    guarantees: every edge (parent, child) must have level(parent) >
+    level(child). A GO term can have multiple parents at different
+    distances from the root, so the shortest BFS distance (what
+    get_go_relations returns) is not enough -- a node has to sit past the
+    *longest* chain that reaches it, or some edge would point the wrong way.
+    """
+    children_of = defaultdict(list)
+    parents_of = defaultdict(list)
+    for parent, child in edges:
+        children_of[parent].append(child)
+        parents_of[child].append(parent)
+
+    # Ancestors mode: walk from a node toward the root via its children
+    # (closer to the root). Descendants mode: walk via its parents instead.
+    neighbors = parents_of if plot_descendants else children_of
+
+    levels = {}
+
+    def recurse(node):
+        if node in levels:
+            return levels[node]
+        ups = neighbors.get(node, [])
+        levels[node] = 1 + max(recurse(n) for n in ups) if ups else 0
+        return levels[node]
+
+    for node in all_nodes:
+        recurse(node)
+    return levels
+
+
 def build_tree(go_id, extra_nodes, go_desc, child_to_parents, parent_to_children, plot_descendants):
     """
     Mirrors plot_go_ancestors/plot_go_descendants in go_tree_illuminated_pca.py,
     but emits plain data (nodes + edges) instead of a Graphviz diagram.
     """
     all_nodes = set(extra_nodes.keys()) | {go_id}
-
-    nodes = [{"go_id": go_id, "description": go_desc.get(go_id, "unknown"), "level": 0, "is_root": True}]
-    for node_id, info in extra_nodes.items():
-        nodes.append({"go_id": node_id, "description": info["desc"], "level": info["level"], "is_root": False})
 
     edges = []
     if plot_descendants:
@@ -104,6 +133,12 @@ def build_tree(go_id, extra_nodes, go_desc, child_to_parents, parent_to_children
             for parent in sorted(child_to_parents.get(child, [])):
                 if parent in all_nodes:
                     edges.append([parent, child])
+
+    levels = compute_topological_levels(go_id, all_nodes, edges, plot_descendants)
+
+    nodes = [{"go_id": go_id, "description": go_desc.get(go_id, "unknown"), "level": levels[go_id], "is_root": True}]
+    for node_id, info in extra_nodes.items():
+        nodes.append({"go_id": node_id, "description": info["desc"], "level": levels[node_id], "is_root": False})
 
     return nodes, edges, all_nodes
 

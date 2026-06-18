@@ -262,26 +262,39 @@
     return sortedAsc[lo] + (sortedAsc[hi] - sortedAsc[lo]) * (idx - lo);
   }
 
-  // Mirrors illuminate_PCA.run_illuminated_PCA's opacity/size formula.
-  function computeAlphaSize(counts, noOutliers) {
+  // Mirrors illuminate_PCA.run_illuminated_PCA's opacity/size formula,
+  // including the fact that the 99th-percentile clip (the no_outliers
+  // path) is computed per taxonomic group, not globally -- a group made up
+  // of mostly low counts shouldn't get washed out by one outlier species
+  // in a completely different group.
+  function computeAlphaSize(counts, groups, noOutliers) {
     var maxCount = Math.max.apply(null, counts);
     if (!(maxCount > 0)) {
       return counts.map(function () { return { alpha: 0, radius: MIN_RADIUS }; });
     }
-    var norms;
+
+    var alphas = counts.map(function () { return 0; });
+
     if (noOutliers) {
-      norms = counts.map(function (c) { return c / maxCount; });
-      var nonzero = norms.filter(function (n) { return n > 0; }).sort(function (a, b) { return a - b; });
-      var p99 = nonzero.length ? percentile(nonzero, 99) : 1.0;
-      norms = norms.map(function (n) { return Math.min(n, p99); });
-      if (p99 > 0) norms = norms.map(function (n) { return n / p99; });
-      norms = norms.map(function (n) { return Math.sqrt(n); });
-      norms = norms.map(function (n, i) { return counts[i] === 0 ? 0 : n; });
+      var byGroup = {};
+      groups.forEach(function (g, i) { (byGroup[g] = byGroup[g] || []).push(i); });
+
+      Object.keys(byGroup).forEach(function (g) {
+        var idxs = byGroup[g];
+        var norm = idxs.map(function (i) { return counts[i] / maxCount; });
+        var nonzero = norm.filter(function (n) { return n > 0; }).sort(function (a, b) { return a - b; });
+        var p99 = nonzero.length ? percentile(nonzero, 99) : 1.0;
+        norm = norm.map(function (n) { return Math.min(n, p99); });
+        if (p99 > 0) norm = norm.map(function (n) { return n / p99; });
+        norm = norm.map(function (n) { return Math.sqrt(n); });
+        idxs.forEach(function (i, k) { alphas[i] = counts[i] === 0 ? 0 : norm[k]; });
+      });
     } else {
       var logMax = Math.log1p(maxCount);
-      norms = counts.map(function (c) { return logMax > 0 ? Math.log1p(c) / logMax : 0; });
+      alphas = counts.map(function (c) { return logMax > 0 ? Math.log1p(c) / logMax : 0; });
     }
-    return norms.map(function (a) { return { alpha: a, radius: MIN_RADIUS + a * (MAX_RADIUS - MIN_RADIUS) }; });
+
+    return alphas.map(function (a) { return { alpha: a, radius: MIN_RADIUS + a * (MAX_RADIUS - MIN_RADIUS) }; });
   }
 
   function escapeHtml(s) {
@@ -373,7 +386,8 @@
 
     var counts = DATA.counts[node.go_id] || {};
     var countArr = DATA.species.map(function (_, i) { return counts[String(i)] || 0; });
-    var styles = computeAlphaSize(countArr, DATA.meta.no_outliers);
+    var groupArr = DATA.species.map(function (s) { return s.group; });
+    var styles = computeAlphaSize(countArr, groupArr, DATA.meta.no_outliers);
 
     var svgNS = "http://www.w3.org/2000/svg";
     var svg = document.createElementNS(svgNS, "svg");
