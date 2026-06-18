@@ -674,12 +674,16 @@
     svg.appendChild(axisY);
 
     DATA.species.forEach(function (s, i) {
+      // Zero-count species must be fully absent, not just an invisible
+      // fill with a visible stroke outline left behind.
+      if (countArr[i] === 0) return;
+
       var c = document.createElementNS(svgNS, "circle");
       c.setAttribute("cx", scaleX(s.pc1));
       c.setAttribute("cy", scaleY(s.pc2));
       c.setAttribute("r", styles[i].radius);
       c.setAttribute("fill", DATA.groups[s.group] || "#999");
-      c.setAttribute("fill-opacity", styles[i].alpha);
+      c.setAttribute("opacity", styles[i].alpha);
       c.setAttribute("stroke", "black");
       c.setAttribute("stroke-width", "0.4");
       c.setAttribute("data-group", s.group);
