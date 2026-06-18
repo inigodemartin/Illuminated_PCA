@@ -23,8 +23,29 @@ from illuminate_PCA import load_taxonomy, build_global_color_map, remove_outlier
 from go_tree_illuminated_pca import get_go_relations
 
 TEMPLATE_PATH = Path(__file__).parent / "templates" / "interactive_tree_template.html"
+DEFAULT_IC_PATH = Path(__file__).parent.parent / "data" / "All_GOs_ic.tsv"
 DATA_MARKER = "__INTERACTIVE_GO_TREE_DATA__"
 TITLE_MARKER = "__INTERACTIVE_GO_TREE_TITLE__"
+
+
+def load_ic_table(ic_file):
+    """
+    GO -> Information Content, from a headerless TSV
+    (go_id, category, col3, col4, ic, description, trailing-tab).
+    A few thousand GO ids appear twice with byte-identical rows; keep the
+    first occurrence.
+    """
+    ic = {}
+    with open(ic_file) as f:
+        for line in f:
+            parts = line.rstrip("\n").split("\t")
+            if len(parts) < 5 or parts[0] in ic:
+                continue
+            try:
+                ic[parts[0]] = float(parts[4])
+            except ValueError:
+                continue
+    return ic
 
 
 def load_species_stats(stats_file):
@@ -115,7 +136,7 @@ def compute_topological_levels(root, all_nodes, edges, plot_descendants):
     return levels
 
 
-def build_tree(go_id, extra_nodes, go_desc, child_to_parents, parent_to_children, plot_descendants):
+def build_tree(go_id, extra_nodes, go_desc, child_to_parents, parent_to_children, plot_descendants, ic_table):
     """
     Mirrors plot_go_ancestors/plot_go_descendants in go_tree_illuminated_pca.py,
     but emits plain data (nodes + edges) instead of a Graphviz diagram.
@@ -136,9 +157,21 @@ def build_tree(go_id, extra_nodes, go_desc, child_to_parents, parent_to_children
 
     levels = compute_topological_levels(go_id, all_nodes, edges, plot_descendants)
 
-    nodes = [{"go_id": go_id, "description": go_desc.get(go_id, "unknown"), "level": levels[go_id], "is_root": True}]
+    nodes = [{
+        "go_id": go_id,
+        "description": go_desc.get(go_id, "unknown"),
+        "level": levels[go_id],
+        "is_root": True,
+        "ic": ic_table.get(go_id),
+    }]
     for node_id, info in extra_nodes.items():
-        nodes.append({"go_id": node_id, "description": info["desc"], "level": levels[node_id], "is_root": False})
+        nodes.append({
+            "go_id": node_id,
+            "description": info["desc"],
+            "level": levels[node_id],
+            "is_root": False,
+            "ic": ic_table.get(node_id),
+        })
 
     return nodes, edges, all_nodes
 
@@ -171,6 +204,7 @@ def parse_args():
     parser.add_argument("--species-stats", required=True, help="TSV with a Species index and a Total_prots column")
     parser.add_argument("--taxonomy", required=True, help="TSV with Species and Group columns")
     parser.add_argument("--obo", required=True, help="GO OBO file")
+    parser.add_argument("--ic-file", default=str(DEFAULT_IC_PATH), help="GO Information Content TSV (default: bundled data/All_GOs_ic.tsv)")
     parser.add_argument("-t", "--taxa", nargs="*", default=None, help="Restrict to these taxonomic groups")
     parser.add_argument("-d", "--count_descendants", action="store_true", help="Sum counts over each node's own descendants too")
     parser.add_argument("-o", "--no_outliers", action="store_true", help="Robust (percentile-clipped) scaling instead of log scaling")
@@ -211,10 +245,12 @@ def main():
     groups_used = sorted({rec["group"] for rec in species_records})
     groups_hex = {g: rgb_to_hex(color_map[g]) for g in groups_used}
 
+    ic_table = load_ic_table(args.ic_file)
+
     ancestors, descendants, go_desc, child_to_parents, parent_to_children = get_go_relations(args.go, args.obo)
     extra_nodes = descendants if args.plot_descendants else ancestors
     nodes, edges, all_node_ids = build_tree(
-        args.go, extra_nodes, go_desc, child_to_parents, parent_to_children, args.plot_descendants
+        args.go, extra_nodes, go_desc, child_to_parents, parent_to_children, args.plot_descendants, ic_table
     )
 
     counts = build_node_counts(all_node_ids, raw_full, species, parent_to_children, args.count_descendants)

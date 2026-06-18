@@ -160,6 +160,16 @@ count, its total protein count, and what share of its proteome that GO
 term represents. No server or internet connection is needed — the file
 works fully offline, just open it in a browser.
 
+Opened PCAs live in one shared area below the whole tree (not interleaved
+between levels), so the tree's boxes and hierarchy never move or reflow
+no matter how many panels are open at once — panels just wrap/shrink to
+fit. "Expand all PCAs"/"Collapse all PCAs" buttons in the header open or
+close every node at once. Each panel can be downloaded individually as a
+PNG (title, axis variance labels and taxon legend included), and
+"Download tree PNG" exports the whole tree plus every currently-open PCA
+as one image. Each node also shows its GO Information Content (IC), from
+the bundled `data/All_GOs_ic.tsv`.
+
 Differences from the PNG pipeline:
 
 - Takes a single **raw GO counts matrix** (no separate pre-normalized
@@ -194,6 +204,7 @@ python scripts/interactive_go_tree.py \
 | `--species-stats` | TSV with a `Species` index and a `Total_prots` column (required). |
 | `--taxonomy` | TSV with `Species` and `Group` columns (required). |
 | `--obo` | GO OBO file (required). |
+| `--ic-file` | GO Information Content TSV (default: bundled `data/All_GOs_ic.tsv`). |
 | `-t, --taxa` | Restrict to these taxonomic groups. |
 | `-d, --count_descendants` | Sum counts over each node's own descendants too. |
 | `-o, --no_outliers` | Percentile-clipped scaling instead of log scaling. |

@@ -4,6 +4,9 @@ results/
 *.tsv
 *.obo
 
+# Bundled reference data (small, static, shipped with the repo)
+!data/All_GOs_ic.tsv
+
 # Generated outputs / build artifacts
 test_*.html
 __pycache__/

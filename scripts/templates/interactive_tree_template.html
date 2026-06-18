@@ -27,6 +27,23 @@
     font-size: 13px;
     color: #cbd5e1;
   }
+  #tree-toolbar {
+    margin-top: 10px;
+    display: flex;
+    gap: 10px;
+  }
+  .toolbar-btn {
+    cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.4);
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+    border-radius: 4px;
+    font-size: 12px;
+    padding: 4px 10px;
+  }
+  .toolbar-btn:hover {
+    background: rgba(255,255,255,0.22);
+  }
   #tree-container {
     position: relative;
     padding: 32px 24px 60px;
@@ -75,14 +92,19 @@
     color: #1f2937;
     margin-top: 2px;
   }
-  .panel-zone {
+  .node-box .go-ic {
+    font-size: 10px;
+    color: #475569;
+    margin-top: 2px;
+  }
+  #open-panels {
     display: flex;
     flex-direction: row;
     flex-wrap: wrap;
     justify-content: center;
     align-items: flex-start;
     gap: 16px;
-    margin-bottom: 16px;
+    padding: 8px 24px 60px;
   }
   .panel {
     background: #fff;
@@ -90,7 +112,9 @@
     border-radius: 8px;
     padding: 12px 16px;
     box-shadow: 0 2px 6px rgba(0,0,0,0.12);
-    width: 660px;
+    flex: 0 1 480px;
+    min-width: 280px;
+    max-width: 660px;
   }
   .panel-header {
     display: flex;
@@ -101,6 +125,11 @@
   .panel-header h3 {
     margin: 0;
     font-size: 14px;
+  }
+  .ic-tag {
+    font-weight: normal;
+    font-size: 12px;
+    color: #64748b;
   }
   .panel-header-buttons {
     display: flex;
@@ -174,6 +203,11 @@
     margin-top: 4px;
   }
   .scatter {
+    width: 100%;
+    height: auto;
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
     cursor: grab;
     touch-action: none;
   }
@@ -228,10 +262,16 @@
 <header>
   <h1 id="page-title"></h1>
   <p id="page-subtitle"></p>
+  <div id="tree-toolbar">
+    <button id="expand-all-btn" class="toolbar-btn">Expand all PCAs</button>
+    <button id="collapse-all-btn" class="toolbar-btn">Collapse all PCAs</button>
+    <button id="download-tree-btn" class="toolbar-btn">Download tree PNG</button>
+  </div>
 </header>
 <div id="tree-container">
   <svg id="connector-overlay"></svg>
 </div>
+<div id="open-panels"></div>
 <div id="tooltip" class="hidden"></div>
 
 <script id="go-tree-data" type="application/json">__INTERACTIVE_GO_TREE_DATA__</script>
@@ -250,6 +290,19 @@
   document.getElementById("page-subtitle").textContent =
     DATA.tree.nodes.length + " nodes, " + DATA.species.length + " species" +
     (DATA.meta.count_descendants ? " (counts include descendant GO terms)" : "");
+
+  var nodesById = {};
+  DATA.tree.nodes.forEach(function (n) { nodesById[n.go_id] = n; });
+
+  var ALL_GROUPS = (function () {
+    var present = {};
+    DATA.species.forEach(function (s) { present[s.group] = true; });
+    return Object.keys(present).sort();
+  })();
+
+  function formatIc(ic) {
+    return (ic === null || ic === undefined) ? "n/a" : ic.toFixed(2);
+  }
 
   // ---- shared PCA axis range (identical for every node) ----
   var xs = DATA.species.map(function (s) { return s.pc1; });
@@ -456,11 +509,13 @@
     title.setAttribute("font-family", "Arial, Helvetica, sans-serif");
     title.setAttribute("font-size", "14");
     title.setAttribute("font-weight", "bold");
-    title.textContent = node.go_id + " — " + node.description;
+    title.textContent = node.go_id + " — " + node.description + " (IC " + formatIc(node.ic) + ")";
     exportSvg.appendChild(title);
 
     var plotSvg = liveSvg.cloneNode(true);
     plotSvg.removeAttribute("class");
+    plotSvg.setAttribute("width", PLOT_W);
+    plotSvg.setAttribute("height", PLOT_H);
     plotSvg.setAttribute("x", MARGIN + Y_LABEL_W);
     plotSvg.setAttribute("y", MARGIN + TITLE_H);
     exportSvg.appendChild(plotSvg);
@@ -523,7 +578,8 @@
     var header = document.createElement("div");
     header.className = "panel-header";
     header.innerHTML =
-      "<h3>" + escapeHtml(node.go_id) + " &mdash; " + escapeHtml(node.description) + "</h3>";
+      "<h3>" + escapeHtml(node.go_id) + " &mdash; " + escapeHtml(node.description) +
+      " <span class=\"ic-tag\">(IC " + formatIc(node.ic) + ")</span></h3>";
 
     var headerButtons = document.createElement("div");
     headerButtons.className = "panel-header-buttons";
@@ -547,9 +603,6 @@
     header.appendChild(headerButtons);
     panel.appendChild(header);
 
-    var groupsPresent = {};
-    DATA.species.forEach(function (s) { groupsPresent[s.group] = true; });
-    var legendGroupNames = Object.keys(groupsPresent).sort();
 
     var legendActions = document.createElement("div");
     legendActions.className = "legend-actions";
@@ -567,7 +620,7 @@
 
     var legend = document.createElement("div");
     legend.className = "legend";
-    legendGroupNames.forEach(function (g) {
+    ALL_GROUPS.forEach(function (g) {
       var label = document.createElement("label");
       var cb = document.createElement("input");
       cb.type = "checkbox";
@@ -594,8 +647,6 @@
 
     var svgNS = "http://www.w3.org/2000/svg";
     var svg = document.createElementNS(svgNS, "svg");
-    svg.setAttribute("width", PLOT_W);
-    svg.setAttribute("height", PLOT_H);
     svg.classList.add("scatter");
 
     var viewBox = { x: 0, y: 0, w: PLOT_W, h: PLOT_H };
@@ -610,7 +661,7 @@
     };
 
     downloadBtn.onclick = function () {
-      var built = buildExportSvg(node, svg, legendGroupNames);
+      var built = buildExportSvg(node, svg, ALL_GROUPS);
       downloadSvgAsPng(built.svg, built.width, built.height, "illuminated_pca_" + node.go_id.replace(":", "_"));
     };
 
@@ -716,30 +767,83 @@
     return panel;
   }
 
+  var openPanelsContainer = document.getElementById("open-panels");
   var openNodes = {};
+  var openPanelElements = {};
 
+  function cssEscape(s) {
+    return s.replace(/[:"\\]/g, "\\$&");
+  }
+
+  // Reading order for open panels: same top-to-bottom order the tree
+  // itself uses (so the panel area never looks "out of sync" with the
+  // hierarchy above it), tie-broken by GO id.
+  function levelSortValue(level) {
+    return DATA.meta.mode === "ancestors" ? -level : level;
+  }
+
+  function reorderOpenPanels() {
+    Object.keys(openNodes)
+      .sort(function (a, b) {
+        var diff = levelSortValue(nodesById[a].level) - levelSortValue(nodesById[b].level);
+        return diff !== 0 ? diff : a.localeCompare(b);
+      })
+      .forEach(function (goId) { openPanelsContainer.appendChild(openPanelElements[goId]); });
+  }
+
+  // Panels live in a single shared area below the whole tree, never
+  // interleaved between levels -- opening/closing any number of them
+  // never shifts a single node box, and the tree's hierarchy/levels stay
+  // exactly as laid out.
   function toggleNode(goId) {
     var box = document.querySelector('.node-box[data-go-id="' + cssEscape(goId) + '"]');
-    var zone = box.closest(".level-row").querySelector(".panel-zone");
 
     if (openNodes[goId]) {
       delete openNodes[goId];
       box.classList.remove("expanded");
-      var existing = zone.querySelector('[data-panel-for="' + cssEscape(goId) + '"]');
-      if (existing) existing.remove();
+      openPanelElements[goId].remove();
+      delete openPanelElements[goId];
     } else {
       openNodes[goId] = true;
       box.classList.add("expanded");
-      var node = DATA.tree.nodes.filter(function (n) { return n.go_id === goId; })[0];
-      var panel = buildPanel(node);
-      panel.setAttribute("data-panel-for", goId);
-      zone.appendChild(panel);
+      var panel = buildPanel(nodesById[goId]);
+      openPanelElements[goId] = panel;
+      openPanelsContainer.appendChild(panel);
+      reorderOpenPanels();
     }
     requestAnimationFrame(drawConnectors);
   }
 
-  function cssEscape(s) {
-    return s.replace(/[:"\\]/g, "\\$&");
+  function expandAll() {
+    DATA.tree.nodes.forEach(function (n) {
+      if (!openNodes[n.go_id]) toggleNode(n.go_id);
+    });
+  }
+
+  function collapseAll() {
+    Object.keys(openNodes).slice().forEach(function (goId) { toggleNode(goId); });
+  }
+
+  // Shared geometry for a parent/child edge: an elbow from the bottom of
+  // whichever box is visually higher to the top of whichever is lower,
+  // in coordinates relative to #tree-container. Used both by the live
+  // connector overlay and the full-tree PNG export, so they never drift
+  // apart.
+  function computeEdgeElbow(edge, containerRect) {
+    var elA = document.querySelector('.node-box[data-go-id="' + cssEscape(edge[0]) + '"]');
+    var elB = document.querySelector('.node-box[data-go-id="' + cssEscape(edge[1]) + '"]');
+    if (!elA || !elB) return null;
+
+    var rectA = elA.getBoundingClientRect();
+    var rectB = elB.getBoundingClientRect();
+    var upper = rectA.top < rectB.top ? rectA : rectB;
+    var lower = rectA.top < rectB.top ? rectB : rectA;
+
+    var x1 = upper.left + upper.width / 2 - containerRect.left + container.scrollLeft;
+    var y1 = upper.bottom - containerRect.top + container.scrollTop;
+    var x2 = lower.left + lower.width / 2 - containerRect.left + container.scrollLeft;
+    var y2 = lower.top - containerRect.top + container.scrollTop;
+    return { x1: x1, y1: y1, x2: x2, y2: y2, midY: (y1 + y2) / 2 };
   }
 
   function drawConnectors() {
@@ -753,23 +857,11 @@
     var svgNS = "http://www.w3.org/2000/svg";
 
     DATA.tree.edges.forEach(function (edge) {
-      var elA = document.querySelector('.node-box[data-go-id="' + cssEscape(edge[0]) + '"]');
-      var elB = document.querySelector('.node-box[data-go-id="' + cssEscape(edge[1]) + '"]');
-      if (!elA || !elB) return;
-
-      var rectA = elA.getBoundingClientRect();
-      var rectB = elB.getBoundingClientRect();
-      var upper = rectA.top < rectB.top ? rectA : rectB;
-      var lower = rectA.top < rectB.top ? rectB : rectA;
-
-      var x1 = upper.left + upper.width / 2 - containerRect.left + container.scrollLeft;
-      var y1 = upper.bottom - containerRect.top + container.scrollTop;
-      var x2 = lower.left + lower.width / 2 - containerRect.left + container.scrollLeft;
-      var y2 = lower.top - containerRect.top + container.scrollTop;
-      var midY = (y1 + y2) / 2;
+      var e = computeEdgeElbow(edge, containerRect);
+      if (!e) return;
 
       var path = document.createElementNS(svgNS, "path");
-      path.setAttribute("d", "M " + x1 + " " + y1 + " L " + x1 + " " + midY + " L " + x2 + " " + midY + " L " + x2 + " " + y2);
+      path.setAttribute("d", "M " + e.x1 + " " + e.y1 + " L " + e.x1 + " " + e.midY + " L " + e.x2 + " " + e.midY + " L " + e.x2 + " " + e.y2);
       path.setAttribute("fill", "none");
       path.setAttribute("stroke", "#94a3b8");
       path.setAttribute("stroke-width", "1.2");
@@ -800,19 +892,137 @@
         box.setAttribute("data-go-id", n.go_id);
         box.innerHTML =
           '<div class="go-id">' + escapeHtml(n.go_id) + "</div>" +
-          '<div class="go-desc">' + escapeHtml(n.description) + "</div>";
+          '<div class="go-desc">' + escapeHtml(n.description) + "</div>" +
+          '<div class="go-ic">IC ' + formatIc(n.ic) + "</div>";
         box.addEventListener("click", function () { toggleNode(n.go_id); });
         nodeRow.appendChild(box);
       });
 
-      var panelZone = document.createElement("div");
-      panelZone.className = "panel-zone";
-
       rowWrap.appendChild(nodeRow);
-      rowWrap.appendChild(panelZone);
       container.appendChild(rowWrap);
     });
   }
+
+  // Builds a static <g> with one rect+text per node box and one elbow
+  // path per edge, read straight off the live tree's current positions --
+  // used only for the full-tree PNG export.
+  function buildTreeBoxesAndConnectors(svgNS) {
+    var g = document.createElementNS(svgNS, "g");
+    var containerRect = container.getBoundingClientRect();
+
+    document.querySelectorAll(".node-box").forEach(function (box) {
+      var node = nodesById[box.getAttribute("data-go-id")];
+      var rect = box.getBoundingClientRect();
+      var x = rect.left - containerRect.left + container.scrollLeft;
+      var y = rect.top - containerRect.top + container.scrollTop;
+
+      var r = document.createElementNS(svgNS, "rect");
+      r.setAttribute("x", x); r.setAttribute("y", y);
+      r.setAttribute("width", rect.width); r.setAttribute("height", rect.height);
+      r.setAttribute("rx", 6);
+      r.setAttribute("fill", node.is_root ? "#ffffcc" : "#6FACE8");
+      r.setAttribute("stroke", node.is_root ? "#d4d400" : "#94a3b8");
+      g.appendChild(r);
+
+      var idText = document.createElementNS(svgNS, "text");
+      idText.setAttribute("x", x + 10);
+      idText.setAttribute("y", y + 17);
+      idText.setAttribute("font-family", "Arial, Helvetica, sans-serif");
+      idText.setAttribute("font-size", "12");
+      idText.setAttribute("font-weight", "600");
+      idText.textContent = node.go_id;
+      g.appendChild(idText);
+
+      var descText = document.createElementNS(svgNS, "text");
+      descText.setAttribute("x", x + 10);
+      descText.setAttribute("y", y + 31);
+      descText.setAttribute("font-family", "Arial, Helvetica, sans-serif");
+      descText.setAttribute("font-size", "10");
+      descText.setAttribute("fill", "#1f2937");
+      var desc = node.description;
+      descText.textContent = desc.length > 28 ? desc.slice(0, 27) + "…" : desc;
+      g.appendChild(descText);
+
+      var icText = document.createElementNS(svgNS, "text");
+      icText.setAttribute("x", x + 10);
+      icText.setAttribute("y", y + rect.height - 8);
+      icText.setAttribute("font-family", "Arial, Helvetica, sans-serif");
+      icText.setAttribute("font-size", "9");
+      icText.setAttribute("fill", "#475569");
+      icText.textContent = "IC " + formatIc(node.ic);
+      g.appendChild(icText);
+    });
+
+    DATA.tree.edges.forEach(function (edge) {
+      var e = computeEdgeElbow(edge, containerRect);
+      if (!e) return;
+      var path = document.createElementNS(svgNS, "path");
+      path.setAttribute("d", "M " + e.x1 + " " + e.y1 + " L " + e.x1 + " " + e.midY + " L " + e.x2 + " " + e.midY + " L " + e.x2 + " " + e.y2);
+      path.setAttribute("fill", "none");
+      path.setAttribute("stroke", "#94a3b8");
+      path.setAttribute("stroke-width", "1.2");
+      g.appendChild(path);
+    });
+
+    return g;
+  }
+
+  function downloadFullTreePng() {
+    var svgNS = "http://www.w3.org/2000/svg";
+    var MARGIN = 20;
+
+    var treeW = container.scrollWidth;
+    var treeH = container.scrollHeight;
+    var treeGroup = buildTreeBoxesAndConnectors(svgNS);
+
+    var sortedGoIds = Object.keys(openNodes).sort(function (a, b) {
+      var diff = levelSortValue(nodesById[a].level) - levelSortValue(nodesById[b].level);
+      return diff !== 0 ? diff : a.localeCompare(b);
+    });
+    var panelExports = sortedGoIds.map(function (goId) {
+      var liveSvg = openPanelElements[goId].querySelector("svg.scatter");
+      return buildExportSvg(nodesById[goId], liveSvg, ALL_GROUPS);
+    });
+
+    var panelW = panelExports.length ? panelExports[0].width : 0;
+    var panelH = panelExports.length ? panelExports[0].height : 0;
+    var cols = panelExports.length ? Math.max(1, Math.min(4, Math.floor(treeW / (panelW + MARGIN)))) : 1;
+    var rows = panelExports.length ? Math.ceil(panelExports.length / cols) : 0;
+    var panelsAreaW = panelExports.length ? cols * (panelW + MARGIN) : 0;
+    var panelsAreaH = panelExports.length ? rows * (panelH + MARGIN) : 0;
+
+    var masterW = Math.max(treeW, panelsAreaW) + MARGIN * 2;
+    var masterH = treeH + (panelExports.length ? MARGIN + panelsAreaH : 0) + MARGIN * 2;
+
+    var masterSvg = document.createElementNS(svgNS, "svg");
+    masterSvg.setAttribute("width", masterW);
+    masterSvg.setAttribute("height", masterH);
+    masterSvg.setAttribute("viewBox", "0 0 " + masterW + " " + masterH);
+
+    var bg = document.createElementNS(svgNS, "rect");
+    bg.setAttribute("x", 0); bg.setAttribute("y", 0);
+    bg.setAttribute("width", masterW); bg.setAttribute("height", masterH);
+    bg.setAttribute("fill", "#ffffff");
+    masterSvg.appendChild(bg);
+
+    treeGroup.setAttribute("transform", "translate(" + ((masterW - treeW) / 2) + "," + MARGIN + ")");
+    masterSvg.appendChild(treeGroup);
+
+    var gridOffsetX = (masterW - panelsAreaW) / 2;
+    var gridTop = treeH + MARGIN * 2;
+    panelExports.forEach(function (pe, idx) {
+      var col = idx % cols, row = Math.floor(idx / cols);
+      pe.svg.setAttribute("x", gridOffsetX + col * (panelW + MARGIN) + MARGIN / 2);
+      pe.svg.setAttribute("y", gridTop + row * (panelH + MARGIN));
+      masterSvg.appendChild(pe.svg);
+    });
+
+    downloadSvgAsPng(masterSvg, masterW, masterH, "go_tree_" + DATA.meta.root.replace(":", "_"));
+  }
+
+  document.getElementById("expand-all-btn").onclick = expandAll;
+  document.getElementById("collapse-all-btn").onclick = collapseAll;
+  document.getElementById("download-tree-btn").onclick = downloadFullTreePng;
 
   buildTree();
   requestAnimationFrame(drawConnectors);
