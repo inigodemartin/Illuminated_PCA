@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>__INTERACTIVE_GO_TREE_TITLE__</title>
+<style>
+  :root {
+    color-scheme: light;
+  }
+  body {
+    font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    margin: 0;
+    background: #f5f6f8;
+    color: #1a1a1a;
+  }
+  header {
+    padding: 16px 24px;
+    background: #2c3e50;
+    color: #fff;
+  }
+  header h1 {
+    margin: 0 0 4px;
+    font-size: 18px;
+  }
+  header p {
+    margin: 0;
+    font-size: 13px;
+    color: #cbd5e1;
+  }
+  #tree-container {
+    position: relative;
+    padding: 32px 24px 60px;
+    overflow-x: auto;
+  }
+  #connector-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+  }
+  .level-row {
+    position: relative;
+    z-index: 1;
+  }
+  .node-row {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 16px;
+    margin-bottom: 12px;
+  }
+  .node-box {
+    width: 200px;
+    border: 1px solid #94a3b8;
+    border-radius: 6px;
+    background: #6FACE8;
+    padding: 8px 10px;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+    user-select: none;
+  }
+  .node-box.root {
+    background: #ffffcc;
+    border-color: #d4d400;
+  }
+  .node-box.expanded {
+    outline: 2px solid #2c3e50;
+  }
+  .node-box .go-id {
+    font-weight: 600;
+    font-size: 13px;
+  }
+  .node-box .go-desc {
+    font-size: 11px;
+    color: #1f2937;
+    margin-top: 2px;
+  }
+  .panel-zone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .panel {
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 12px 16px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+    width: 660px;
+  }
+  .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 6px;
+  }
+  .panel-header h3 {
+    margin: 0;
+    font-size: 14px;
+  }
+  .panel-header-buttons {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .panel-reset {
+    cursor: pointer;
+    border: 1px solid #cbd5e1;
+    background: #f8fafc;
+    border-radius: 4px;
+    font-size: 11px;
+    padding: 2px 8px;
+    color: #334155;
+  }
+  .panel-reset:hover {
+    background: #e2e8f0;
+  }
+  .panel-close {
+    cursor: pointer;
+    border: none;
+    background: none;
+    font-size: 16px;
+    color: #64748b;
+  }
+  .plot-row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .axis-label-y {
+    width: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .axis-label-y span {
+    display: inline-block;
+    transform: rotate(-90deg);
+    white-space: nowrap;
+    font-size: 11px;
+    color: #555;
+  }
+  .axis-label-x {
+    text-align: center;
+    font-size: 11px;
+    color: #555;
+    margin-top: 2px;
+  }
+  .panel-hint {
+    text-align: center;
+    font-size: 10px;
+    color: #94a3b8;
+    margin-top: 4px;
+  }
+  .scatter {
+    cursor: grab;
+    touch-action: none;
+  }
+  .scatter.panning {
+    cursor: grabbing;
+  }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    font-size: 12px;
+    margin-bottom: 6px;
+  }
+  .legend label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+  }
+  .legend .swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .scatter circle {
+    transition: opacity 0.1s;
+  }
+  .axis-line {
+    stroke: #9ca3af;
+    stroke-dasharray: 4 3;
+    stroke-width: 1;
+  }
+  #tooltip {
+    position: fixed;
+    pointer-events: none;
+    background: rgba(15, 23, 42, 0.92);
+    color: #fff;
+    padding: 6px 9px;
+    border-radius: 4px;
+    font-size: 12px;
+    line-height: 1.45;
+    z-index: 1000;
+    max-width: 240px;
+  }
+  #tooltip.hidden {
+    display: none;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="page-title"></h1>
+  <p id="page-subtitle"></p>
+</header>
+<div id="tree-container">
+  <svg id="connector-overlay"></svg>
+</div>
+<div id="tooltip" class="hidden"></div>
+
+<script id="go-tree-data" type="application/json">__INTERACTIVE_GO_TREE_DATA__</script>
+<script>
+(function () {
+  "use strict";
+
+  var DATA = JSON.parse(document.getElementById("go-tree-data").textContent);
+
+  var container = document.getElementById("tree-container");
+  var overlay = document.getElementById("connector-overlay");
+  var tooltip = document.getElementById("tooltip");
+
+  document.getElementById("page-title").textContent =
+    "GO " + (DATA.meta.mode === "descendants" ? "descendants" : "ancestors") + " tree: " + DATA.meta.root;
+  document.getElementById("page-subtitle").textContent =
+    DATA.tree.nodes.length + " nodes, " + DATA.species.length + " species" +
+    (DATA.meta.count_descendants ? " (counts include descendant GO terms)" : "");
+
+  // ---- shared PCA axis range (identical for every node) ----
+  var xs = DATA.species.map(function (s) { return s.pc1; });
+  var ys = DATA.species.map(function (s) { return s.pc2; });
+  var xMin = Math.min.apply(null, xs), xMax = Math.max.apply(null, xs);
+  var yMin = Math.min.apply(null, ys), yMax = Math.max.apply(null, ys);
+  var xPad = (xMax - xMin) * 0.08 || 1, yPad = (yMax - yMin) * 0.08 || 1;
+  xMin -= xPad; xMax += xPad; yMin -= yPad; yMax += yPad;
+
+  var PLOT_W = 620, PLOT_H = 420;
+  var MIN_RADIUS = 2.2, MAX_RADIUS = 7;
+  var MIN_VIEW_FRACTION = 1 / 20;
+  function scaleX(v) { return ((v - xMin) / (xMax - xMin)) * PLOT_W; }
+  function scaleY(v) { return PLOT_H - ((v - yMin) / (yMax - yMin)) * PLOT_H; }
+
+  var EXPLAINED = DATA.meta.explained_variance || [0, 0];
+  var PC1_LABEL = "PC1 (" + (EXPLAINED[0] * 100).toFixed(1) + "% variance)";
+  var PC2_LABEL = "PC2 (" + (EXPLAINED[1] * 100).toFixed(1) + "% variance)";
+
+  // ---- group visibility state (shared across all open panels) ----
+  var hiddenGroups = {};
+
+  function percentile(sortedAsc, p) {
+    var idx = (p / 100) * (sortedAsc.length - 1);
+    var lo = Math.floor(idx), hi = Math.ceil(idx);
+    if (lo === hi) return sortedAsc[lo];
+    return sortedAsc[lo] + (sortedAsc[hi] - sortedAsc[lo]) * (idx - lo);
+  }
+
+  // Mirrors illuminate_PCA.run_illuminated_PCA's opacity/size formula.
+  function computeAlphaSize(counts, noOutliers) {
+    var maxCount = Math.max.apply(null, counts);
+    if (!(maxCount > 0)) {
+      return counts.map(function () { return { alpha: 0, radius: MIN_RADIUS }; });
+    }
+    var norms;
+    if (noOutliers) {
+      norms = counts.map(function (c) { return c / maxCount; });
+      var nonzero = norms.filter(function (n) { return n > 0; }).sort(function (a, b) { return a - b; });
+      var p99 = nonzero.length ? percentile(nonzero, 99) : 1.0;
+      norms = norms.map(function (n) { return Math.min(n, p99); });
+      if (p99 > 0) norms = norms.map(function (n) { return n / p99; });
+      norms = norms.map(function (n) { return Math.sqrt(n); });
+      norms = norms.map(function (n, i) { return counts[i] === 0 ? 0 : n; });
+    } else {
+      var logMax = Math.log1p(maxCount);
+      norms = counts.map(function (c) { return logMax > 0 ? Math.log1p(c) / logMax : 0; });
+    }
+    return norms.map(function (a) { return { alpha: a, radius: MIN_RADIUS + a * (MAX_RADIUS - MIN_RADIUS) }; });
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  function formatPercent(count, totalProts) {
+    if (!(totalProts > 0)) return "n/a";
+    var pct = (count / totalProts) * 100;
+    return (pct < 0.01 ? pct.toFixed(4) : pct.toFixed(2)) + "%";
+  }
+
+  function showTooltip(evt, species, count) {
+    var pct = formatPercent(count, species.total_prots);
+    tooltip.innerHTML =
+      "<b>" + escapeHtml(species.name) + "</b><br>" +
+      "Group: " + escapeHtml(species.group) + "<br>" +
+      "GO count: " + count + "<br>" +
+      "Total proteins: " + Math.round(species.total_prots) + "<br>" +
+      "Share of proteome: " + pct;
+    tooltip.classList.remove("hidden");
+    moveTooltip(evt);
+  }
+
+  function moveTooltip(evt) {
+    tooltip.style.left = (evt.clientX + 14) + "px";
+    tooltip.style.top = (evt.clientY + 14) + "px";
+  }
+
+  function hideTooltip() {
+    tooltip.classList.add("hidden");
+  }
+
+  function applyGroupVisibility(panelEl) {
+    panelEl.querySelectorAll("circle[data-group]").forEach(function (c) {
+      c.style.display = hiddenGroups[c.getAttribute("data-group")] ? "none" : "";
+    });
+  }
+
+  function buildPanel(node) {
+    var panel = document.createElement("div");
+    panel.className = "panel";
+
+    var header = document.createElement("div");
+    header.className = "panel-header";
+    header.innerHTML =
+      "<h3>" + escapeHtml(node.go_id) + " &mdash; " + escapeHtml(node.description) + "</h3>";
+
+    var headerButtons = document.createElement("div");
+    headerButtons.className = "panel-header-buttons";
+
+    var resetBtn = document.createElement("button");
+    resetBtn.className = "panel-reset";
+    resetBtn.textContent = "Reset zoom";
+    headerButtons.appendChild(resetBtn);
+
+    var closeBtn = document.createElement("button");
+    closeBtn.className = "panel-close";
+    closeBtn.textContent = "✕";
+    closeBtn.onclick = function () { toggleNode(node.go_id); };
+    headerButtons.appendChild(closeBtn);
+
+    header.appendChild(headerButtons);
+    panel.appendChild(header);
+
+    var groupsPresent = {};
+    DATA.species.forEach(function (s) { groupsPresent[s.group] = true; });
+
+    var legend = document.createElement("div");
+    legend.className = "legend";
+    Object.keys(groupsPresent).sort().forEach(function (g) {
+      var label = document.createElement("label");
+      var cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = !hiddenGroups[g];
+      cb.onchange = function () {
+        hiddenGroups[g] = !cb.checked;
+        document.querySelectorAll(".panel").forEach(applyGroupVisibility);
+      };
+      var swatch = document.createElement("span");
+      swatch.className = "swatch";
+      swatch.style.background = DATA.groups[g] || "#999";
+      label.appendChild(cb);
+      label.appendChild(swatch);
+      label.appendChild(document.createTextNode(g));
+      legend.appendChild(label);
+    });
+    panel.appendChild(legend);
+
+    var counts = DATA.counts[node.go_id] || {};
+    var countArr = DATA.species.map(function (_, i) { return counts[String(i)] || 0; });
+    var styles = computeAlphaSize(countArr, DATA.meta.no_outliers);
+
+    var svgNS = "http://www.w3.org/2000/svg";
+    var svg = document.createElementNS(svgNS, "svg");
+    svg.setAttribute("width", PLOT_W);
+    svg.setAttribute("height", PLOT_H);
+    svg.classList.add("scatter");
+
+    var viewBox = { x: 0, y: 0, w: PLOT_W, h: PLOT_H };
+    function applyViewBox() {
+      svg.setAttribute("viewBox", viewBox.x + " " + viewBox.y + " " + viewBox.w + " " + viewBox.h);
+    }
+    applyViewBox();
+
+    resetBtn.onclick = function () {
+      viewBox.x = 0; viewBox.y = 0; viewBox.w = PLOT_W; viewBox.h = PLOT_H;
+      applyViewBox();
+    };
+
+    var minViewW = PLOT_W * MIN_VIEW_FRACTION;
+    svg.addEventListener("wheel", function (evt) {
+      evt.preventDefault();
+      var rect = svg.getBoundingClientRect();
+      var mx = (evt.clientX - rect.left) / rect.width;
+      var my = (evt.clientY - rect.top) / rect.height;
+      var pointX = viewBox.x + mx * viewBox.w;
+      var pointY = viewBox.y + my * viewBox.h;
+      var factor = evt.deltaY > 0 ? 1.15 : (1 / 1.15);
+      var newW = Math.min(PLOT_W, Math.max(minViewW, viewBox.w * factor));
+      var newH = newW * (PLOT_H / PLOT_W);
+      viewBox.x = pointX - mx * newW;
+      viewBox.y = pointY - my * newH;
+      viewBox.w = newW;
+      viewBox.h = newH;
+      applyViewBox();
+    }, { passive: false });
+
+    var isPanning = false, panStart = null;
+    svg.addEventListener("mousedown", function (evt) {
+      isPanning = true;
+      panStart = { x: evt.clientX, y: evt.clientY, vbX: viewBox.x, vbY: viewBox.y };
+      svg.classList.add("panning");
+      hideTooltip();
+      evt.preventDefault();
+    });
+    window.addEventListener("mousemove", function (evt) {
+      if (!isPanning) return;
+      var rect = svg.getBoundingClientRect();
+      var dx = (evt.clientX - panStart.x) / rect.width * viewBox.w;
+      var dy = (evt.clientY - panStart.y) / rect.height * viewBox.h;
+      viewBox.x = panStart.vbX - dx;
+      viewBox.y = panStart.vbY - dy;
+      applyViewBox();
+    });
+    window.addEventListener("mouseup", function () {
+      isPanning = false;
+      svg.classList.remove("panning");
+    });
+
+    var axisX = document.createElementNS(svgNS, "line");
+    axisX.setAttribute("x1", 0); axisX.setAttribute("x2", PLOT_W);
+    axisX.setAttribute("y1", scaleY(0)); axisX.setAttribute("y2", scaleY(0));
+    axisX.setAttribute("class", "axis-line");
+    svg.appendChild(axisX);
+
+    var axisY = document.createElementNS(svgNS, "line");
+    axisY.setAttribute("y1", 0); axisY.setAttribute("y2", PLOT_H);
+    axisY.setAttribute("x1", scaleX(0)); axisY.setAttribute("x2", scaleX(0));
+    axisY.setAttribute("class", "axis-line");
+    svg.appendChild(axisY);
+
+    DATA.species.forEach(function (s, i) {
+      var c = document.createElementNS(svgNS, "circle");
+      c.setAttribute("cx", scaleX(s.pc1));
+      c.setAttribute("cy", scaleY(s.pc2));
+      c.setAttribute("r", styles[i].radius);
+      c.setAttribute("fill", DATA.groups[s.group] || "#999");
+      c.setAttribute("fill-opacity", styles[i].alpha);
+      c.setAttribute("stroke", "black");
+      c.setAttribute("stroke-width", "0.4");
+      c.setAttribute("data-group", s.group);
+      c.style.display = hiddenGroups[s.group] ? "none" : "";
+      c.addEventListener("mouseenter", function (evt) { if (!isPanning) showTooltip(evt, s, countArr[i]); });
+      c.addEventListener("mousemove", function (evt) { if (!isPanning) moveTooltip(evt); });
+      c.addEventListener("mouseleave", hideTooltip);
+      svg.appendChild(c);
+    });
+
+    var plotRow = document.createElement("div");
+    plotRow.className = "plot-row";
+    var yLabel = document.createElement("div");
+    yLabel.className = "axis-label-y";
+    yLabel.innerHTML = "<span>" + escapeHtml(PC2_LABEL) + "</span>";
+    plotRow.appendChild(yLabel);
+    plotRow.appendChild(svg);
+    panel.appendChild(plotRow);
+
+    var xLabel = document.createElement("div");
+    xLabel.className = "axis-label-x";
+    xLabel.textContent = PC1_LABEL;
+    panel.appendChild(xLabel);
+
+    var hint = document.createElement("div");
+    hint.className = "panel-hint";
+    hint.textContent = "Scroll to zoom, drag to pan.";
+    panel.appendChild(hint);
+
+    return panel;
+  }
+
+  var openNodes = {};
+
+  function toggleNode(goId) {
+    var box = document.querySelector('.node-box[data-go-id="' + cssEscape(goId) + '"]');
+    var zone = box.closest(".level-row").querySelector(".panel-zone");
+
+    if (openNodes[goId]) {
+      delete openNodes[goId];
+      box.classList.remove("expanded");
+      var existing = zone.querySelector('[data-panel-for="' + cssEscape(goId) + '"]');
+      if (existing) existing.remove();
+    } else {
+      openNodes[goId] = true;
+      box.classList.add("expanded");
+      var node = DATA.tree.nodes.filter(function (n) { return n.go_id === goId; })[0];
+      var panel = buildPanel(node);
+      panel.setAttribute("data-panel-for", goId);
+      zone.appendChild(panel);
+    }
+    requestAnimationFrame(drawConnectors);
+  }
+
+  function cssEscape(s) {
+    return s.replace(/[:"\\]/g, "\\$&");
+  }
+
+  function drawConnectors() {
+    overlay.setAttribute("width", container.scrollWidth);
+    overlay.setAttribute("height", container.scrollHeight);
+    overlay.style.width = container.scrollWidth + "px";
+    overlay.style.height = container.scrollHeight + "px";
+    overlay.innerHTML = "";
+
+    var containerRect = container.getBoundingClientRect();
+    var svgNS = "http://www.w3.org/2000/svg";
+
+    DATA.tree.edges.forEach(function (edge) {
+      var elA = document.querySelector('.node-box[data-go-id="' + cssEscape(edge[0]) + '"]');
+      var elB = document.querySelector('.node-box[data-go-id="' + cssEscape(edge[1]) + '"]');
+      if (!elA || !elB) return;
+
+      var rectA = elA.getBoundingClientRect();
+      var rectB = elB.getBoundingClientRect();
+      var upper = rectA.top < rectB.top ? rectA : rectB;
+      var lower = rectA.top < rectB.top ? rectB : rectA;
+
+      var x1 = upper.left + upper.width / 2 - containerRect.left + container.scrollLeft;
+      var y1 = upper.bottom - containerRect.top + container.scrollTop;
+      var x2 = lower.left + lower.width / 2 - containerRect.left + container.scrollLeft;
+      var y2 = lower.top - containerRect.top + container.scrollTop;
+      var midY = (y1 + y2) / 2;
+
+      var path = document.createElementNS(svgNS, "path");
+      path.setAttribute("d", "M " + x1 + " " + y1 + " L " + x1 + " " + midY + " L " + x2 + " " + midY + " L " + x2 + " " + y2);
+      path.setAttribute("fill", "none");
+      path.setAttribute("stroke", "#94a3b8");
+      path.setAttribute("stroke-width", "1.2");
+      overlay.appendChild(path);
+    });
+  }
+
+  function buildTree() {
+    var nodesByLevel = {};
+    DATA.tree.nodes.forEach(function (n) {
+      (nodesByLevel[n.level] = nodesByLevel[n.level] || []).push(n);
+    });
+
+    var levelKeys = Object.keys(nodesByLevel).map(Number);
+    levelKeys.sort(function (a, b) { return DATA.meta.mode === "ancestors" ? b - a : a - b; });
+
+    levelKeys.forEach(function (level) {
+      var rowWrap = document.createElement("div");
+      rowWrap.className = "level-row";
+
+      var nodeRow = document.createElement("div");
+      nodeRow.className = "node-row";
+
+      var nodes = nodesByLevel[level].slice().sort(function (a, b) { return a.go_id.localeCompare(b.go_id); });
+      nodes.forEach(function (n) {
+        var box = document.createElement("div");
+        box.className = "node-box" + (n.is_root ? " root" : "");
+        box.setAttribute("data-go-id", n.go_id);
+        box.innerHTML =
+          '<div class="go-id">' + escapeHtml(n.go_id) + "</div>" +
+          '<div class="go-desc">' + escapeHtml(n.description) + "</div>";
+        box.addEventListener("click", function () { toggleNode(n.go_id); });
+        nodeRow.appendChild(box);
+      });
+
+      var panelZone = document.createElement("div");
+      panelZone.className = "panel-zone";
+
+      rowWrap.appendChild(nodeRow);
+      rowWrap.appendChild(panelZone);
+      container.appendChild(rowWrap);
+    });
+  }
+
+  buildTree();
+  requestAnimationFrame(drawConnectors);
+  window.addEventListener("resize", function () { requestAnimationFrame(drawConnectors); });
+})();
+</script>
+</body>
+</html>

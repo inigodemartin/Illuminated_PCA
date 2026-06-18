@@ -14,6 +14,7 @@ term counts derived from functional annotation.
 |---|---|
 | `scripts/illuminate_PCA.py` | Core module: runs PCA on a GO-count matrix and plots it, either as a standard taxonomy-colored PCA or as an "illuminated" PCA for one or more GO terms. |
 | `scripts/go_tree_illuminated_pca.py` | Builds on the core module to generate illuminated PCA plots for an entire GO ancestor/descendant tree, then renders that tree as a Graphviz diagram with each PCA plot embedded in its node. |
+| `scripts/interactive_go_tree.py` | Generates a single self-contained interactive HTML page for a GO ancestor/descendant tree: click a node to expand its illuminated PCA inline (zoomable/pannable), hover a point for species details. |
 
 ## How it works
 
@@ -49,6 +50,10 @@ term counts derived from functional annotation.
 - [`graphviz`](https://pypi.org/project/graphviz/) Python package **and** the
   Graphviz `dot` binary available on `PATH` (only needed for
   `go_tree_illuminated_pca.py`)
+
+`scripts/interactive_go_tree.py` only needs `numpy`, `pandas` and
+`scikit-learn` — no `graphviz`/`Pillow`, since it emits HTML/JSON instead of
+PNGs.
 
 ```bash
 pip install numpy pandas scikit-learn matplotlib pillow graphviz
@@ -143,3 +148,61 @@ python scripts/go_tree_illuminated_pca.py -g GO:0008152 -m matrix.tsv -p -d
   `ProcessPoolExecutor` (defaults to 16 workers).
 - Color assignment per taxonomic group is deterministic and stable across
   runs/subsets, so the same group always gets the same color.
+
+## Interactive HTML explorer
+
+`scripts/interactive_go_tree.py` generates a single self-contained HTML
+file for the same kind of GO ancestor/descendant tree as
+`go_tree_illuminated_pca.py`, but interactive instead of a static PNG:
+click a node to expand its illuminated PCA inline (scroll to zoom, drag to
+pan, "Reset zoom" to go back), hover a point to see the species, its GO
+count, its total protein count, and what share of its proteome that GO
+term represents. No server or internet connection is needed — the file
+works fully offline, just open it in a browser.
+
+Differences from the PNG pipeline:
+
+- Takes a single **raw GO counts matrix** (no separate pre-normalized
+  matrix file). Relative abundance (`count / Total_prots`) is computed
+  internally before running the PCA.
+- Needs one extra input: a **species-stats TSV** with a `Total_prots`
+  column (total protein count per species) — used both for the internal
+  normalization and to show "share of proteome" in the tooltip.
+- The PCA is computed once and reused for every node, instead of being
+  recomputed per node like in the PNG pipeline (the layout never actually
+  depends on which GO term is illuminated).
+- Taxonomy and OBO file paths are explicit CLI flags, not hardcoded.
+- Taxonomic-group filtering is also available live in the browser
+  (checkboxes), on top of whatever `-t` filter was baked in at generation
+  time.
+
+### Usage
+
+```bash
+python scripts/interactive_go_tree.py \
+  -g GO:0008152 \
+  -m raw_counts_matrix.tsv \
+  --species-stats species_stats.tsv \
+  --taxonomy taxonomy.tsv \
+  --obo go-basic.obo
+```
+
+| Flag | Description |
+|---|---|
+| `-g, --go` | Root GO ID (required). |
+| `-m, --matrix` | Raw GO counts matrix, species x GO terms (required). |
+| `--species-stats` | TSV with a `Species` index and a `Total_prots` column (required). |
+| `--taxonomy` | TSV with `Species` and `Group` columns (required). |
+| `--obo` | GO OBO file (required). |
+| `-t, --taxa` | Restrict to these taxonomic groups. |
+| `-d, --count_descendants` | Sum counts over each node's own descendants too. |
+| `-o, --no_outliers` | Percentile-clipped scaling instead of log scaling. |
+| `-p, --plot_descendants` | Build the tree from descendants instead of ancestors. |
+| `--output` | Output HTML path (default: `interactive_<GO_ID>_<ancestors\|descendants>.html`). |
+
+### Output
+
+A single HTML file with the GO tree laid out level by level; clicking a
+node expands an inline panel with its illuminated PCA. All data (PCA
+coordinates, GO counts, tree structure) is embedded as JSON in the file
+itself, so it has no external dependencies and works fully offline.

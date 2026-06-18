@@ -1,1 +1,10 @@
 results/
+
+# Local data inputs (matrices, taxonomy, ontology) - never part of the repo
+*.tsv
+*.obo
+
+# Generated outputs / build artifacts
+test_*.html
+__pycache__/
+*.pyc
