@@ -414,7 +414,17 @@
 
   var PLOT_W = 620, PLOT_H = 420;
   var MIN_RADIUS = 2.2, MAX_RADIUS = 7;
-  var MIN_VIEW_FRACTION = 1 / 20;
+  var BASE_STROKE_WIDTH = 0.4;
+  // How far you can zoom in: a *static* zoom (everything, dots included,
+  // scaling up by the same factor) never separates two points that sit
+  // close together in data space -- the gap between their centers and
+  // their own size grow at the identical rate, so the overlap ratio never
+  // changes no matter how far you zoom. Letting the viewBox shrink this
+  // far, combined with counter-scaling marker radius back down on every
+  // zoom step (see updateMarkerScale), is what actually lets a dense
+  // cluster pull apart under zoom: screen-pixel dot size stays constant
+  // while the screen-pixel gap between dots keeps growing.
+  var MIN_VIEW_FRACTION = 1 / 8000;
   function scaleX(v) { return ((v - xMin) / (xMax - xMin)) * PLOT_W; }
   function scaleY(v) { return PLOT_H - ((v - yMin) / (yMax - yMin)) * PLOT_H; }
 
@@ -930,9 +940,23 @@
     }
     applyViewBox();
 
+    // Counter-scale every marker's radius/stroke by how far we've zoomed
+    // (viewBox.w shrinking relative to PLOT_W), so each dot keeps a
+    // constant on-screen pixel size instead of growing with the zoom --
+    // see the MIN_VIEW_FRACTION comment for why that's what actually
+    // separates a tight cluster of points as you zoom into it.
+    function updateMarkerScale() {
+      var scale = viewBox.w / PLOT_W;
+      svg.querySelectorAll("circle[data-base-r]").forEach(function (c) {
+        c.setAttribute("r", parseFloat(c.getAttribute("data-base-r")) * scale);
+        c.setAttribute("stroke-width", BASE_STROKE_WIDTH * scale);
+      });
+    }
+
     resetBtn.onclick = function () {
       viewBox.x = 0; viewBox.y = 0; viewBox.w = PLOT_W; viewBox.h = PLOT_H;
       applyViewBox();
+      updateMarkerScale();
     };
 
     downloadBtn.onclick = function () {
@@ -956,6 +980,7 @@
       viewBox.w = newW;
       viewBox.h = newH;
       applyViewBox();
+      updateMarkerScale();
     }, { passive: false });
 
     var isPanning = false, panStart = null;
@@ -1008,10 +1033,11 @@
       c.setAttribute("cx", scaleX(s.pc1));
       c.setAttribute("cy", scaleY(s.pc2));
       c.setAttribute("r", styles[i].radius);
+      c.setAttribute("data-base-r", styles[i].radius);
       c.setAttribute("fill", DATA.groups[s.group] || "#999");
       c.setAttribute("opacity", styles[i].alpha);
       c.setAttribute("stroke", "black");
-      c.setAttribute("stroke-width", "0.4");
+      c.setAttribute("stroke-width", BASE_STROKE_WIDTH);
       c.setAttribute("data-group", s.group);
       c.setAttribute("data-count", countArr[i]);
       c.style.display = isCircleHidden(s.group, countArr[i], panel) ? "none" : "";
