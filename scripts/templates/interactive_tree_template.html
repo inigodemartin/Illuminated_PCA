@@ -69,25 +69,6 @@
     text-transform: uppercase;
     letter-spacing: 0.03em;
   }
-  .sidebar-hint {
-    font-size: 11px;
-    color: #94a3b8;
-    margin: 0;
-  }
-  .sidebar-threshold-entry {
-    margin-bottom: 10px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid #e2e8f0;
-  }
-  .sidebar-threshold-entry:last-child {
-    border-bottom: none;
-  }
-  .sidebar-threshold-label {
-    font-size: 12px;
-    font-weight: 600;
-    color: #1a1a1a;
-    margin-bottom: 4px;
-  }
   #tree-container {
     position: relative;
     margin-right: 260px;
@@ -178,6 +159,8 @@
   }
   .panel-header-buttons {
     display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
     align-items: center;
     gap: 8px;
   }
@@ -210,26 +193,68 @@
   .legend-action:hover {
     background: #e2e8f0;
   }
-  .threshold-row {
+  .threshold-rail {
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
+    flex-direction: column;
     align-items: center;
-    font-size: 12px;
-    margin-bottom: 8px;
-    color: #334155;
-  }
-  .threshold-row label {
-    display: flex;
-    align-items: center;
+    width: 30px;
+    flex: 0 0 auto;
     gap: 4px;
   }
-  .threshold-input {
-    width: 58px;
-    padding: 2px 4px;
-    border: 1px solid #cbd5e1;
-    border-radius: 4px;
-    font-size: 12px;
+  .threshold-rail-input {
+    width: 28px;
+    padding: 1px 2px;
+    border: 1px solid #e2e8f0;
+    border-radius: 3px;
+    font-size: 10px;
+    text-align: center;
+    color: #94a3b8;
+    background: #fbfcfd;
+  }
+  .threshold-rail-input:hover,
+  .threshold-rail-input:focus {
+    color: #334155;
+    border-color: #94a3b8;
+  }
+  .threshold-rail-input::-webkit-inner-spin-button,
+  .threshold-rail-input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .threshold-rail-track {
+    position: relative;
+    width: 4px;
+    flex: 1 1 auto;
+    margin: 2px 0;
+    background: #e6eaf0;
+    border-radius: 2px;
+  }
+  .threshold-rail-fill {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    background: #b9c3cf;
+    border-radius: 2px;
+  }
+  .threshold-rail-handle {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    width: 11px;
+    height: 11px;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: #94a3b8;
+    border: 1.5px solid #fff;
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.18);
+    cursor: grab;
+  }
+  .threshold-rail-handle:hover {
+    background: #64748b;
+  }
+  .threshold-rail-handle:active {
+    cursor: grabbing;
+    background: #2c3e50;
   }
   .panel-close {
     cursor: pointer;
@@ -240,7 +265,7 @@
   }
   .plot-row {
     display: flex;
-    align-items: center;
+    align-items: stretch;
     gap: 2px;
   }
   .axis-label-y {
@@ -342,11 +367,6 @@
       <button id="sidebar-select-none" class="legend-action">Select none</button>
     </div>
     <div id="sidebar-legend" class="legend"></div>
-  </div>
-  <div class="sidebar-section">
-    <h4>Open PCA thresholds</h4>
-    <p id="sidebar-threshold-hint" class="sidebar-hint">Open a PCA to set its min/max GO-count thresholds here.</p>
-    <div id="sidebar-thresholds"></div>
   </div>
 </div>
 <div id="tree-container">
@@ -544,61 +564,117 @@
     });
   }
 
-  // Thresholds stay per-panel (a meaningful count range differs wildly
-  // between GO terms), but the inputs themselves live in the sidebar --
-  // one entry per currently open PCA -- instead of inside each panel
-  // card, so they're all visible together in one place.
-  function buildSidebarThresholdEntry(node, panel, maxObservedCount) {
-    var entry = document.createElement("div");
-    entry.className = "sidebar-threshold-entry";
+  // Per-panel threshold control: a subtle vertical slider beside the PCA
+  // scatter -- drag either handle to move the count floor/ceiling, or type
+  // exact values in the small inputs above/below the track. Lives on the
+  // panel itself (not a shared sidebar) since a meaningful count range
+  // differs wildly between GO terms, and the track height tracks the
+  // scatter's own height via flex stretch, not a hardcoded pixel value.
+  function buildThresholdRail(panel, maxObservedCount) {
+    var trackMax = maxObservedCount > 0 ? maxObservedCount : 1;
+    panel.dataset.minCount = "0";
+    panel.dataset.maxCount = String(maxObservedCount);
 
-    var label = document.createElement("div");
-    label.className = "sidebar-threshold-label";
-    label.textContent = node.go_id;
-    entry.appendChild(label);
+    var rail = document.createElement("div");
+    rail.className = "threshold-rail";
+    rail.title = "Drag to set this panel's GO-count range";
 
-    var thresholdRow = document.createElement("div");
-    thresholdRow.className = "threshold-row";
-
-    var minLabel = document.createElement("label");
-    minLabel.appendChild(document.createTextNode("Min:"));
-    var minInput = document.createElement("input");
-    minInput.type = "number";
-    minInput.min = "0";
-    minInput.placeholder = "0";
-    minInput.className = "threshold-input";
-    minInput.oninput = function () {
-      panel.dataset.minCount = minInput.value;
-      applyGroupVisibility(panel);
-    };
-    minLabel.appendChild(minInput);
-
-    var maxLabel = document.createElement("label");
-    maxLabel.appendChild(document.createTextNode("Max:"));
     var maxInput = document.createElement("input");
     maxInput.type = "number";
     maxInput.min = "0";
-    maxInput.placeholder = maxObservedCount > 0 ? String(maxObservedCount) : "none";
-    maxInput.className = "threshold-input";
-    maxInput.oninput = function () {
-      panel.dataset.maxCount = maxInput.value;
+    maxInput.className = "threshold-rail-input";
+    maxInput.value = maxObservedCount;
+    rail.appendChild(maxInput);
+
+    var track = document.createElement("div");
+    track.className = "threshold-rail-track";
+    var fill = document.createElement("div");
+    fill.className = "threshold-rail-fill";
+    var minHandle = document.createElement("div");
+    minHandle.className = "threshold-rail-handle";
+    var maxHandle = document.createElement("div");
+    maxHandle.className = "threshold-rail-handle";
+    track.appendChild(fill);
+    track.appendChild(minHandle);
+    track.appendChild(maxHandle);
+    rail.appendChild(track);
+
+    var minInput = document.createElement("input");
+    minInput.type = "number";
+    minInput.min = "0";
+    minInput.className = "threshold-rail-input";
+    minInput.value = 0;
+    rail.appendChild(minInput);
+
+    function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+
+    function positionHandles() {
+      var minV = clamp(parseFloat(panel.dataset.minCount) || 0, 0, trackMax);
+      var maxV = clamp(parseFloat(panel.dataset.maxCount), 0, trackMax);
+      var minPct = (minV / trackMax) * 100;
+      var maxPct = (maxV / trackMax) * 100;
+      minHandle.style.top = (100 - minPct) + "%";
+      maxHandle.style.top = (100 - maxPct) + "%";
+      fill.style.top = (100 - maxPct) + "%";
+      fill.style.height = (maxPct - minPct) + "%";
+    }
+
+    function setMin(v) {
+      if (isNaN(v)) return;
+      v = clamp(Math.round(v), 0, trackMax);
+      var maxV = parseFloat(panel.dataset.maxCount);
+      if (v > maxV) v = maxV;
+      panel.dataset.minCount = String(v);
+      minInput.value = v;
+      positionHandles();
       applyGroupVisibility(panel);
-    };
-    maxLabel.appendChild(maxInput);
+    }
 
-    thresholdRow.appendChild(minLabel);
-    thresholdRow.appendChild(maxLabel);
-    entry.appendChild(thresholdRow);
+    function setMax(v) {
+      if (isNaN(v)) return;
+      v = clamp(Math.round(v), 0, trackMax);
+      var minV = parseFloat(panel.dataset.minCount) || 0;
+      if (v < minV) v = minV;
+      panel.dataset.maxCount = String(v);
+      maxInput.value = v;
+      positionHandles();
+      applyGroupVisibility(panel);
+    }
 
-    document.getElementById("sidebar-thresholds").appendChild(entry);
-    updateSidebarThresholdHint();
-    return entry;
-  }
+    minInput.oninput = function () { setMin(parseFloat(minInput.value)); };
+    maxInput.oninput = function () { setMax(parseFloat(maxInput.value)); };
 
-  function updateSidebarThresholdHint() {
-    var hint = document.getElementById("sidebar-threshold-hint");
-    var hasEntries = document.getElementById("sidebar-thresholds").children.length > 0;
-    hint.style.display = hasEntries ? "none" : "";
+    function valueFromClientY(clientY) {
+      var rect = track.getBoundingClientRect();
+      var frac = clamp((rect.bottom - clientY) / rect.height, 0, 1);
+      return frac * trackMax;
+    }
+
+    function startDrag(setter) {
+      return function (evt) {
+        evt.preventDefault();
+        setter(valueFromClientY(evt.clientY));
+        function onMove(e) { setter(valueFromClientY(e.clientY)); }
+        function onUp() {
+          window.removeEventListener("mousemove", onMove);
+          window.removeEventListener("mouseup", onUp);
+        }
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", onUp);
+      };
+    }
+    minHandle.addEventListener("mousedown", startDrag(setMin));
+    maxHandle.addEventListener("mousedown", startDrag(setMax));
+    track.addEventListener("mousedown", function (evt) {
+      if (evt.target === minHandle || evt.target === maxHandle) return;
+      var v = valueFromClientY(evt.clientY);
+      var minV = parseFloat(panel.dataset.minCount) || 0;
+      var maxV = parseFloat(panel.dataset.maxCount);
+      (Math.abs(v - minV) <= Math.abs(v - maxV) ? setMin : setMax)(v);
+    });
+
+    positionHandles();
+    return rail;
   }
 
   var PNG_EXPORT_SCALE = 2;
@@ -760,11 +836,44 @@
     return { svg: exportSvg, width: totalW, height: totalH };
   }
 
+  // Same fields as the point tooltip, one species per row, limited to
+  // species currently visible in this panel -- i.e. respecting both its
+  // taxon-group toggles and its own min/max GO-count threshold -- so the
+  // download always matches what's actually shown on screen.
+  function downloadPanelTsv(node, panel, countArr) {
+    function tsvField(v) {
+      return String(v).replace(/[\t\r\n]+/g, " ");
+    }
+
+    var rows = [["Species", "Group", "GO_count", "Total_proteins", "Share_of_proteome"]];
+    DATA.species.forEach(function (s, i) {
+      var count = countArr[i];
+      if (count === 0) return;
+      if (isCircleHidden(s.group, count, panel)) return;
+      rows.push([
+        tsvField(s.name),
+        tsvField(s.group),
+        String(count),
+        String(Math.round(s.total_prots)),
+        formatPercent(count, s.total_prots)
+      ]);
+    });
+
+    var tsv = rows.map(function (r) { return r.join("\t"); }).join("\n") + "\n";
+    var blob = new Blob([tsv], { type: "text/tab-separated-values;charset=utf-8" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "illuminated_pca_" + node.go_id.replace(":", "_") + ".tsv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   function buildPanel(node) {
     var panel = document.createElement("div");
     panel.className = "panel";
-    panel.dataset.minCount = "";
-    panel.dataset.maxCount = "";
 
     var header = document.createElement("div");
     header.className = "panel-header";
@@ -785,6 +894,11 @@
     downloadBtn.textContent = "Download PNG";
     headerButtons.appendChild(downloadBtn);
 
+    var downloadTsvBtn = document.createElement("button");
+    downloadTsvBtn.className = "panel-reset";
+    downloadTsvBtn.textContent = "Download TSV";
+    headerButtons.appendChild(downloadTsvBtn);
+
     var closeBtn = document.createElement("button");
     closeBtn.className = "panel-close";
     closeBtn.textContent = "✕";
@@ -800,7 +914,11 @@
     var styles = computeAlphaSize(countArr, groupArr, DATA.meta.no_outliers);
     var maxObservedCount = Math.max.apply(null, countArr);
 
-    panel._sidebarThresholdEntry = buildSidebarThresholdEntry(node, panel, maxObservedCount);
+    var rail = buildThresholdRail(panel, maxObservedCount);
+
+    downloadTsvBtn.onclick = function () {
+      downloadPanelTsv(node, panel, countArr);
+    };
 
     var svgNS = "http://www.w3.org/2000/svg";
     var svg = document.createElementNS(svgNS, "svg");
@@ -910,6 +1028,7 @@
     yLabel.innerHTML = "<span>" + escapeHtml(PC2_LABEL) + "</span>";
     plotRow.appendChild(yLabel);
     plotRow.appendChild(svg);
+    plotRow.appendChild(rail);
     panel.appendChild(plotRow);
 
     var xLabel = document.createElement("div");
@@ -945,10 +1064,8 @@
     if (openNodes[goId]) {
       delete openNodes[goId];
       box.classList.remove("expanded");
-      openPanelElements[goId]._sidebarThresholdEntry.remove();
       openPanelElements[goId].remove();
       delete openPanelElements[goId];
-      updateSidebarThresholdHint();
     } else {
       openNodes[goId] = true;
       box.classList.add("expanded");
