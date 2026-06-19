@@ -422,9 +422,14 @@
   // changes no matter how far you zoom. Letting the viewBox shrink this
   // far, combined with counter-scaling marker radius back down on every
   // zoom step (see updateMarkerScale), is what actually lets a dense
-  // cluster pull apart under zoom: screen-pixel dot size stays constant
-  // while the screen-pixel gap between dots keeps growing.
+  // cluster pull apart under zoom.
   var MIN_VIEW_FRACTION = 1 / 8000;
+  // Dots grow by up to this fraction of their original screen size as you
+  // zoom in, saturating within the first few zoom steps and then staying
+  // flat -- a little bigger at depth, without the growth running away
+  // (and eating back the separating power) at extreme zoom. 0 would keep
+  // dots a perfectly constant screen size at any zoom.
+  var MARKER_ZOOM_GROWTH = 0.4;
   function scaleX(v) { return ((v - xMin) / (xMax - xMin)) * PLOT_W; }
   function scaleY(v) { return PLOT_H - ((v - yMin) / (yMax - yMin)) * PLOT_H; }
 
@@ -941,12 +946,14 @@
     applyViewBox();
 
     // Counter-scale every marker's radius/stroke by how far we've zoomed
-    // (viewBox.w shrinking relative to PLOT_W), so each dot keeps a
-    // constant on-screen pixel size instead of growing with the zoom --
-    // see the MIN_VIEW_FRACTION comment for why that's what actually
-    // separates a tight cluster of points as you zoom into it.
+    // (viewBox.w shrinking relative to PLOT_W), so each dot keeps roughly
+    // (not perfectly -- see MARKER_ZOOM_GROWTH) a constant on-screen pixel
+    // size instead of growing in lockstep with the zoom -- see the
+    // MIN_VIEW_FRACTION comment for why that's what actually separates a
+    // tight cluster of points as you zoom into it.
     function updateMarkerScale() {
-      var scale = viewBox.w / PLOT_W;
+      var ratio = viewBox.w / PLOT_W;
+      var scale = ratio * (1 + MARKER_ZOOM_GROWTH * (1 - ratio));
       svg.querySelectorAll("circle[data-base-r]").forEach(function (c) {
         c.setAttribute("r", parseFloat(c.getAttribute("data-base-r")) * scale);
         c.setAttribute("stroke-width", BASE_STROKE_WIDTH * scale);
