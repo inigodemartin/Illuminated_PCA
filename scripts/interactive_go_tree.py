@@ -13,6 +13,8 @@ is specific to this script.
 from pathlib import Path
 import argparse
 import json
+import sys
+import time
 from collections import defaultdict
 
 import numpy as np
@@ -256,6 +258,13 @@ def build_node_counts(node_ids, raw_full_df, species, parent_to_children, count_
     return counts
 
 
+def _log(prev_t, message):
+    """Print elapsed-since-last-stage time to stderr; returns the new checkpoint."""
+    now = time.perf_counter()
+    print(f"  [+{now - prev_t:6.1f}s] {message}", file=sys.stderr)
+    return now
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Interactive HTML GO ancestor/descendant tree with illuminated PCA")
     parser.add_argument("--go", "-g", required=True, help="Root GO ID")
@@ -274,13 +283,18 @@ def parse_args():
 
 def main():
     args = parse_args()
+    t = time.perf_counter()
 
     raw_full = pd.read_csv(args.matrix, sep="\t", index_col=0).fillna(0)
+    t = _log(t, f"loaded matrix ({raw_full.shape[0]} species x {raw_full.shape[1]} GO columns)")
     total_prots = load_species_stats(args.species_stats)
+    t = _log(t, f"loaded species stats ({len(total_prots)} species)")
     taxon_dict = load_taxonomy(args.taxonomy)
+    t = _log(t, f"loaded taxonomy ({len(taxon_dict)} species)")
 
     pca_df, explained_variance = run_pca_on_relative_abundance(raw_full, total_prots)
     pca_df = remove_outliers(pca_df, low=5, high=95)
+    t = _log(t, "ran PCA on relative abundance")
 
     pca_df = pca_df.copy()
     pca_df["Group"] = pca_df.index.map(taxon_dict)
@@ -303,16 +317,21 @@ def main():
     ]
     groups_used = sorted({rec["group"] for rec in species_records})
     groups_hex = {g: rgb_to_hex(color_map[g]) for g in groups_used}
+    t = _log(t, f"built species records ({len(species_records)} species)")
 
     ic_table = load_ic_table(args.ic_file)
+    t = _log(t, f"loaded IC table ({len(ic_table)} GO terms)")
 
     ancestors, descendants, go_desc, child_to_parents, parent_to_children = get_go_relations(args.go, args.obo)
+    t = _log(t, f"parsed OBO and resolved ancestors/descendants ({len(go_desc)} GO terms in ontology)")
     extra_nodes = descendants if args.plot_descendants else ancestors
     nodes, edges, all_node_ids = build_tree(
         args.go, extra_nodes, go_desc, child_to_parents, parent_to_children, args.plot_descendants, ic_table
     )
+    t = _log(t, f"built tree ({len(nodes)} nodes, {len(edges)} edges)")
 
     counts = build_node_counts(all_node_ids, raw_full, species, parent_to_children, args.count_descendants)
+    t = _log(t, f"computed per-node GO counts ({len(counts)} nodes, count_descendants={args.count_descendants})")
 
     payload = {
         "species": species_records,
@@ -336,6 +355,7 @@ def main():
 
     output_path = args.output or f"interactive_{args.go.replace(':', '_')}_{'descendants' if args.plot_descendants else 'ancestors'}.html"
     Path(output_path).write_text(html)
+    _log(t, f"wrote {output_path}")
     print(f"Wrote {output_path} ({len(nodes)} nodes, {len(species_records)} species)")
 
 
