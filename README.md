@@ -168,15 +168,18 @@ simply pushed down, same as any inline accordion. "Expand all PCAs"/
 "Collapse all PCAs" buttons in the header open or close every node at
 once. A fixed sidebar holds the taxon legend/select-all-none (one shared
 copy that controls every open panel, instead of repeating it in each
-one) and a "Min"/"Max" count threshold per currently-open PCA: set either
+one), a "Min"/"Max" count threshold per currently-open PCA: set either
 to only plot species whose GO count for that node falls in that range,
 e.g. min=10 hides every species annotated fewer than 10 times for that
-term. Each panel can be downloaded individually as a PNG (title, axis
-variance labels and taxon legend included), and "Download tree PNG"
-exports the whole tree exactly as shown on screen — boxes, connectors and
-every currently-expanded PCA in place, thresholds and all — as one image.
-Each node also shows its GO Information Content (IC), from the bundled
-`data/All_GOs_ic.tsv`.
+term, and a "Top GO terms per PC" list — the GO terms whose relative
+abundance most drives PC1/PC2 (the fitted PCA's own loadings, sign and
+all), a property of the PCA itself rather than of any one node, so it's
+shown once rather than per panel. Each panel can be downloaded
+individually as a PNG (title, axis variance labels and taxon legend
+included), and "Download tree PNG" exports the whole tree exactly as
+shown on screen — boxes, connectors and every currently-expanded PCA in
+place, thresholds and all — as one image. Each node also shows its GO
+Information Content (IC), from the bundled `data/All_GOs_ic.tsv`.
 
 Differences from the PNG pipeline:
 
@@ -218,10 +221,18 @@ python scripts/interactive_go_tree.py \
 | `-o, --no_outliers` | Percentile-clipped scaling instead of log scaling. |
 | `-p, --plot_descendants` | Build the tree from descendants instead of ancestors. |
 | `--output` | Output HTML path (default: `interactive_<GO_ID>_<ancestors\|descendants>.html`). |
+| `--top-loadings-n` | Most-influential GO terms to report per PC (default: 20). |
+| `--loadings-output` | Top-loadings TSV path (default: alongside `--output`, with `_top_loadings.tsv`). |
 
 ### Output
 
 A single HTML file with the GO tree laid out level by level; clicking a
 node expands an inline panel with its illuminated PCA. All data (PCA
-coordinates, GO counts, tree structure) is embedded as JSON in the file
-itself, so it has no external dependencies and works fully offline.
+coordinates, GO counts, tree structure, top loadings) is embedded as JSON
+in the file itself, so it has no external dependencies and works fully
+offline.
+
+A second file, `<output>_top_loadings.tsv`, lists the same top GO terms
+per PC shown in the sidebar — one row per (PC, rank, GO id, description,
+signed loading) — for use outside the browser (spreadsheets, downstream
+scripts, etc.).

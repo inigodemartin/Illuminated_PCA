@@ -71,6 +71,10 @@ def run_pca_on_relative_abundance(raw_df, total_prots):
     (count / Total_prots per species), then PCA via StandardScaler +
     TruncatedSVD. Computed once: the layout is identical for every GO node,
     so unlike the PNG pipeline this never needs to be recomputed per node.
+
+    Also returns the per-GO-term loadings (model.components_, transposed so
+    rows are GO ids): how much each retained GO column contributes to PC1/
+    PC2, for the "most influential GO terms per component" report.
     """
     species = [s for s in raw_df.index if s in total_prots.index]
     raw_df = raw_df.loc[species]
@@ -85,7 +89,40 @@ def run_pca_on_relative_abundance(raw_df, total_prots):
     components = model.fit_transform(normalized)
 
     pca_df = pd.DataFrame(components, columns=["PC1", "PC2"], index=species)
-    return pca_df, model.explained_variance_ratio_
+    loadings = pd.DataFrame(model.components_.T, columns=["PC1", "PC2"], index=pca_input.columns)
+    return pca_df, model.explained_variance_ratio_, loadings
+
+
+def top_loadings_by_pc(loadings, go_desc, n):
+    """
+    For each PC, the n GO terms with the largest |loading| -- i.e. the GO
+    terms whose relative abundance most drives that axis of the PCA, in
+    either direction (sign is kept: it tells which end of the axis a term
+    pulls towards, not just how strongly).
+    """
+    result = {}
+    for pc in loadings.columns:
+        ranked = loadings[pc].reindex(loadings[pc].abs().sort_values(ascending=False).index)
+        top = ranked.head(n)
+        result[pc] = [
+            {"go_id": go_id, "description": go_desc.get(go_id, "unknown"), "loading": float(value)}
+            for go_id, value in top.items()
+        ]
+    return result
+
+
+def write_top_loadings_tsv(top_loadings, output_path):
+    rows = []
+    for pc, entries in top_loadings.items():
+        for rank, entry in enumerate(entries, start=1):
+            rows.append({
+                "PC": pc,
+                "Rank": rank,
+                "GO_id": entry["go_id"],
+                "Description": entry["description"],
+                "Loading": entry["loading"],
+            })
+    pd.DataFrame(rows).to_csv(output_path, sep="\t", index=False)
 
 
 def rgb_to_hex(rgb):
@@ -278,6 +315,10 @@ def parse_args():
     parser.add_argument("-o", "--no_outliers", action="store_true", help="Robust (percentile-clipped) scaling instead of log scaling")
     parser.add_argument("-p", "--plot_descendants", action="store_true", help="Build the tree from descendants instead of ancestors")
     parser.add_argument("--output", default=None, help="Output HTML path")
+    parser.add_argument("--top-loadings-n", type=int, default=20,
+                         help="Number of most-influential GO terms to report per PC (default: 20)")
+    parser.add_argument("--loadings-output", default=None,
+                         help="Top-loadings TSV path (default: alongside --output, with _top_loadings.tsv)")
     return parser.parse_args()
 
 
@@ -292,7 +333,7 @@ def main():
     taxon_dict = load_taxonomy(args.taxonomy)
     t = _log(t, f"loaded taxonomy ({len(taxon_dict)} species)")
 
-    pca_df, explained_variance = run_pca_on_relative_abundance(raw_full, total_prots)
+    pca_df, explained_variance, loadings = run_pca_on_relative_abundance(raw_full, total_prots)
     pca_df = remove_outliers(pca_df, low=5, high=95)
     t = _log(t, "ran PCA on relative abundance")
 
@@ -333,11 +374,15 @@ def main():
     counts = build_node_counts(all_node_ids, raw_full, species, parent_to_children, args.count_descendants)
     t = _log(t, f"computed per-node GO counts ({len(counts)} nodes, count_descendants={args.count_descendants})")
 
+    top_loadings = top_loadings_by_pc(loadings, go_desc, args.top_loadings_n)
+    t = _log(t, f"ranked top {args.top_loadings_n} GO terms per PC by loading")
+
     payload = {
         "species": species_records,
         "groups": groups_hex,
         "tree": {"nodes": nodes, "edges": edges},
         "counts": counts,
+        "top_loadings": top_loadings,
         "meta": {
             "root": args.go,
             "mode": "descendants" if args.plot_descendants else "ancestors",
@@ -356,7 +401,12 @@ def main():
     output_path = args.output or f"interactive_{args.go.replace(':', '_')}_{'descendants' if args.plot_descendants else 'ancestors'}.html"
     Path(output_path).write_text(html)
     _log(t, f"wrote {output_path}")
+
+    loadings_output = args.loadings_output or f"{Path(output_path).with_suffix('')}_top_loadings.tsv"
+    write_top_loadings_tsv(top_loadings, loadings_output)
+    _log(t, f"wrote {loadings_output}")
     print(f"Wrote {output_path} ({len(nodes)} nodes, {len(species_records)} species)")
+    print(f"Wrote {loadings_output} (top {args.top_loadings_n} GO terms per PC)")
 
 
 if __name__ == "__main__":
