@@ -126,7 +126,7 @@
   .panel-zone {
     display: flex;
     flex-direction: row;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     justify-content: center;
     align-items: flex-start;
     gap: 16px;
@@ -1087,9 +1087,11 @@
   // Panels expand right under their own node's row, in that level's
   // panel-zone -- so a PCA always opens "in the tree", next to its GO,
   // not in some unrelated area of the page. Multiple panels opened from
-  // the same level share that level's zone, side by side (wrapping/
-  // shrinking via CSS), keeping that level's row order intact; opening a
-  // panel pushes the levels below it down, same as any inline accordion.
+  // the same level share that level's zone, side by side on one row
+  // (shrinking via CSS, never wrapping onto a second row -- #tree-container
+  // scrolls horizontally instead), keeping that level's row order intact;
+  // opening a panel pushes the levels below it down, same as any inline
+  // accordion.
   function toggleNode(goId) {
     var box = document.querySelector('.node-box[data-go-id="' + cssEscape(goId) + '"]');
     var zone = box.closest(".level-row").querySelector(".panel-zone");
