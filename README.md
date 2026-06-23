@@ -15,6 +15,7 @@ term counts derived from functional annotation.
 | `scripts/illuminate_PCA.py` | Core module: runs PCA on a GO-count matrix and plots it, either as a standard taxonomy-colored PCA or as an "illuminated" PCA for one or more GO terms. |
 | `scripts/go_tree_illuminated_pca.py` | Builds on the core module to generate illuminated PCA plots for an entire GO ancestor/descendant tree, then renders that tree as a Graphviz diagram with each PCA plot embedded in its node. |
 | `scripts/interactive_go_tree.py` | Generates a single self-contained interactive HTML page for a GO ancestor/descendant tree: click a node to expand its illuminated PCA inline (zoomable/pannable), hover a point for species details. |
+| `scripts/presence_absence_pca.py` | Generates a single self-contained interactive HTML page with one general PCA of GO term **presence/absence** (not abundance) across species — no GO tree, no illumination. |
 
 ## How it works
 
@@ -236,3 +237,36 @@ A second file, `<output>_top_loadings.tsv`, lists the same top GO terms
 per PC shown in the sidebar — one row per (PC, rank, GO id, description,
 signed loading) — for use outside the browser (spreadsheets, downstream
 scripts, etc.).
+
+## General presence/absence PCA
+
+`scripts/presence_absence_pca.py` generates a single self-contained HTML
+page with one general PCA — no GO tree, no illumination. It takes the
+same raw GO-counts matrix as `interactive_go_tree.py`, but instead of
+converting counts to relative abundance (`count / Total_prots`), each
+retained GO column is binarized to presence/absence (`count > 0` → 1):
+the question this answers is "which species share the same *set* of GO
+terms", not "which species have more/less of a given term".
+
+Points are colored by taxonomic group only (no size/opacity encoding,
+since there's no single GO term being illuminated). The plot is
+zoomable/pannable, has a taxon legend with select-all/none in the
+sidebar, and a "Download PNG" button. Hovering a point shows the
+species, its group, and how many of the retained GO terms it's present
+for.
+
+### Usage
+
+```bash
+python scripts/presence_absence_pca.py \
+  -m raw_counts_matrix.tsv \
+  --taxonomy taxonomy.tsv \
+  --output general_pca_presence_absence.html
+```
+
+| Flag | Description |
+|---|---|
+| `-m, --matrix` | Raw GO counts matrix, species x GO terms (required). |
+| `--taxonomy` | TSV with `Species` and `Group` columns (required). |
+| `-t, --taxa` | Restrict to these taxonomic groups. |
+| `--output` | Output HTML path (default: `general_pca_presence_absence.html`). |

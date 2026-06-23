@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>__GENERAL_PCA_TITLE__</title>
+<style>
+  :root {
+    color-scheme: light;
+  }
+  body {
+    font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    margin: 0;
+    background: #f5f6f8;
+    color: #1a1a1a;
+  }
+  header {
+    padding: 16px 24px;
+    margin-right: 260px;
+    background: #2c3e50;
+    color: #fff;
+  }
+  header h1 {
+    margin: 0 0 4px;
+    font-size: 18px;
+  }
+  header p {
+    margin: 0;
+    font-size: 13px;
+    color: #cbd5e1;
+  }
+  #toolbar {
+    margin-top: 10px;
+    display: flex;
+    gap: 10px;
+  }
+  .toolbar-btn {
+    cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.4);
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+    border-radius: 4px;
+    font-size: 12px;
+    padding: 4px 10px;
+  }
+  .toolbar-btn:hover {
+    background: rgba(255,255,255,0.22);
+  }
+  #sidebar {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 250px;
+    height: 100vh;
+    overflow-y: auto;
+    background: #f8fafc;
+    border-left: 1px solid #cbd5e1;
+    box-shadow: -2px 0 8px rgba(0,0,0,0.06);
+    padding: 16px;
+    box-sizing: border-box;
+    z-index: 600;
+  }
+  .sidebar-section {
+    margin-bottom: 22px;
+  }
+  .sidebar-section h4 {
+    margin: 0 0 8px;
+    font-size: 12px;
+    color: #334155;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .legend-actions {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .legend-action {
+    cursor: pointer;
+    border: 1px solid #cbd5e1;
+    background: #f8fafc;
+    border-radius: 4px;
+    font-size: 11px;
+    padding: 2px 8px;
+    color: #334155;
+  }
+  .legend-action:hover {
+    background: #e2e8f0;
+  }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    font-size: 12px;
+    margin-bottom: 6px;
+  }
+  .legend label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+  }
+  .legend .swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  #plot-container {
+    margin-right: 260px;
+    padding: 32px 24px 60px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .plot-card {
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 16px 20px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+  }
+  .plot-row {
+    display: flex;
+    align-items: stretch;
+    gap: 4px;
+  }
+  .axis-label-y {
+    width: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .axis-label-y span {
+    display: inline-block;
+    transform: rotate(-90deg);
+    white-space: nowrap;
+    font-size: 12px;
+    color: #555;
+  }
+  .axis-label-x {
+    text-align: center;
+    font-size: 12px;
+    color: #555;
+    margin-top: 4px;
+  }
+  .plot-hint {
+    text-align: center;
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 6px;
+  }
+  .scatter {
+    width: 100%;
+    height: auto;
+    display: block;
+    cursor: grab;
+    touch-action: none;
+  }
+  .scatter.panning {
+    cursor: grabbing;
+  }
+  .scatter circle {
+    transition: opacity 0.1s;
+  }
+  .axis-line {
+    stroke: #9ca3af;
+    stroke-dasharray: 4 3;
+    stroke-width: 1;
+  }
+  #tooltip {
+    position: fixed;
+    pointer-events: none;
+    background: rgba(15, 23, 42, 0.92);
+    color: #fff;
+    padding: 6px 9px;
+    border-radius: 4px;
+    font-size: 12px;
+    line-height: 1.45;
+    z-index: 1000;
+    max-width: 240px;
+  }
+  #tooltip.hidden {
+    display: none;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="page-title"></h1>
+  <p id="page-subtitle"></p>
+  <div id="toolbar">
+    <button id="reset-zoom-btn" class="toolbar-btn">Reset zoom</button>
+    <button id="download-png-btn" class="toolbar-btn">Download PNG</button>
+  </div>
+</header>
+<div id="sidebar">
+  <div class="sidebar-section">
+    <h4>Taxonomic groups</h4>
+    <div class="legend-actions">
+      <button id="sidebar-select-all" class="legend-action">Select all</button>
+      <button id="sidebar-select-none" class="legend-action">Select none</button>
+    </div>
+    <div id="sidebar-legend" class="legend"></div>
+  </div>
+</div>
+<div id="plot-container">
+  <div class="plot-card">
+    <div class="plot-row">
+      <div class="axis-label-y"><span id="y-axis-label"></span></div>
+      <svg id="scatter" class="scatter"></svg>
+    </div>
+    <div class="axis-label-x" id="x-axis-label"></div>
+    <div class="plot-hint">Scroll to zoom, drag to pan.</div>
+  </div>
+</div>
+<div id="tooltip" class="hidden"></div>
+
+<script id="general-pca-data" type="application/json">__GENERAL_PCA_DATA__</script>
+<script>
+(function () {
+  "use strict";
+
+  var DATA = JSON.parse(document.getElementById("general-pca-data").textContent);
+
+  var tooltip = document.getElementById("tooltip");
+
+  document.getElementById("page-title").textContent = "General PCA: GO term presence/absence";
+  document.getElementById("page-subtitle").textContent =
+    DATA.species.length + " species, " + DATA.meta.n_go_terms_used +
+    " GO terms used (presence/absence, not abundance)";
+
+  var ALL_GROUPS = (function () {
+    var present = {};
+    DATA.species.forEach(function (s) { present[s.group] = true; });
+    return Object.keys(present).sort();
+  })();
+
+  var xs = DATA.species.map(function (s) { return s.pc1; });
+  var ys = DATA.species.map(function (s) { return s.pc2; });
+  var xMin = Math.min.apply(null, xs), xMax = Math.max.apply(null, xs);
+  var yMin = Math.min.apply(null, ys), yMax = Math.max.apply(null, ys);
+  var xPad = (xMax - xMin) * 0.08 || 1, yPad = (yMax - yMin) * 0.08 || 1;
+  xMin -= xPad; xMax += xPad; yMin -= yPad; yMax += yPad;
+
+  var PLOT_W = 760, PLOT_H = 500;
+  var BASE_RADIUS = 3.5;
+  var BASE_STROKE_WIDTH = 0.5;
+  // Same zoom-separation/marker-counter-scale behavior as the illuminated
+  // PCA panels in interactive_go_tree.py: letting the viewBox shrink this
+  // far, combined with counter-scaling marker radius back down on every
+  // zoom step, is what lets a dense cluster pull apart under zoom instead
+  // of every point + the gap between them growing at the same rate.
+  var MIN_VIEW_FRACTION = 1 / 8000;
+  var MARKER_ZOOM_GROWTH = 0.4;
+  function scaleX(v) { return ((v - xMin) / (xMax - xMin)) * PLOT_W; }
+  function scaleY(v) { return PLOT_H - ((v - yMin) / (yMax - yMin)) * PLOT_H; }
+
+  var EXPLAINED = DATA.meta.explained_variance || [0, 0];
+  var PC1_LABEL = "PC1 (" + (EXPLAINED[0] * 100).toFixed(1) + "% variance)";
+  var PC2_LABEL = "PC2 (" + (EXPLAINED[1] * 100).toFixed(1) + "% variance)";
+  document.getElementById("y-axis-label").textContent = PC2_LABEL;
+  document.getElementById("x-axis-label").textContent = PC1_LABEL;
+
+  var hiddenGroups = {};
+
+  function escapeHtml(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  function showTooltip(evt, species) {
+    var pct = DATA.meta.n_go_terms_used > 0
+      ? (species.go_terms_present / DATA.meta.n_go_terms_used) * 100
+      : 0;
+    tooltip.innerHTML =
+      "<b>" + escapeHtml(species.name) + "</b><br>" +
+      "Group: " + escapeHtml(species.group) + "<br>" +
+      "GO terms present: " + species.go_terms_present + " / " + DATA.meta.n_go_terms_used + "<br>" +
+      "Share: " + pct.toFixed(2) + "%";
+    tooltip.classList.remove("hidden");
+    moveTooltip(evt);
+  }
+
+  function moveTooltip(evt) {
+    tooltip.style.left = (evt.clientX + 14) + "px";
+    tooltip.style.top = (evt.clientY + 14) + "px";
+  }
+
+  function hideTooltip() {
+    tooltip.classList.add("hidden");
+  }
+
+  function applyGroupVisibility() {
+    svg.querySelectorAll("circle[data-group]").forEach(function (c) {
+      c.style.display = hiddenGroups[c.getAttribute("data-group")] ? "none" : "";
+    });
+  }
+
+  function syncLegendCheckboxes() {
+    document.querySelectorAll("input[data-group-checkbox]").forEach(function (cb) {
+      cb.checked = !hiddenGroups[cb.getAttribute("data-group-checkbox")];
+    });
+  }
+
+  function setAllGroupsHidden(hidden) {
+    ALL_GROUPS.forEach(function (g) { hiddenGroups[g] = hidden; });
+    applyGroupVisibility();
+    syncLegendCheckboxes();
+  }
+
+  function buildSidebarLegend() {
+    var selectAllBtn = document.getElementById("sidebar-select-all");
+    var selectNoneBtn = document.getElementById("sidebar-select-none");
+    selectAllBtn.onclick = function () { setAllGroupsHidden(false); };
+    selectNoneBtn.onclick = function () { setAllGroupsHidden(true); };
+
+    var legend = document.getElementById("sidebar-legend");
+    ALL_GROUPS.forEach(function (g) {
+      var label = document.createElement("label");
+      var cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.setAttribute("data-group-checkbox", g);
+      cb.checked = !hiddenGroups[g];
+      cb.onchange = function () {
+        hiddenGroups[g] = !cb.checked;
+        applyGroupVisibility();
+      };
+      var swatch = document.createElement("span");
+      swatch.className = "swatch";
+      swatch.style.background = DATA.groups[g] || "#999";
+      label.appendChild(cb);
+      label.appendChild(swatch);
+      label.appendChild(document.createTextNode(g));
+      legend.appendChild(label);
+    });
+  }
+
+  var svgNS = "http://www.w3.org/2000/svg";
+  var svg = document.getElementById("scatter");
+
+  var viewBox = { x: 0, y: 0, w: PLOT_W, h: PLOT_H };
+  function applyViewBox() {
+    svg.setAttribute("viewBox", viewBox.x + " " + viewBox.y + " " + viewBox.w + " " + viewBox.h);
+  }
+  applyViewBox();
+
+  function updateMarkerScale() {
+    var ratio = viewBox.w / PLOT_W;
+    var scale = ratio * (1 + MARKER_ZOOM_GROWTH * (1 - ratio));
+    svg.querySelectorAll("circle[data-base-r]").forEach(function (c) {
+      c.setAttribute("r", parseFloat(c.getAttribute("data-base-r")) * scale);
+      c.setAttribute("stroke-width", BASE_STROKE_WIDTH * scale);
+    });
+  }
+
+  document.getElementById("reset-zoom-btn").onclick = function () {
+    viewBox.x = 0; viewBox.y = 0; viewBox.w = PLOT_W; viewBox.h = PLOT_H;
+    applyViewBox();
+    updateMarkerScale();
+  };
+
+  var minViewW = PLOT_W * MIN_VIEW_FRACTION;
+  svg.addEventListener("wheel", function (evt) {
+    evt.preventDefault();
+    var rect = svg.getBoundingClientRect();
+    var mx = (evt.clientX - rect.left) / rect.width;
+    var my = (evt.clientY - rect.top) / rect.height;
+    var pointX = viewBox.x + mx * viewBox.w;
+    var pointY = viewBox.y + my * viewBox.h;
+    var factor = evt.deltaY > 0 ? 1.15 : (1 / 1.15);
+    var newW = Math.min(PLOT_W, Math.max(minViewW, viewBox.w * factor));
+    var newH = newW * (PLOT_H / PLOT_W);
+    viewBox.x = pointX - mx * newW;
+    viewBox.y = pointY - my * newH;
+    viewBox.w = newW;
+    viewBox.h = newH;
+    applyViewBox();
+    updateMarkerScale();
+  }, { passive: false });
+
+  var isPanning = false, panStart = null;
+  svg.addEventListener("mousedown", function (evt) {
+    isPanning = true;
+    panStart = { x: evt.clientX, y: evt.clientY, vbX: viewBox.x, vbY: viewBox.y };
+    svg.classList.add("panning");
+    hideTooltip();
+    evt.preventDefault();
+  });
+  window.addEventListener("mousemove", function (evt) {
+    if (!isPanning) return;
+    var rect = svg.getBoundingClientRect();
+    var dx = (evt.clientX - panStart.x) / rect.width * viewBox.w;
+    var dy = (evt.clientY - panStart.y) / rect.height * viewBox.h;
+    viewBox.x = panStart.vbX - dx;
+    viewBox.y = panStart.vbY - dy;
+    applyViewBox();
+  });
+  window.addEventListener("mouseup", function () {
+    isPanning = false;
+    svg.classList.remove("panning");
+  });
+
+  function styleAxisLine(line) {
+    line.setAttribute("class", "axis-line");
+    line.setAttribute("stroke", "#9ca3af");
+    line.setAttribute("stroke-dasharray", "4 3");
+    line.setAttribute("stroke-width", "1");
+  }
+
+  var axisX = document.createElementNS(svgNS, "line");
+  axisX.setAttribute("x1", 0); axisX.setAttribute("x2", PLOT_W);
+  axisX.setAttribute("y1", scaleY(0)); axisX.setAttribute("y2", scaleY(0));
+  styleAxisLine(axisX);
+  svg.appendChild(axisX);
+
+  var axisY = document.createElementNS(svgNS, "line");
+  axisY.setAttribute("y1", 0); axisY.setAttribute("y2", PLOT_H);
+  axisY.setAttribute("x1", scaleX(0)); axisY.setAttribute("x2", scaleX(0));
+  styleAxisLine(axisY);
+  svg.appendChild(axisY);
+
+  DATA.species.forEach(function (s) {
+    var c = document.createElementNS(svgNS, "circle");
+    c.setAttribute("cx", scaleX(s.pc1));
+    c.setAttribute("cy", scaleY(s.pc2));
+    c.setAttribute("r", BASE_RADIUS);
+    c.setAttribute("data-base-r", BASE_RADIUS);
+    c.setAttribute("fill", DATA.groups[s.group] || "#999");
+    c.setAttribute("opacity", 0.85);
+    c.setAttribute("stroke", "black");
+    c.setAttribute("stroke-width", BASE_STROKE_WIDTH);
+    c.setAttribute("data-group", s.group);
+    c.style.display = hiddenGroups[s.group] ? "none" : "";
+    c.addEventListener("mouseenter", function (evt) { if (!isPanning) showTooltip(evt, s); });
+    c.addEventListener("mousemove", function (evt) { if (!isPanning) moveTooltip(evt); });
+    c.addEventListener("mouseleave", hideTooltip);
+    svg.appendChild(c);
+  });
+
+  var PNG_EXPORT_SCALE = 2;
+  var LEGEND_ROW_H = 20;
+  var LEGEND_SWATCH = 10;
+  var LEGEND_GAP = 16;
+  var LEGEND_CHAR_PX = 6.3;
+
+  function packLegendRows(legendGroups, rowMaxWidth) {
+    var rows = [[]];
+    var rowWidth = 0;
+    legendGroups.forEach(function (g) {
+      var itemWidth = LEGEND_SWATCH + 4 + g.length * LEGEND_CHAR_PX + LEGEND_GAP;
+      if (rowWidth + itemWidth > rowMaxWidth && rows[rows.length - 1].length > 0) {
+        rows.push([]);
+        rowWidth = 0;
+      }
+      rows[rows.length - 1].push({ name: g, width: itemWidth });
+      rowWidth += itemWidth;
+    });
+    return rows;
+  }
+
+  function appendLegendRows(parentSvg, rows, originX, originY) {
+    rows.forEach(function (row, rowIdx) {
+      var x = originX;
+      var y = originY + rowIdx * LEGEND_ROW_H + LEGEND_ROW_H / 2;
+      row.forEach(function (item) {
+        var swatch = document.createElementNS(svgNS, "circle");
+        swatch.setAttribute("cx", x + LEGEND_SWATCH / 2);
+        swatch.setAttribute("cy", y);
+        swatch.setAttribute("r", LEGEND_SWATCH / 2);
+        swatch.setAttribute("fill", DATA.groups[item.name] || "#999");
+        swatch.setAttribute("stroke", "black");
+        swatch.setAttribute("stroke-width", "0.5");
+        parentSvg.appendChild(swatch);
+
+        var label = document.createElementNS(svgNS, "text");
+        label.setAttribute("x", x + LEGEND_SWATCH + 4);
+        label.setAttribute("y", y + 4);
+        label.setAttribute("font-family", "Arial, Helvetica, sans-serif");
+        label.setAttribute("font-size", "11");
+        label.setAttribute("fill", "#1a1a1a");
+        label.textContent = item.name;
+        parentSvg.appendChild(label);
+
+        x += item.width;
+      });
+    });
+  }
+
+  function downloadSvgAsPng(exportSvg, width, height, filenameBase) {
+    var outW = Math.round(width * PNG_EXPORT_SCALE);
+    var outH = Math.round(height * PNG_EXPORT_SCALE);
+
+    var svgString = new XMLSerializer().serializeToString(exportSvg);
+    var svgBlob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+    var url = URL.createObjectURL(svgBlob);
+
+    var img = new Image();
+    img.onload = function () {
+      var canvas = document.createElement("canvas");
+      canvas.width = outW;
+      canvas.height = outH;
+      var ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, outW, outH);
+      ctx.drawImage(img, 0, 0, outW, outH);
+      URL.revokeObjectURL(url);
+
+      canvas.toBlob(function (blob) {
+        var a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = filenameBase + ".png";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }, "image/png");
+    };
+    img.onerror = function () {
+      URL.revokeObjectURL(url);
+      window.alert("Could not export this PCA as PNG.");
+    };
+    img.src = url;
+  }
+
+  document.getElementById("download-png-btn").onclick = function () {
+    var MARGIN = 16;
+    var TITLE_H = 28;
+    var Y_LABEL_W = 20;
+    var X_LABEL_H = 22;
+
+    var rows = packLegendRows(ALL_GROUPS, Y_LABEL_W + PLOT_W);
+    var legendH = rows.length * LEGEND_ROW_H;
+
+    var totalW = MARGIN * 2 + Y_LABEL_W + PLOT_W;
+    var totalH = MARGIN * 2 + TITLE_H + PLOT_H + X_LABEL_H + legendH;
+
+    var exportSvg = document.createElementNS(svgNS, "svg");
+    exportSvg.setAttribute("width", totalW);
+    exportSvg.setAttribute("height", totalH);
+    exportSvg.setAttribute("viewBox", "0 0 " + totalW + " " + totalH);
+    exportSvg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+
+    var bg = document.createElementNS(svgNS, "rect");
+    bg.setAttribute("x", 0); bg.setAttribute("y", 0);
+    bg.setAttribute("width", totalW); bg.setAttribute("height", totalH);
+    bg.setAttribute("fill", "#ffffff");
+    exportSvg.appendChild(bg);
+
+    var title = document.createElementNS(svgNS, "text");
+    title.setAttribute("x", totalW / 2);
+    title.setAttribute("y", MARGIN + 18);
+    title.setAttribute("text-anchor", "middle");
+    title.setAttribute("font-family", "Arial, Helvetica, sans-serif");
+    title.setAttribute("font-size", "15");
+    title.setAttribute("font-weight", "bold");
+    title.textContent = "General PCA: GO term presence/absence";
+    exportSvg.appendChild(title);
+
+    var plotClone = svg.cloneNode(true);
+    plotClone.removeAttribute("class");
+    plotClone.setAttribute("width", PLOT_W);
+    plotClone.setAttribute("height", PLOT_H);
+    plotClone.setAttribute("x", MARGIN + Y_LABEL_W);
+    plotClone.setAttribute("y", MARGIN + TITLE_H);
+    exportSvg.appendChild(plotClone);
+
+    var yLabel = document.createElementNS(svgNS, "text");
+    var yLabelX = MARGIN + 10;
+    var yLabelY = MARGIN + TITLE_H + PLOT_H / 2;
+    yLabel.setAttribute("transform", "translate(" + yLabelX + "," + yLabelY + ") rotate(-90)");
+    yLabel.setAttribute("text-anchor", "middle");
+    yLabel.setAttribute("font-family", "Arial, Helvetica, sans-serif");
+    yLabel.setAttribute("font-size", "12");
+    yLabel.setAttribute("fill", "#555");
+    yLabel.textContent = PC2_LABEL;
+    exportSvg.appendChild(yLabel);
+
+    var xLabel = document.createElementNS(svgNS, "text");
+    xLabel.setAttribute("x", MARGIN + Y_LABEL_W + PLOT_W / 2);
+    xLabel.setAttribute("y", MARGIN + TITLE_H + PLOT_H + 16);
+    xLabel.setAttribute("text-anchor", "middle");
+    xLabel.setAttribute("font-family", "Arial, Helvetica, sans-serif");
+    xLabel.setAttribute("font-size", "12");
+    xLabel.setAttribute("fill", "#555");
+    xLabel.textContent = PC1_LABEL;
+    exportSvg.appendChild(xLabel);
+
+    appendLegendRows(exportSvg, rows, MARGIN + Y_LABEL_W, MARGIN + TITLE_H + PLOT_H + X_LABEL_H);
+
+    downloadSvgAsPng(exportSvg, totalW, totalH, "general_pca_presence_absence");
+  };
+
+  buildSidebarLegend();
+})();
+</script>
+</body>
+</html>
