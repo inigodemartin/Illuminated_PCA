@@ -7,13 +7,20 @@
   :root {
     color-scheme: light;
   }
+  html, body {
+    height: 100%;
+  }
   body {
     font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
     margin: 0;
     background: #f5f6f8;
     color: #1a1a1a;
+    display: flex;
+    flex-direction: column;
   }
   header {
+    flex: 0 0 auto;
+    box-sizing: border-box;
     padding: 16px 24px;
     margin-right: 260px;
     background: #2c3e50;
@@ -105,14 +112,51 @@
     border-radius: 50%;
     display: inline-block;
   }
+  .loading-pc-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #334155;
+    margin: 10px 0 4px;
+  }
+  .loading-pc-label:first-child {
+    margin-top: 0;
+  }
+  .loading-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px;
+    padding: 3px 0;
+    border-bottom: 1px solid #eef1f5;
+    font-size: 11px;
+  }
+  .loading-go {
+    font-weight: 600;
+    color: #1f2937;
+  }
+  .loading-value {
+    color: #64748b;
+    font-family: monospace;
+  }
+  .loading-desc {
+    flex: 1 1 100%;
+    color: #64748b;
+  }
   #plot-container {
+    flex: 1 1 auto;
+    min-height: 0;
     margin-right: 260px;
-    padding: 32px 24px 60px;
+    padding: 20px 24px;
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    align-items: center;
   }
   .plot-card {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
     background: #fff;
     border: 1px solid #cbd5e1;
     border-radius: 8px;
@@ -120,11 +164,14 @@
     box-shadow: 0 2px 6px rgba(0,0,0,0.12);
   }
   .plot-row {
+    flex: 1 1 auto;
+    min-height: 0;
     display: flex;
     align-items: stretch;
     gap: 4px;
   }
   .axis-label-y {
+    flex: 0 0 auto;
     width: 16px;
     display: flex;
     align-items: center;
@@ -138,20 +185,24 @@
     color: #555;
   }
   .axis-label-x {
+    flex: 0 0 auto;
     text-align: center;
     font-size: 12px;
     color: #555;
     margin-top: 4px;
   }
   .plot-hint {
+    flex: 0 0 auto;
     text-align: center;
     font-size: 11px;
     color: #94a3b8;
     margin-top: 6px;
   }
   .scatter {
+    flex: 1 1 auto;
+    min-width: 0;
     width: 100%;
-    height: auto;
+    height: 100%;
     display: block;
     cursor: grab;
     touch-action: none;
@@ -202,6 +253,10 @@
     </div>
     <div id="sidebar-legend" class="legend"></div>
   </div>
+  <div class="sidebar-section">
+    <h4>Top GO terms per PC</h4>
+    <div id="sidebar-top-loadings"></div>
+  </div>
 </div>
 <div id="plot-container">
   <div class="plot-card">
@@ -242,7 +297,7 @@
   var xPad = (xMax - xMin) * 0.08 || 1, yPad = (yMax - yMin) * 0.08 || 1;
   xMin -= xPad; xMax += xPad; yMin -= yPad; yMax += yPad;
 
-  var PLOT_W = 760, PLOT_H = 500;
+  var PLOT_W = 900, PLOT_H = 540;
   var BASE_RADIUS = 3.5;
   var BASE_STROKE_WIDTH = 0.5;
   // Same zoom-separation/marker-counter-scale behavior as the illuminated
@@ -265,6 +320,36 @@
 
   function escapeHtml(s) {
     return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  function formatLoading(v) {
+    return (v >= 0 ? "+" : "") + v.toFixed(4);
+  }
+
+  // Ranks GO terms by how strongly they drive each PC axis, straight off
+  // the fitted PCA model's loadings (see top_loadings_by_pc in
+  // presence_absence_pca.py) -- a property of the PCA itself, the same
+  // regardless of taxon filtering, so it's built once in the sidebar.
+  function buildSidebarTopLoadings() {
+    var container = document.getElementById("sidebar-top-loadings");
+    var pcLabels = { PC1: PC1_LABEL, PC2: PC2_LABEL };
+
+    Object.keys(DATA.top_loadings || {}).forEach(function (pc) {
+      var heading = document.createElement("div");
+      heading.className = "loading-pc-label";
+      heading.textContent = pcLabels[pc] || pc;
+      container.appendChild(heading);
+
+      DATA.top_loadings[pc].forEach(function (entry) {
+        var row = document.createElement("div");
+        row.className = "loading-row";
+        row.innerHTML =
+          '<span class="loading-go">' + escapeHtml(entry.go_id) + "</span>" +
+          '<span class="loading-value">' + formatLoading(entry.loading) + "</span>" +
+          '<div class="loading-desc">' + escapeHtml(entry.description) + "</div>";
+        container.appendChild(row);
+      });
+    });
   }
 
   function showTooltip(evt, species) {
@@ -589,6 +674,7 @@
   };
 
   buildSidebarLegend();
+  buildSidebarTopLoadings();
 })();
 </script>
 </body>

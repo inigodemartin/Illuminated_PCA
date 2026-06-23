@@ -249,11 +249,15 @@ the question this answers is "which species share the same *set* of GO
 terms", not "which species have more/less of a given term".
 
 Points are colored by taxonomic group only (no size/opacity encoding,
-since there's no single GO term being illuminated). The plot is
-zoomable/pannable, has a taxon legend with select-all/none in the
-sidebar, and a "Download PNG" button. Hovering a point shows the
-species, its group, and how many of the retained GO terms it's present
-for.
+since there's no single GO term being illuminated). The plot fills the
+browser window (resizes with it), is zoomable/pannable, has a taxon
+legend with select-all/none in the sidebar, and a "Download PNG" button.
+Hovering a point shows the species, its group, and how many of the
+retained GO terms it's present for. The sidebar also lists the most
+influential GO terms per principal component — same "top loadings"
+concept as `interactive_go_tree.py`, straight off the fitted PCA's own
+loadings, with descriptions pulled from the bundled `data/All_GOs_ic.tsv`
+(no OBO file needed).
 
 ### Usage
 
@@ -270,3 +274,13 @@ python scripts/presence_absence_pca.py \
 | `--taxonomy` | TSV with `Species` and `Group` columns (required). |
 | `-t, --taxa` | Restrict to these taxonomic groups. |
 | `--output` | Output HTML path (default: `general_pca_presence_absence.html`). |
+| `--ic-file` | GO id → description TSV (default: bundled `data/All_GOs_ic.tsv`). |
+| `--top-loadings-n` | Most-influential GO terms to report per PC (default: 15). |
+| `--loadings-output` | Top-loadings TSV path (default: alongside `--output`, with `_top_loadings.tsv`). |
+
+### Output
+
+The HTML file described above, plus a companion
+`<output>_top_loadings.tsv` listing the same top GO terms per PC shown in
+the sidebar — one row per (PC, rank, GO id, description, signed
+loading).
