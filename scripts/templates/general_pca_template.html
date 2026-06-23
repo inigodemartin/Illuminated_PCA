@@ -38,7 +38,74 @@
   #toolbar {
     margin-top: 10px;
     display: flex;
+    align-items: center;
     gap: 10px;
+  }
+  #go-search-wrap {
+    position: relative;
+    flex: 1 1 320px;
+    max-width: 420px;
+  }
+  #go-search-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 5px 8px;
+    border-radius: 4px;
+    border: 1px solid rgba(255,255,255,0.4);
+    background: rgba(255,255,255,0.92);
+    color: #1a1a1a;
+    font-size: 12px;
+  }
+  #go-search-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 2px;
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    max-height: 260px;
+    overflow-y: auto;
+    z-index: 700;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.18);
+  }
+  #go-search-suggestions.hidden {
+    display: none;
+  }
+  .go-suggestion {
+    padding: 5px 8px;
+    font-size: 12px;
+    color: #1a1a1a;
+    cursor: pointer;
+    border-bottom: 1px solid #eef1f5;
+  }
+  .go-suggestion:last-child {
+    border-bottom: none;
+  }
+  .go-suggestion:hover {
+    background: #eef2ff;
+  }
+  .go-suggestion-id {
+    font-weight: 600;
+    margin-right: 6px;
+  }
+  .go-suggestion-desc {
+    color: #64748b;
+  }
+  #go-search-status {
+    margin: 6px 0 0;
+    font-size: 12px;
+    color: #cbd5e1;
+    min-height: 14px;
+  }
+  #go-search-status.active {
+    color: #fbbf24;
+    font-weight: 600;
+  }
+  #go-search-status.error {
+    color: #fca5a5;
+    font-weight: 600;
   }
   .toolbar-btn {
     cursor: pointer;
@@ -240,9 +307,15 @@
   <h1 id="page-title"></h1>
   <p id="page-subtitle"></p>
   <div id="toolbar">
+    <div id="go-search-wrap">
+      <input id="go-search-input" type="text" autocomplete="off" placeholder="Search a GO id or description to illuminate...">
+      <div id="go-search-suggestions" class="hidden"></div>
+    </div>
+    <button id="go-search-clear-btn" class="toolbar-btn">Clear</button>
     <button id="reset-zoom-btn" class="toolbar-btn">Reset zoom</button>
     <button id="download-png-btn" class="toolbar-btn">Download PNG</button>
   </div>
+  <p id="go-search-status"></p>
 </header>
 <div id="sidebar">
   <div class="sidebar-section">
@@ -299,6 +372,7 @@
 
   var PLOT_W = 900, PLOT_H = 540;
   var BASE_RADIUS = 3.5;
+  var ILLUM_MIN_RADIUS = 2.2, ILLUM_MAX_RADIUS = 9;
   var BASE_STROKE_WIDTH = 0.5;
   // Same zoom-separation/marker-counter-scale behavior as the illuminated
   // PCA panels in interactive_go_tree.py: letting the viewBox shrink this
@@ -317,6 +391,88 @@
   document.getElementById("x-axis-label").textContent = PC1_LABEL;
 
   var hiddenGroups = {};
+
+  // ---- GO term search / illumination ----
+  var GO_SEARCH = DATA.go_search;
+  var GO_SEARCH_SUPPORTED = typeof DecompressionStream !== "undefined" && typeof fetch !== "undefined";
+  var goIndexById = {};
+  GO_SEARCH.go_ids.forEach(function (id, i) { goIndexById[id] = i; });
+  // Precomputed once so every keystroke is a plain substring scan, not a
+  // re-derivation of "id + description" -- cheap enough at this term count
+  // (tens of thousands) to not need an index structure.
+  var GO_SEARCH_ENTRIES = GO_SEARCH.go_ids.map(function (id, i) {
+    var desc = GO_SEARCH.go_desc[id] || "";
+    return { id: id, desc: desc, idx: i, key: (id + " " + desc).toLowerCase() };
+  });
+
+  var activeGo = null;     // { go_id, description } or null when not illuminating
+  var activeCounts = null; // typed-array view aligned with DATA.species order
+
+  function percentile(sortedAsc, p) {
+    var idx = (p / 100) * (sortedAsc.length - 1);
+    var lo = Math.floor(idx), hi = Math.ceil(idx);
+    if (lo === hi) return sortedAsc[lo];
+    return sortedAsc[lo] + (sortedAsc[hi] - sortedAsc[lo]) * (idx - lo);
+  }
+
+  // Mirrors illuminate_PCA.run_illuminated_PCA's opacity/size formula
+  // exactly (including that the 99th-percentile clip under no_outliers is
+  // computed per taxonomic group, not globally) -- same port already used
+  // in interactive_tree_template.html's panels.
+  function computeAlphaSize(counts, groups, noOutliers) {
+    var maxCount = Math.max.apply(null, counts);
+    if (!(maxCount > 0)) {
+      return counts.map(function () { return { alpha: 0, radius: ILLUM_MIN_RADIUS }; });
+    }
+
+    var alphas = counts.map(function () { return 0; });
+
+    if (noOutliers) {
+      var byGroup = {};
+      groups.forEach(function (g, i) { (byGroup[g] = byGroup[g] || []).push(i); });
+
+      Object.keys(byGroup).forEach(function (g) {
+        var idxs = byGroup[g];
+        var norm = idxs.map(function (i) { return counts[i] / maxCount; });
+        var nonzero = norm.filter(function (n) { return n > 0; }).sort(function (a, b) { return a - b; });
+        var p99 = nonzero.length ? percentile(nonzero, 99) : 1.0;
+        norm = norm.map(function (n) { return Math.min(n, p99); });
+        if (p99 > 0) norm = norm.map(function (n) { return n / p99; });
+        norm = norm.map(function (n) { return Math.sqrt(n); });
+        idxs.forEach(function (i, k) { alphas[i] = counts[i] === 0 ? 0 : norm[k]; });
+      });
+    } else {
+      var logMax = Math.log1p(maxCount);
+      alphas = counts.map(function (c) { return logMax > 0 ? Math.log1p(c) / logMax : 0; });
+    }
+
+    return alphas.map(function (a) { return { alpha: a, radius: ILLUM_MIN_RADIUS + a * (ILLUM_MAX_RADIUS - ILLUM_MIN_RADIUS) }; });
+  }
+
+  // The counts blob is gzip-compressed + base64-encoded server-side (see
+  // build_go_search_payload in presence_absence_pca.py) since a dense
+  // species x GO-term matrix is tens of MB as raw JSON. Decoded once, on
+  // first search, via the native DecompressionStream -- no bundled inflate
+  // library. fetch() of a data: URL hands the base64 decoding itself to
+  // the browser's native (fast) implementation instead of a manual atob +
+  // per-character loop over a multi-million-character string.
+  var goCountsPromise = null;
+  function loadGoCounts() {
+    if (goCountsPromise) return goCountsPromise;
+    goCountsPromise = fetch("data:application/octet-stream;base64," + GO_SEARCH.counts_gzip_b64)
+      .then(function (resp) { return resp.body.pipeThrough(new DecompressionStream("gzip")); })
+      .then(function (stream) { return new Response(stream).arrayBuffer(); })
+      .then(function (buf) { return GO_SEARCH.bytes_per_value === 4 ? new Uint32Array(buf) : new Uint16Array(buf); });
+    return goCountsPromise;
+  }
+
+  // Counts are stored GO-major (see build_go_search_payload): all counts
+  // for go_ids[0], then all counts for go_ids[1], etc, so one GO's counts
+  // for every species is a single contiguous slice.
+  function countsForGoIndex(typedArray, idx) {
+    var n = GO_SEARCH.n_species;
+    return typedArray.subarray(idx * n, (idx + 1) * n);
+  }
 
   function escapeHtml(s) {
     return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -352,15 +508,19 @@
     });
   }
 
-  function showTooltip(evt, species) {
+  function showTooltip(evt, species, idx) {
     var pct = DATA.meta.n_go_terms_used > 0
       ? (species.go_terms_present / DATA.meta.n_go_terms_used) * 100
       : 0;
-    tooltip.innerHTML =
+    var html =
       "<b>" + escapeHtml(species.name) + "</b><br>" +
       "Group: " + escapeHtml(species.group) + "<br>" +
       "GO terms present: " + species.go_terms_present + " / " + DATA.meta.n_go_terms_used + "<br>" +
       "Share: " + pct.toFixed(2) + "%";
+    if (activeGo && activeCounts) {
+      html += "<br>" + escapeHtml(activeGo.go_id) + " count: " + activeCounts[idx];
+    }
+    tooltip.innerHTML = html;
     tooltip.classList.remove("hidden");
     moveTooltip(evt);
   }
@@ -374,9 +534,16 @@
     tooltip.classList.add("hidden");
   }
 
-  function applyGroupVisibility() {
-    svg.querySelectorAll("circle[data-group]").forEach(function (c) {
-      c.style.display = hiddenGroups[c.getAttribute("data-group")] ? "none" : "";
+  // A point is hidden if its taxon group is toggled off, or -- while
+  // illuminating a searched GO term -- it has zero counts for that term
+  // (matching illuminate_PCA.run_illuminated_PCA: "species with zero
+  // abundance are invisible", not just dim).
+  var circleEls = [];
+  function applyVisibility() {
+    circleEls.forEach(function (c, i) {
+      var s = DATA.species[i];
+      var suppressed = hiddenGroups[s.group] || (activeCounts && activeCounts[i] === 0);
+      c.style.display = suppressed ? "none" : "";
     });
   }
 
@@ -388,7 +555,7 @@
 
   function setAllGroupsHidden(hidden) {
     ALL_GROUPS.forEach(function (g) { hiddenGroups[g] = hidden; });
-    applyGroupVisibility();
+    applyVisibility();
     syncLegendCheckboxes();
   }
 
@@ -407,7 +574,7 @@
       cb.checked = !hiddenGroups[g];
       cb.onchange = function () {
         hiddenGroups[g] = !cb.checked;
-        applyGroupVisibility();
+        applyVisibility();
       };
       var swatch = document.createElement("span");
       swatch.className = "swatch";
@@ -503,7 +670,7 @@
   styleAxisLine(axisY);
   svg.appendChild(axisY);
 
-  DATA.species.forEach(function (s) {
+  DATA.species.forEach(function (s, i) {
     var c = document.createElementNS(svgNS, "circle");
     c.setAttribute("cx", scaleX(s.pc1));
     c.setAttribute("cy", scaleY(s.pc2));
@@ -515,11 +682,166 @@
     c.setAttribute("stroke-width", BASE_STROKE_WIDTH);
     c.setAttribute("data-group", s.group);
     c.style.display = hiddenGroups[s.group] ? "none" : "";
-    c.addEventListener("mouseenter", function (evt) { if (!isPanning) showTooltip(evt, s); });
+    c.addEventListener("mouseenter", function (evt) { if (!isPanning) showTooltip(evt, s, i); });
     c.addEventListener("mousemove", function (evt) { if (!isPanning) moveTooltip(evt); });
     c.addEventListener("mouseleave", hideTooltip);
     svg.appendChild(c);
+    circleEls.push(c);
   });
+
+  // ---- illumination state transitions ----
+  function applyBaseStyles() {
+    circleEls.forEach(function (c) {
+      c.setAttribute("data-base-r", BASE_RADIUS);
+      c.setAttribute("opacity", 0.85);
+    });
+    updateMarkerScale();
+  }
+
+  function applyIllumination(counts) {
+    var groups = DATA.species.map(function (s) { return s.group; });
+    var styles = computeAlphaSize(Array.prototype.slice.call(counts), groups, DATA.meta.no_outliers);
+    circleEls.forEach(function (c, i) {
+      c.setAttribute("data-base-r", styles[i].radius);
+      c.setAttribute("opacity", styles[i].alpha);
+    });
+    updateMarkerScale();
+  }
+
+  function setSearchStatus(text, isError) {
+    var status = document.getElementById("go-search-status");
+    status.textContent = text;
+    status.classList.toggle("active", !isError && !!text);
+    status.classList.toggle("error", !!isError);
+  }
+
+  function updateSearchStatus() {
+    if (!activeGo) {
+      setSearchStatus("", false);
+      return;
+    }
+    setSearchStatus(
+      "Illuminating " + activeGo.go_id + " — " + activeGo.description +
+      " (size/opacity = abundance, color = taxon group)",
+      false
+    );
+  }
+
+  function clearIllumination() {
+    activeGo = null;
+    activeCounts = null;
+    applyBaseStyles();
+    applyVisibility();
+    updateSearchStatus();
+  }
+
+  function illuminateGo(goId) {
+    var idx = goIndexById[goId];
+    if (idx === undefined) {
+      setSearchStatus("GO term not found: " + goId, true);
+      return;
+    }
+    if (!GO_SEARCH_SUPPORTED) {
+      setSearchStatus("This browser doesn't support live GO search (needs fetch + DecompressionStream).", true);
+      return;
+    }
+    setSearchStatus("Loading GO data…", false);
+    loadGoCounts().then(function (typedArray) {
+      var counts = countsForGoIndex(typedArray, idx);
+      activeGo = { go_id: goId, description: GO_SEARCH.go_desc[goId] || "unknown" };
+      activeCounts = counts;
+      applyIllumination(counts);
+      applyVisibility();
+      updateSearchStatus();
+    }).catch(function (err) {
+      setSearchStatus("Could not decode GO data: " + err, true);
+    });
+  }
+
+  // ---- search box wiring ----
+  var goSearchInput = document.getElementById("go-search-input");
+  var goSearchSuggestions = document.getElementById("go-search-suggestions");
+  var GO_SEARCH_MAX_SUGGESTIONS = 20;
+
+  function renderSuggestions(matches) {
+    goSearchSuggestions.innerHTML = "";
+    if (!matches.length) {
+      goSearchSuggestions.classList.add("hidden");
+      return;
+    }
+    matches.forEach(function (m) {
+      var item = document.createElement("div");
+      item.className = "go-suggestion";
+      item.innerHTML =
+        '<span class="go-suggestion-id">' + escapeHtml(m.id) + "</span>" +
+        '<span class="go-suggestion-desc">' + escapeHtml(m.desc) + "</span>";
+      item.addEventListener("mousedown", function (evt) {
+        evt.preventDefault();
+        goSearchInput.value = m.id;
+        goSearchSuggestions.classList.add("hidden");
+        illuminateGo(m.id);
+      });
+      goSearchSuggestions.appendChild(item);
+    });
+    goSearchSuggestions.classList.remove("hidden");
+  }
+
+  function findMatches(query) {
+    var q = query.trim().toLowerCase();
+    if (!q) return [];
+    var matches = [];
+    for (var i = 0; i < GO_SEARCH_ENTRIES.length && matches.length < GO_SEARCH_MAX_SUGGESTIONS; i++) {
+      if (GO_SEARCH_ENTRIES[i].key.indexOf(q) !== -1) matches.push(GO_SEARCH_ENTRIES[i]);
+    }
+    return matches;
+  }
+
+  goSearchInput.addEventListener("input", function () {
+    renderSuggestions(findMatches(goSearchInput.value));
+  });
+
+  goSearchInput.addEventListener("keydown", function (evt) {
+    if (evt.key === "Escape") {
+      goSearchSuggestions.classList.add("hidden");
+      return;
+    }
+    if (evt.key !== "Enter") return;
+    evt.preventDefault();
+    var query = goSearchInput.value.trim();
+    if (!query) return;
+    var exact = goIndexById[query] !== undefined ? query
+      : (goIndexById[query.toUpperCase()] !== undefined ? query.toUpperCase() : null);
+    var target = exact;
+    if (!target) {
+      var matches = findMatches(query);
+      if (matches.length) target = matches[0].id;
+    }
+    goSearchSuggestions.classList.add("hidden");
+    if (target) {
+      goSearchInput.value = target;
+      illuminateGo(target);
+    } else {
+      setSearchStatus("GO term not found: " + query, true);
+    }
+  });
+
+  document.addEventListener("click", function (evt) {
+    if (!document.getElementById("go-search-wrap").contains(evt.target)) {
+      goSearchSuggestions.classList.add("hidden");
+    }
+  });
+
+  document.getElementById("go-search-clear-btn").onclick = function () {
+    goSearchInput.value = "";
+    renderSuggestions([]);
+    clearIllumination();
+  };
+
+  if (!GO_SEARCH_SUPPORTED) {
+    goSearchInput.disabled = true;
+    goSearchInput.placeholder = "GO search needs a newer browser";
+    setSearchStatus("This browser doesn't support live GO search (needs fetch + DecompressionStream).", true);
+  }
 
   var PNG_EXPORT_SCALE = 2;
   var LEGEND_ROW_H = 20;
@@ -636,7 +958,9 @@
     title.setAttribute("font-family", "Arial, Helvetica, sans-serif");
     title.setAttribute("font-size", "15");
     title.setAttribute("font-weight", "bold");
-    title.textContent = "General PCA: GO term presence/absence";
+    title.textContent = activeGo
+      ? "General PCA — illuminated: " + activeGo.go_id + " (" + activeGo.description + ")"
+      : "General PCA: GO term presence/absence";
     exportSvg.appendChild(title);
 
     var plotClone = svg.cloneNode(true);

@@ -11,8 +11,11 @@ the Total_prots normalization the abundance PCA uses.
 
 from pathlib import Path
 import argparse
+import base64
+import gzip
 import json
 
+import numpy as np
 import pandas as pd
 from sklearn.decomposition import TruncatedSVD
 from sklearn.preprocessing import StandardScaler
@@ -105,6 +108,48 @@ def write_top_loadings_tsv(top_loadings, output_path):
     pd.DataFrame(rows).to_csv(output_path, sep="\t", index=False)
 
 
+def build_go_search_payload(raw_full, species, go_desc):
+    """
+    Lets the browser look up, for any GO id in the *full* matrix (not just
+    the rare-term-filtered PCA input -- searching/illuminating a term
+    shouldn't be limited by the PCA's own numerical-stability filter), its
+    raw count for every currently-plotted species. Mirrors what
+    illuminate_PCA.run_illuminated_PCA does for a single queried GO term,
+    just generalized to "any GO term, picked live in the browser" instead
+    of one baked in at generation time.
+
+    There's no server, so this has to ship as data embedded in the HTML.
+    A dense species x GO-term count matrix here is ~1200 x ~24000 cells,
+    too big as JSON (~12M non-zero entries -- sparse wouldn't meaningfully
+    shrink it, the matrix is ~33% dense). Instead: pack counts as a flat
+    typed-array byte buffer (uint16, or uint32 if some count overflows
+    that), gzip it, and base64-encode the gzipped bytes -- gzip alone gets
+    this down roughly 5x, base64 adds ~33% back, netting a fraction of the
+    raw size. The browser reverses this with the native
+    DecompressionStream("gzip") API (no bundled inflate library needed).
+
+    Layout is GO-major: all `len(species)` counts for go_ids[0], then all
+    counts for go_ids[1], etc. -- so looking up one GO id's counts for
+    every species is a single contiguous slice, not a strided gather.
+    """
+    go_ids = list(raw_full.columns)
+    counts = raw_full.loc[species, go_ids].to_numpy()
+
+    max_count = int(counts.max()) if counts.size else 0
+    dtype = np.uint16 if max_count <= 65535 else np.uint32
+
+    by_go = np.ascontiguousarray(counts.astype(dtype).T)  # shape (n_go, n_species)
+    compressed = gzip.compress(by_go.tobytes(), compresslevel=9)
+
+    return {
+        "go_ids": go_ids,
+        "go_desc": {go_id: go_desc.get(go_id, "unknown") for go_id in go_ids},
+        "n_species": len(species),
+        "bytes_per_value": int(np.dtype(dtype).itemsize),
+        "counts_gzip_b64": base64.b64encode(compressed).decode("ascii"),
+    }
+
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Standalone interactive PCA of GO term presence/absence (no GO tree, no illumination)"
@@ -123,6 +168,8 @@ def parse_args():
                          help="Number of most-influential GO terms to report per PC (default: 15)")
     parser.add_argument("--loadings-output", default=None,
                          help="Top-loadings TSV path (default: alongside --output, with _top_loadings.tsv)")
+    parser.add_argument("-o", "--no_outliers", action="store_true",
+                         help="Robust (percentile-clipped) scaling instead of log scaling when illuminating a searched GO term")
     return parser.parse_args()
 
 
@@ -165,14 +212,17 @@ def main():
 
     go_desc = load_go_descriptions(args.ic_file)
     top_loadings = top_loadings_by_pc(loadings, go_desc, args.top_loadings_n)
+    go_search = build_go_search_payload(raw_full, species, go_desc)
 
     payload = {
         "species": species_records,
         "groups": groups_hex,
         "top_loadings": top_loadings,
+        "go_search": go_search,
         "meta": {
             "n_go_terms_used": int(n_go_used),
             "explained_variance": [float(v) for v in explained_variance],
+            "no_outliers": bool(args.no_outliers),
         },
     }
 

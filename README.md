@@ -248,16 +248,32 @@ retained GO column is binarized to presence/absence (`count > 0` → 1):
 the question this answers is "which species share the same *set* of GO
 terms", not "which species have more/less of a given term".
 
-Points are colored by taxonomic group only (no size/opacity encoding,
-since there's no single GO term being illuminated). The plot fills the
-browser window (resizes with it), is zoomable/pannable, has a taxon
-legend with select-all/none in the sidebar, and a "Download PNG" button.
-Hovering a point shows the species, its group, and how many of the
-retained GO terms it's present for. The sidebar also lists the most
-influential GO terms per principal component — same "top loadings"
-concept as `interactive_go_tree.py`, straight off the fitted PCA's own
-loadings, with descriptions pulled from the bundled `data/All_GOs_ic.tsv`
-(no OBO file needed).
+By default points are colored by taxonomic group only, all the same size
+(no size/opacity encoding, since there's no single GO term being
+illuminated). The plot fills the browser window (resizes with it), is
+zoomable/pannable, has a taxon legend with select-all/none in the
+sidebar, and a "Download PNG" button. Hovering a point shows the
+species, its group, and how many of the retained GO terms it's present
+for. The sidebar also lists the most influential GO terms per principal
+component — same "top loadings" concept as `interactive_go_tree.py`,
+straight off the fitted PCA's own loadings, with descriptions pulled from
+the bundled `data/All_GOs_ic.tsv` (no OBO file needed).
+
+A search box in the header lets you look up **any** GO id or description
+(not just the ones the PCA itself retained) and illuminate it, the same
+idea as `illuminate_PCA.py`'s illuminated PCA but without baking a GO
+term in at generation time or needing a tree: matching points grow/light
+up by abundance (log-scaled by default, or `-o`/`--no_outliers` for
+percentile-clipped scaling per taxon group, exactly mirroring
+`illuminate_PCA.run_illuminated_PCA`), species with zero counts for that
+term disappear, color still encodes taxon group, and hovering a point
+adds that GO term's count to the tooltip. "Clear" reverts to the plain
+taxon-colored view. This works with no server: raw counts for every GO
+column x every plotted species are embedded in the HTML, gzip-compressed
+and base64-encoded (the browser decompresses them on first search via the
+native `DecompressionStream` API — Chrome/Edge 80+, Firefox 113+, Safari
+16.4+), which is why this file is noticeably bigger than the other tools'
+output (tens of MB instead of one).
 
 ### Usage
 
@@ -277,6 +293,7 @@ python scripts/presence_absence_pca.py \
 | `--ic-file` | GO id → description TSV (default: bundled `data/All_GOs_ic.tsv`). |
 | `--top-loadings-n` | Most-influential GO terms to report per PC (default: 15). |
 | `--loadings-output` | Top-loadings TSV path (default: alongside `--output`, with `_top_loadings.tsv`). |
+| `-o, --no_outliers` | Percentile-clipped (per taxon group) scaling instead of log scaling when illuminating a searched GO term. |
 
 ### Output
 
