@@ -111,7 +111,12 @@ def parse_args():
     )
     parser.add_argument("--matrix", "-m", required=True, help="Raw GO counts matrix, species x GO terms (TSV)")
     parser.add_argument("--taxonomy", required=True, help="TSV with Species and Group columns")
-    parser.add_argument("-t", "--taxa", nargs="*", default=None, help="Restrict to these taxonomic groups")
+    parser.add_argument(
+        "-t", "--taxa",
+        type=lambda s: [item.strip() for item in s.split(",")],
+        default=None,
+        help="Comma-separated taxonomic groups to restrict to",
+    )
     parser.add_argument("--output", default="general_pca_presence_absence.html", help="Output HTML path")
     parser.add_argument("--ic-file", default=str(DEFAULT_IC_PATH), help="GO id -> description TSV (default: bundled data/All_GOs_ic.tsv)")
     parser.add_argument("--top-loadings-n", type=int, default=15,

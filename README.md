@@ -272,7 +272,7 @@ python scripts/presence_absence_pca.py \
 |---|---|
 | `-m, --matrix` | Raw GO counts matrix, species x GO terms (required). |
 | `--taxonomy` | TSV with `Species` and `Group` columns (required). |
-| `-t, --taxa` | Restrict to these taxonomic groups. |
+| `-t, --taxa` | Comma-separated taxonomic groups to restrict to (e.g. `-t Algae,Fungi`). |
 | `--output` | Output HTML path (default: `general_pca_presence_absence.html`). |
 | `--ic-file` | GO id → description TSV (default: bundled `data/All_GOs_ic.tsv`). |
 | `--top-loadings-n` | Most-influential GO terms to report per PC (default: 15). |
