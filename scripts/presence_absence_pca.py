@@ -132,6 +132,13 @@ def main():
     raw_full = pd.read_csv(args.matrix, sep="\t", index_col=0).fillna(0)
     taxon_dict = load_taxonomy(args.taxonomy)
 
+    # Restrict to the requested taxa *before* running PCA, not after: the
+    # whole point of -t/--taxa is to compute the PCA only from variance
+    # among those species, not to compute it on everyone and crop the plot
+    # to a sub-region of the same global layout.
+    if args.taxa:
+        raw_full = raw_full[raw_full.index.map(taxon_dict).isin(args.taxa)]
+
     pca_df, explained_variance, richness, loadings = run_pca_on_presence_absence(raw_full)
     n_go_used = loadings.shape[0]
     pca_df = remove_outliers(pca_df, low=5, high=95)
@@ -139,8 +146,6 @@ def main():
     pca_df = pca_df.copy()
     pca_df["Group"] = pca_df.index.map(taxon_dict)
     pca_df = pca_df.dropna(subset=["Group"])
-    if args.taxa:
-        pca_df = pca_df[pca_df["Group"].isin(args.taxa)]
 
     species = list(pca_df.index)
     color_map = build_global_color_map(taxon_dict)
