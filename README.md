@@ -16,6 +16,7 @@ term counts derived from functional annotation.
 | `scripts/go_tree_illuminated_pca.py` | Builds on the core module to generate illuminated PCA plots for an entire GO ancestor/descendant tree, then renders that tree as a Graphviz diagram with each PCA plot embedded in its node. |
 | `scripts/interactive_go_tree.py` | Generates a single self-contained interactive HTML page for a GO ancestor/descendant tree: click a node to expand its illuminated PCA inline (zoomable/pannable), hover a point for species details. |
 | `scripts/presence_absence_pca.py` | Generates a single self-contained interactive HTML page with one general PCA of GO term **presence/absence** (not abundance) across species — no GO tree, no illumination. |
+| `scripts/general_pca_abundance.py` | Same general-PCA HTML page and live GO-term search as `presence_absence_pca.py`, but the PCA is fit on **relative abundance** (`count / Total_prots`) instead of presence/absence. |
 
 ## How it works
 
@@ -301,3 +302,48 @@ The HTML file described above, plus a companion
 `<output>_top_loadings.tsv` listing the same top GO terms per PC shown in
 the sidebar — one row per (PC, rank, GO id, description, signed
 loading).
+
+## General abundance PCA
+
+`scripts/general_pca_abundance.py` is the same general-PCA HTML page and
+live GO-term search as `presence_absence_pca.py` above — identical
+template, identical search/illumination behavior — but the PCA itself is
+fit on **relative abundance** (`count / Total_prots` per species, reusing
+`interactive_go_tree.py`'s `run_pca_on_relative_abundance`) instead of
+binarized presence/absence. Use this when you want "which species have
+more/less of a given GO term" rather than "which species share the same
+set of GO terms". Because abundance needs `Total_prots` per species, this
+script takes one extra required input compared to
+`presence_absence_pca.py`: a species-stats TSV, same as
+`interactive_go_tree.py`.
+
+The hover tooltip still reports "GO terms present" (richness) rather than
+abundance, since that's a property of the species' annotations
+independent of which PCA variant produced the layout.
+
+### Usage
+
+```bash
+python scripts/general_pca_abundance.py \
+  -m raw_counts_matrix.tsv \
+  --species-stats species_stats.tsv \
+  --taxonomy taxonomy.tsv \
+  --output general_pca_abundance.html
+```
+
+| Flag | Description |
+|---|---|
+| `-m, --matrix` | Raw GO counts matrix, species x GO terms (required). |
+| `--species-stats` | TSV with a `Species` index and a `Total_prots` column (required). |
+| `--taxonomy` | TSV with `Species` and `Group` columns (required). |
+| `-t, --taxa` | Comma-separated taxonomic groups to restrict to (e.g. `-t Algae,Fungi`). |
+| `--output` | Output HTML path (default: `general_pca_abundance.html`). |
+| `--ic-file` | GO id → description TSV (default: bundled `data/All_GOs_ic.tsv`). |
+| `--top-loadings-n` | Most-influential GO terms to report per PC (default: 15). |
+| `--loadings-output` | Top-loadings TSV path (default: alongside `--output`, with `_top_loadings.tsv`). |
+| `-o, --no_outliers` | Percentile-clipped (per taxon group) scaling instead of log scaling when illuminating a searched GO term. |
+
+### Output
+
+Same as `presence_absence_pca.py`: the HTML file, plus a companion
+`<output>_top_loadings.tsv`.
