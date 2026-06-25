@@ -76,8 +76,6 @@ def parse_args():
                          help="Number of most-influential GO terms to report per PC (default: 15)")
     parser.add_argument("--loadings-output", default=None,
                          help="Top-loadings TSV path (default: alongside --output, with _top_loadings.tsv)")
-    parser.add_argument("-o", "--no_outliers", action="store_true",
-                         help="Robust (percentile-clipped) scaling instead of log scaling when illuminating a searched GO term")
     return parser.parse_args()
 
 
@@ -130,7 +128,6 @@ def main():
         "meta": {
             "n_go_terms_used": int(n_go_used),
             "explained_variance": [float(v) for v in explained_variance],
-            "no_outliers": bool(args.no_outliers),
             "title": "General PCA: GO term presence/absence",
             "mode_label": "presence/absence, not abundance",
             "filename_base": "general_pca_presence_absence",

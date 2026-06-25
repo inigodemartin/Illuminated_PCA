@@ -372,7 +372,6 @@
 
   var PLOT_W = 900, PLOT_H = 540;
   var BASE_RADIUS = 3.5;
-  var ILLUM_MIN_RADIUS = 2.2, ILLUM_MAX_RADIUS = 9;
   var BASE_STROKE_WIDTH = 0.5;
   // Same zoom-separation/marker-counter-scale behavior as the illuminated
   // PCA panels in interactive_go_tree.py: letting the viewBox shrink this
@@ -415,38 +414,37 @@
     return sortedAsc[lo] + (sortedAsc[hi] - sortedAsc[lo]) * (idx - lo);
   }
 
-  // Mirrors illuminate_PCA.run_illuminated_PCA's opacity/size formula
-  // exactly (including that the 99th-percentile clip under no_outliers is
-  // computed per taxonomic group, not globally) -- same port already used
-  // in interactive_tree_template.html's panels.
-  function computeAlphaSize(counts, groups, noOutliers) {
+  // Only opacity encodes abundance here -- marker size stays fixed, unlike
+  // illuminate_PCA.run_illuminated_PCA's PNGs which also grow the marker.
+  // Always percentile-clipped (per taxon group) + sqrt gamma, never plain
+  // log1p-of-global-max: with real data, a single high-outlier species
+  // pushes log_max up enough that everything else (e.g. 50 vs 600 counts,
+  // a 12x difference) lands within a narrow alpha band and looks nearly
+  // identical. Clipping each group's own values at its 99th percentile
+  // before rescaling means the contrast among the non-outlier majority no
+  // longer depends on how extreme the single biggest outlier elsewhere is.
+  function computeAlpha(counts, groups) {
     var maxCount = Math.max.apply(null, counts);
     if (!(maxCount > 0)) {
-      return counts.map(function () { return { alpha: 0, radius: ILLUM_MIN_RADIUS }; });
+      return counts.map(function () { return 0; });
     }
 
     var alphas = counts.map(function () { return 0; });
+    var byGroup = {};
+    groups.forEach(function (g, i) { (byGroup[g] = byGroup[g] || []).push(i); });
 
-    if (noOutliers) {
-      var byGroup = {};
-      groups.forEach(function (g, i) { (byGroup[g] = byGroup[g] || []).push(i); });
+    Object.keys(byGroup).forEach(function (g) {
+      var idxs = byGroup[g];
+      var norm = idxs.map(function (i) { return counts[i] / maxCount; });
+      var nonzero = norm.filter(function (n) { return n > 0; }).sort(function (a, b) { return a - b; });
+      var p99 = nonzero.length ? percentile(nonzero, 99) : 1.0;
+      norm = norm.map(function (n) { return Math.min(n, p99); });
+      if (p99 > 0) norm = norm.map(function (n) { return n / p99; });
+      norm = norm.map(function (n) { return Math.sqrt(n); });
+      idxs.forEach(function (i, k) { alphas[i] = counts[i] === 0 ? 0 : norm[k]; });
+    });
 
-      Object.keys(byGroup).forEach(function (g) {
-        var idxs = byGroup[g];
-        var norm = idxs.map(function (i) { return counts[i] / maxCount; });
-        var nonzero = norm.filter(function (n) { return n > 0; }).sort(function (a, b) { return a - b; });
-        var p99 = nonzero.length ? percentile(nonzero, 99) : 1.0;
-        norm = norm.map(function (n) { return Math.min(n, p99); });
-        if (p99 > 0) norm = norm.map(function (n) { return n / p99; });
-        norm = norm.map(function (n) { return Math.sqrt(n); });
-        idxs.forEach(function (i, k) { alphas[i] = counts[i] === 0 ? 0 : norm[k]; });
-      });
-    } else {
-      var logMax = Math.log1p(maxCount);
-      alphas = counts.map(function (c) { return logMax > 0 ? Math.log1p(c) / logMax : 0; });
-    }
-
-    return alphas.map(function (a) { return { alpha: a, radius: ILLUM_MIN_RADIUS + a * (ILLUM_MAX_RADIUS - ILLUM_MIN_RADIUS) }; });
+    return alphas;
   }
 
   // The counts blob is gzip-compressed + base64-encoded server-side (see
@@ -690,22 +688,21 @@
   });
 
   // ---- illumination state transitions ----
+  // Radius is never touched here -- data-base-r stays at BASE_RADIUS for
+  // every point, illuminated or not, so updateMarkerScale (zoom) is the
+  // only thing that ever changes marker size.
   function applyBaseStyles() {
     circleEls.forEach(function (c) {
-      c.setAttribute("data-base-r", BASE_RADIUS);
       c.setAttribute("opacity", 0.85);
     });
-    updateMarkerScale();
   }
 
   function applyIllumination(counts) {
     var groups = DATA.species.map(function (s) { return s.group; });
-    var styles = computeAlphaSize(Array.prototype.slice.call(counts), groups, DATA.meta.no_outliers);
+    var alphas = computeAlpha(Array.prototype.slice.call(counts), groups);
     circleEls.forEach(function (c, i) {
-      c.setAttribute("data-base-r", styles[i].radius);
-      c.setAttribute("opacity", styles[i].alpha);
+      c.setAttribute("opacity", alphas[i]);
     });
-    updateMarkerScale();
   }
 
   function setSearchStatus(text, isError) {
@@ -722,7 +719,7 @@
     }
     setSearchStatus(
       "Illuminating " + activeGo.go_id + " — " + activeGo.description +
-      " (size/opacity = abundance, color = taxon group)",
+      " (opacity = abundance, color = taxon group)",
       false
     );
   }
