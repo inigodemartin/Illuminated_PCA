@@ -352,10 +352,10 @@
 
   var tooltip = document.getElementById("tooltip");
 
-  document.getElementById("page-title").textContent = "General PCA: GO term presence/absence";
+  document.getElementById("page-title").textContent = DATA.meta.title;
   document.getElementById("page-subtitle").textContent =
     DATA.species.length + " species, " + DATA.meta.n_go_terms_used +
-    " GO terms used (presence/absence, not abundance)";
+    " GO terms used (" + DATA.meta.mode_label + ")";
 
   var ALL_GROUPS = (function () {
     var present = {};
@@ -959,8 +959,8 @@
     title.setAttribute("font-size", "15");
     title.setAttribute("font-weight", "bold");
     title.textContent = activeGo
-      ? "General PCA — illuminated: " + activeGo.go_id + " (" + activeGo.description + ")"
-      : "General PCA: GO term presence/absence";
+      ? DATA.meta.title + " — illuminated: " + activeGo.go_id + " (" + activeGo.description + ")"
+      : DATA.meta.title;
     exportSvg.appendChild(title);
 
     var plotClone = svg.cloneNode(true);
@@ -994,7 +994,7 @@
 
     appendLegendRows(exportSvg, rows, MARGIN + Y_LABEL_W, MARGIN + TITLE_H + PLOT_H + X_LABEL_H);
 
-    downloadSvgAsPng(exportSvg, totalW, totalH, "general_pca_presence_absence");
+    downloadSvgAsPng(exportSvg, totalW, totalH, DATA.meta.filename_base);
   };
 
   buildSidebarLegend();
