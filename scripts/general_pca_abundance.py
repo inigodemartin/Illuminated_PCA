@@ -30,17 +30,6 @@ from general_pca_common import (
 )
 
 
-def compute_go_richness(raw_df):
-    """
-    Same rare-GO-term filter as run_pca_on_relative_abundance (raw count
-    sum > 5 across species): how many of those retained columns each
-    species has any annotation for, for the tooltip -- independent of the
-    PCA itself being fit on abundance rather than presence/absence.
-    """
-    pca_input = raw_df.loc[:, raw_df.sum(axis=0) > 5]
-    return (pca_input > 0).sum(axis=1)
-
-
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Standalone interactive PCA of GO term relative abundance (no GO tree, no illumination)"
@@ -79,9 +68,12 @@ def main():
     if args.taxa:
         raw_full = raw_full[raw_full.index.map(taxon_dict).isin(args.taxa)]
 
-    richness = compute_go_richness(raw_full)
     pca_df, explained_variance, loadings = run_pca_on_relative_abundance(raw_full, total_prots)
     n_go_used = loadings.shape[0]
+    # How many of the same GO columns the PCA was fit on (loadings.index)
+    # each species has any annotation for, for the tooltip -- reuses the
+    # PCA's own rare-term filter instead of re-deriving it.
+    richness = (raw_full[loadings.index] > 0).sum(axis=1)
     pca_df = remove_outliers(pca_df, low=5, high=95)
 
     pca_df = pca_df.copy()

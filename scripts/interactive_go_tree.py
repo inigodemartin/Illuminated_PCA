@@ -80,10 +80,16 @@ def run_pca_on_relative_abundance(raw_df, total_prots):
     raw_df = raw_df.loc[species]
 
     pca_input = raw_df.loc[:, raw_df.sum(axis=0) > 5]
-    relative = pca_input.div(total_prots.loc[species], axis=0)
+    # pca_input.div(total_prots, axis=0) dispatches one Python-level op per
+    # GO column (pandas' Series/DataFrame axis=0 broadcast is a per-column
+    # loop, not a single vectorized call) -- with tens of thousands of GO
+    # columns that dominates runtime. Dividing the underlying numpy arrays
+    # broadcasts over the whole matrix in one vectorized operation instead.
+    total_prots_col = total_prots.loc[species].to_numpy(dtype="float64")[:, None]
+    relative_values = pca_input.to_numpy(dtype="float64") / total_prots_col
 
     scaler = StandardScaler()
-    normalized = scaler.fit_transform(relative.values)
+    normalized = scaler.fit_transform(relative_values)
 
     model = TruncatedSVD(n_components=2)
     components = model.fit_transform(normalized)
