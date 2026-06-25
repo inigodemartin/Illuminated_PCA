@@ -416,35 +416,37 @@
 
   // Only opacity encodes abundance here -- marker size stays fixed, unlike
   // illuminate_PCA.run_illuminated_PCA's PNGs which also grow the marker.
-  // Always percentile-clipped (per taxon group) + sqrt gamma, never plain
-  // log1p-of-global-max: with real data, a single high-outlier species
-  // pushes log_max up enough that everything else (e.g. 50 vs 600 counts,
-  // a 12x difference) lands within a narrow alpha band and looks nearly
-  // identical. Clipping each group's own values at its 99th percentile
-  // before rescaling means the contrast among the non-outlier majority no
-  // longer depends on how extreme the single biggest outlier elsewhere is.
-  function computeAlpha(counts, groups) {
+  //
+  // Percentile-clipped (globally, across every plotted species) + sqrt
+  // gamma, never plain log1p-of-global-max: with real data, a single
+  // high-outlier species pushes log_max up enough that everything else
+  // (e.g. 30 vs 600 counts, a 20x difference) lands within a narrow alpha
+  // band and looks nearly identical. Clipping at the 99th percentile
+  // before rescaling stretches the non-outlier majority back out to use
+  // most of the 0-1 range, regardless of how extreme the single biggest
+  // outlier is.
+  //
+  // The percentile is computed globally, not per taxon group: an earlier
+  // version clipped within each group separately, which seemed like a
+  // reasonable way to stay robust to one group having outlier abundance --
+  // but it means each group's own top value gets rescaled to ~1.0 opacity
+  // regardless of its absolute count, so a count of 30 in a low-abundance
+  // group could outshine a count of 600 in a high-abundance group. A
+  // global percentile keeps opacity tied to absolute abundance everywhere.
+  function computeAlpha(counts) {
     var maxCount = Math.max.apply(null, counts);
     if (!(maxCount > 0)) {
       return counts.map(function () { return 0; });
     }
 
-    var alphas = counts.map(function () { return 0; });
-    var byGroup = {};
-    groups.forEach(function (g, i) { (byGroup[g] = byGroup[g] || []).push(i); });
+    var norm = counts.map(function (c) { return c / maxCount; });
+    var nonzero = norm.filter(function (n) { return n > 0; }).sort(function (a, b) { return a - b; });
+    var p99 = nonzero.length ? percentile(nonzero, 99) : 1.0;
+    norm = norm.map(function (n) { return Math.min(n, p99); });
+    if (p99 > 0) norm = norm.map(function (n) { return n / p99; });
+    norm = norm.map(function (n) { return Math.sqrt(n); });
 
-    Object.keys(byGroup).forEach(function (g) {
-      var idxs = byGroup[g];
-      var norm = idxs.map(function (i) { return counts[i] / maxCount; });
-      var nonzero = norm.filter(function (n) { return n > 0; }).sort(function (a, b) { return a - b; });
-      var p99 = nonzero.length ? percentile(nonzero, 99) : 1.0;
-      norm = norm.map(function (n) { return Math.min(n, p99); });
-      if (p99 > 0) norm = norm.map(function (n) { return n / p99; });
-      norm = norm.map(function (n) { return Math.sqrt(n); });
-      idxs.forEach(function (i, k) { alphas[i] = counts[i] === 0 ? 0 : norm[k]; });
-    });
-
-    return alphas;
+    return counts.map(function (c, i) { return c === 0 ? 0 : norm[i]; });
   }
 
   // The counts blob is gzip-compressed + base64-encoded server-side (see
@@ -698,8 +700,7 @@
   }
 
   function applyIllumination(counts) {
-    var groups = DATA.species.map(function (s) { return s.group; });
-    var alphas = computeAlpha(Array.prototype.slice.call(counts), groups);
+    var alphas = computeAlpha(Array.prototype.slice.call(counts));
     circleEls.forEach(function (c, i) {
       c.setAttribute("opacity", alphas[i]);
     });

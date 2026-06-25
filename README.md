@@ -267,12 +267,16 @@ term in at generation time or needing a tree: matching points fade in by
 abundance (opacity only — marker size never changes), species with zero
 counts for that term disappear, color still encodes taxon group, and
 hovering a point adds that GO term's count to the tooltip. Opacity is
-always percentile-clipped per taxon group (each group's own 99th
-percentile maps to full opacity) then gamma-corrected (square root) —
-not a plain log-scale of the global max, which on real data lets a single
-high-outlier species wash out the contrast among everyone else (e.g. 50
-vs. 600 counts looking nearly identical just because some other species
-has 6000). "Clear" reverts to the plain taxon-colored view. This works
+always percentile-clipped (globally, across every plotted species — the
+99th percentile maps to full opacity) then gamma-corrected (square root)
+— not a plain log-scale of the global max, which on real data lets a
+single high-outlier species wash out the contrast among everyone else
+(e.g. 30 vs. 600 counts looking nearly identical just because some other
+species has 6000). The clip is global rather than per taxon group on
+purpose: clipping within each group separately made every group's own
+top value rescale to ~1.0 opacity regardless of its absolute count, so a
+count of 30 in a low-abundance group could outshine a count of 600 in a
+high-abundance one. "Clear" reverts to the plain taxon-colored view. This works
 with no server: raw counts for every GO column x every plotted species
 are embedded in the HTML, gzip-compressed and base64-encoded (the browser
 decompresses them on first search via the native `DecompressionStream`
