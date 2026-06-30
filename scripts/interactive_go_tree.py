@@ -96,7 +96,8 @@ def run_pca_on_relative_abundance(raw_df, total_prots):
 
     pca_df = pd.DataFrame(components, columns=["PC1", "PC2"], index=species)
     loadings = pd.DataFrame(model.components_.T, columns=["PC1", "PC2"], index=pca_input.columns)
-    return pca_df, model.explained_variance_ratio_, loadings
+    normalized_df = pd.DataFrame(normalized, columns=pca_input.columns, index=species)
+    return pca_df, model.explained_variance_ratio_, loadings, normalized_df
 
 
 def top_loadings_by_pc(loadings, go_desc, n):
@@ -339,7 +340,7 @@ def main():
     taxon_dict = load_taxonomy(args.taxonomy)
     t = _log(t, f"loaded taxonomy ({len(taxon_dict)} species)")
 
-    pca_df, explained_variance, loadings = run_pca_on_relative_abundance(raw_full, total_prots)
+    pca_df, explained_variance, loadings, _ = run_pca_on_relative_abundance(raw_full, total_prots)
     pca_df = remove_outliers(pca_df, low=5, high=95)
     t = _log(t, "ran PCA on relative abundance")
 

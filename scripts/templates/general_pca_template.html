@@ -287,6 +287,7 @@
   }
   .scatter circle {
     transition: opacity 0.1s;
+    cursor: pointer;
   }
   .threshold-rail {
     flex: 0 0 36px;
@@ -372,6 +373,117 @@
   #tooltip.hidden {
     display: none;
   }
+  #species-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #species-modal.hidden {
+    display: none;
+  }
+  .modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+  }
+  .modal-dialog {
+    position: relative;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.22);
+    width: 700px;
+    max-width: 95vw;
+    max-height: 82vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .modal-header {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid #e2e8f0;
+    background: #2c3e50;
+    color: #fff;
+  }
+  .modal-header-title {
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .modal-header-sub {
+    font-size: 11px;
+    color: #cbd5e1;
+    margin-top: 2px;
+  }
+  #modal-close {
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+    opacity: 0.7;
+  }
+  #modal-close:hover {
+    opacity: 1;
+  }
+  .modal-body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 16px 18px;
+    display: flex;
+    gap: 24px;
+  }
+  .modal-pc-section {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .modal-pc-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 2px solid #e2e8f0;
+  }
+  .modal-direction-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin: 8px 0 3px;
+  }
+  .modal-contrib-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 6px;
+    padding: 3px 0;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 11px;
+  }
+  .modal-contrib-go {
+    font-weight: 600;
+    color: #1f2937;
+    white-space: nowrap;
+  }
+  .modal-contrib-value {
+    font-family: monospace;
+    color: #64748b;
+    white-space: nowrap;
+  }
+  .modal-contrib-desc {
+    flex: 1 1 100%;
+    color: #64748b;
+    font-size: 10px;
+  }
 </style>
 </head>
 <body>
@@ -412,6 +524,19 @@
     </div>
     <div class="axis-label-x" id="x-axis-label"></div>
     <div class="plot-hint">Scroll to zoom, drag to pan.</div>
+  </div>
+</div>
+<div id="species-modal" class="hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-dialog">
+    <div class="modal-header">
+      <div>
+        <div class="modal-header-title" id="modal-species-name"></div>
+        <div class="modal-header-sub" id="modal-species-sub"></div>
+      </div>
+      <button id="modal-close">&#x2715;</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
   </div>
 </div>
 <div id="tooltip" class="hidden"></div>
@@ -772,9 +897,10 @@
     updateMarkerScale();
   }, { passive: false });
 
-  var isPanning = false, panStart = null;
+  var isPanning = false, panMoved = false, panStart = null;
   svg.addEventListener("mousedown", function (evt) {
     isPanning = true;
+    panMoved = false;
     panStart = { x: evt.clientX, y: evt.clientY, vbX: viewBox.x, vbY: viewBox.y };
     svg.classList.add("panning");
     hideTooltip();
@@ -782,6 +908,7 @@
   });
   window.addEventListener("mousemove", function (evt) {
     if (!isPanning) return;
+    panMoved = true;
     var rect = svg.getBoundingClientRect();
     var dx = (evt.clientX - panStart.x) / rect.width * viewBox.w;
     var dy = (evt.clientY - panStart.y) / rect.height * viewBox.h;
@@ -828,6 +955,7 @@
     c.addEventListener("mouseenter", function (evt) { if (!isPanning) showTooltip(evt, s, i); });
     c.addEventListener("mousemove", function (evt) { if (!isPanning) moveTooltip(evt); });
     c.addEventListener("mouseleave", hideTooltip);
+    c.addEventListener("mouseup", function () { if (!panMoved) openSpeciesModal(s); });
     svg.appendChild(c);
     circleEls.push(c);
   });
@@ -1140,6 +1268,72 @@
 
     downloadSvgAsPng(exportSvg, totalW, totalH, DATA.meta.filename_base);
   };
+
+  // ---- species contribution modal ----
+  var speciesModal = document.getElementById("species-modal");
+
+  function closeSpeciesModal() {
+    speciesModal.classList.add("hidden");
+  }
+
+  document.getElementById("modal-close").onclick = closeSpeciesModal;
+  speciesModal.querySelector(".modal-backdrop").addEventListener("click", closeSpeciesModal);
+  document.addEventListener("keydown", function (evt) {
+    if (evt.key === "Escape") closeSpeciesModal();
+  });
+
+  function formatContrib(v) {
+    return (v >= 0 ? "+" : "") + v.toFixed(5);
+  }
+
+  function openSpeciesModal(s) {
+    if (!s.contributions || !Object.keys(s.contributions).length) return;
+    hideTooltip();
+
+    document.getElementById("modal-species-name").textContent = s.name;
+    document.getElementById("modal-species-sub").textContent =
+      s.group + "  ·  PC1: " + s.pc1.toFixed(3) + "  PC2: " + s.pc2.toFixed(3);
+
+    var body = document.getElementById("modal-body");
+    body.innerHTML = "";
+
+    var pcLabels = { PC1: PC1_LABEL, PC2: PC2_LABEL };
+    Object.keys(s.contributions).forEach(function (pc) {
+      var section = document.createElement("div");
+      section.className = "modal-pc-section";
+
+      var pcLabel = document.createElement("div");
+      pcLabel.className = "modal-pc-label";
+      pcLabel.textContent = pcLabels[pc] || pc;
+      section.appendChild(pcLabel);
+
+      [["positive", "▲ Positive"], ["negative", "▼ Negative"]].forEach(function (pair) {
+        var key = pair[0], label = pair[1];
+        var entries = s.contributions[pc][key];
+        if (!entries || !entries.length) return;
+
+        var dirLabel = document.createElement("div");
+        dirLabel.className = "modal-direction-label";
+        dirLabel.textContent = label;
+        section.appendChild(dirLabel);
+
+        entries.forEach(function (entry) {
+          var goDesc = (GO_SEARCH_SUPPORTED && GO_SEARCH.go_desc[entry.go_id]) || "unknown";
+          var row = document.createElement("div");
+          row.className = "modal-contrib-row";
+          row.innerHTML =
+            '<span class="modal-contrib-go">' + escapeHtml(entry.go_id) + "</span>" +
+            '<span class="modal-contrib-value">' + formatContrib(entry.contribution) + "</span>" +
+            '<div class="modal-contrib-desc">' + escapeHtml(goDesc) + "</div>";
+          section.appendChild(row);
+        });
+      });
+
+      body.appendChild(section);
+    });
+
+    speciesModal.classList.remove("hidden");
+  }
 
   // Build the GO-count threshold rail DOM once (shown/hidden by resetRail/hideRail).
   (function () {

@@ -92,6 +92,40 @@ def write_top_loadings_tsv(top_loadings, output_path):
     pd.DataFrame(rows).to_csv(output_path, sep="\t", index=False)
 
 
+def compute_species_contributions(normalized_df, loadings, n=10):
+    """
+    For each species, the n GO terms whose normalized-abundance × loading
+    product contributes most positively and most negatively to each PC score.
+    This tells you *why* a species sits where it does: which GO terms pull
+    it along each axis and in which direction.
+
+    Uses numpy broadcasting to compute the full (n_species × n_go) contribution
+    matrix per PC in one shot rather than looping per species.
+    """
+    norm_arr = normalized_df.to_numpy()          # (n_species, n_go)
+    go_ids = normalized_df.columns.tolist()
+    species_list = normalized_df.index.tolist()
+
+    result = {}
+    for pc in loadings.columns:
+        load_arr = loadings[pc].to_numpy()        # (n_go,)
+        contrib = norm_arr * load_arr             # (n_species, n_go)
+
+        for i, name in enumerate(species_list):
+            row = contrib[i]
+            top_pos = np.argpartition(row, -n)[-n:]
+            top_pos = top_pos[np.argsort(row[top_pos])[::-1]]
+            top_neg = np.argpartition(row, n)[:n]
+            top_neg = top_neg[np.argsort(row[top_neg])]
+
+            sp = result.setdefault(name, {})
+            sp[pc] = {
+                "positive": [{"go_id": go_ids[j], "contribution": round(float(row[j]), 5)} for j in top_pos],
+                "negative": [{"go_id": go_ids[j], "contribution": round(float(row[j]), 5)} for j in top_neg],
+            }
+    return result
+
+
 def build_go_search_payload(raw_full, species, go_desc):
     """
     Lets the browser look up, for any GO id in the *full* matrix (not just
