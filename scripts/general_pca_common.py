@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 
 TEMPLATE_PATH = Path(__file__).parent / "templates" / "general_pca_template.html"
-DEFAULT_IC_PATH = Path(__file__).parent.parent / "All_GOs_ic.tsv"
+DEFAULT_IC_PATH = Path(__file__).parent.parent / "data" / "All_GOs_ic.tsv"
 DATA_MARKER = "__GENERAL_PCA_DATA__"
 TITLE_MARKER = "__GENERAL_PCA_TITLE__"
 
