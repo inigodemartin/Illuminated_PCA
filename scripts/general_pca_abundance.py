@@ -24,6 +24,7 @@ from general_pca_common import (
     TITLE_MARKER,
     rgb_to_hex,
     load_go_descriptions,
+    load_go_ic,
     top_loadings_by_pc,
     write_top_loadings_tsv,
     build_go_search_payload,
@@ -45,6 +46,8 @@ def parse_args():
     )
     parser.add_argument("--output", default="general_pca_abundance.html", help="Output HTML path")
     parser.add_argument("--ic-file", default=str(DEFAULT_IC_PATH), help="GO id -> description TSV (default: bundled data/All_GOs_ic.tsv)")
+    parser.add_argument("--ic-threshold", type=float, default=None,
+                        help="Minimum IC to include a GO term in the PCA; GOs below this value are dropped from the matrix before fitting")
     parser.add_argument("--top-loadings-n", type=int, default=15,
                          help="Number of most-influential GO terms to report per PC (default: 15)")
     parser.add_argument("--loadings-output", default=None,
@@ -59,12 +62,29 @@ def main():
     total_prots = load_species_stats(args.species_stats)
     taxon_dict = load_taxonomy(args.taxonomy)
 
+    go_ic = load_go_ic(args.ic_file)
+    go_desc_raw = load_go_descriptions(args.ic_file)
+    # Embed IC in the description string so it surfaces everywhere the
+    # description is shown: GO search suggestions, top-loadings sidebar, etc.
+    go_desc = {
+        go_id: f"{desc} (IC: {go_ic[go_id]:.2f})" if go_id in go_ic else desc
+        for go_id, desc in go_desc_raw.items()
+    }
+
     # Restrict to the requested taxa *before* running PCA, not after: the
     # whole point of -t/--taxa is to compute the PCA only from variance
     # among those species, not to compute it on everyone and crop the plot
     # to a sub-region of the same global layout.
     if args.taxa:
         raw_full = raw_full[raw_full.index.map(taxon_dict).isin(args.taxa)]
+
+    # Drop GO terms below the IC threshold before fitting the PCA so that
+    # overly general terms (present in nearly all species, low information
+    # content) don't dominate the variance.
+    if args.ic_threshold is not None:
+        n_before = raw_full.shape[1]
+        raw_full = raw_full[[c for c in raw_full.columns if go_ic.get(c, 0.0) >= args.ic_threshold]]
+        print(f"IC filter (≥ {args.ic_threshold}): kept {raw_full.shape[1]} / {n_before} GO terms")
 
     pca_df, explained_variance, loadings = run_pca_on_relative_abundance(raw_full, total_prots)
     n_go_used = loadings.shape[0]
@@ -94,9 +114,14 @@ def main():
     groups_used = sorted({rec["group"] for rec in species_records})
     groups_hex = {g: rgb_to_hex(color_map[g]) for g in groups_used}
 
-    go_desc = load_go_descriptions(args.ic_file)
     top_loadings = top_loadings_by_pc(loadings, go_desc, args.top_loadings_n)
     go_search = build_go_search_payload(raw_full, species, go_desc)
+
+    title = "General PCA: GO term relative abundance"
+    mode_label = "relative abundance, not presence/absence"
+    if args.ic_threshold is not None:
+        title += f" (IC ≥ {args.ic_threshold})"
+        mode_label += f", IC ≥ {args.ic_threshold}"
 
     payload = {
         "species": species_records,
@@ -106,8 +131,8 @@ def main():
         "meta": {
             "n_go_terms_used": int(n_go_used),
             "explained_variance": [float(v) for v in explained_variance],
-            "title": "General PCA: GO term relative abundance",
-            "mode_label": "relative abundance, not presence/absence",
+            "title": title,
+            "mode_label": mode_label,
             "filename_base": "general_pca_abundance",
         },
     }

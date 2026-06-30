@@ -40,6 +40,21 @@ def load_go_descriptions(ic_file):
     return desc
 
 
+def load_go_ic(ic_file):
+    """GO id -> IC value (float), from the same headerless TSV (column 4)."""
+    ic = {}
+    with open(ic_file) as f:
+        for line in f:
+            parts = line.rstrip("\n").split("\t")
+            if len(parts) < 5 or parts[0] in ic:
+                continue
+            try:
+                ic[parts[0]] = float(parts[4])
+            except ValueError:
+                pass
+    return ic
+
+
 def top_loadings_by_pc(loadings, go_desc, n):
     """
     For each PC, the n GO terms with the largest |loading| -- the GO terms
