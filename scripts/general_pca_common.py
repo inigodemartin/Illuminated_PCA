@@ -122,6 +122,8 @@ def compute_species_contributions(normalized_df, loadings, n=10):
             sp[pc] = {
                 "positive": [{"go_id": go_ids[j], "contribution": round(float(row[j]), 5)} for j in top_pos],
                 "negative": [{"go_id": go_ids[j], "contribution": round(float(row[j]), 5)} for j in top_neg],
+                "total_positive": round(float(np.sum(row[row > 0])), 5),
+                "total_negative": round(float(np.sum(row[row < 0])), 5),
             }
     return result
 

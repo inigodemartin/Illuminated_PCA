@@ -1307,14 +1307,19 @@
       pcLabel.textContent = pcLabels[pc] || pc;
       section.appendChild(pcLabel);
 
-      [["positive", "▲ Positive"], ["negative", "▼ Negative"]].forEach(function (pair) {
-        var key = pair[0], label = pair[1];
+      [["positive", "▲ Positive", "total_positive"], ["negative", "▼ Negative", "total_negative"]].forEach(function (pair) {
+        var key = pair[0], label = pair[1], totalKey = pair[2];
         var entries = s.contributions[pc][key];
         if (!entries || !entries.length) return;
 
+        var total = s.contributions[pc][totalKey];
+        var totalStr = (total !== undefined)
+          ? "  (total: " + (total >= 0 ? "+" : "") + total.toFixed(3) + ")"
+          : "";
+
         var dirLabel = document.createElement("div");
         dirLabel.className = "modal-direction-label";
-        dirLabel.textContent = label;
+        dirLabel.textContent = label + totalStr;
         section.appendChild(dirLabel);
 
         entries.forEach(function (entry) {
