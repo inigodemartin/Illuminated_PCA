@@ -68,7 +68,7 @@ def get_descendant_gos(go_id, children_map):
             if child not in descendants:
                 descendants.add(child)
                 queue.append(child)
-    out_list = descendants.add(go_id)
+    descendants.add(go_id)
 
     return list(descendants)
 
@@ -332,7 +332,7 @@ def run_illuminated_PCA(input_matrix, go_counts, taxon_dict,go, go_desc, taxa=No
 
         plt.xlabel(f"PC1 ({explained_variance[0]*100:.1f}% variance)")
         plt.ylabel(f"PC2 ({explained_variance[1]*100:.1f}% variance)")
-        plt.suptitle(f"Illuminated PCA for {go}: {go_desc[go]}", fontsize=14)
+        plt.suptitle(f"Illuminated PCA for {go}: {go_desc.get(go, go)}", fontsize=14)
 
         # Reference lines
         plt.axhline(

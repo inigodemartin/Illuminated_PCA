@@ -627,7 +627,8 @@
   }
 
   function resetRail(maxCount) {
-    railTrackMax = maxCount > 0 ? maxCount : 1;
+    if (maxCount === 0) { hideRail(); return; }
+    railTrackMax = maxCount;
     goCountMin = 0;
     goCountMax = maxCount;
     railMinInput.value = 0;

@@ -23,8 +23,7 @@ from general_pca_common import (
     DATA_MARKER,
     TITLE_MARKER,
     rgb_to_hex,
-    load_go_descriptions,
-    load_go_ic,
+    load_go_ic_and_descriptions,
     top_loadings_by_pc,
     write_top_loadings_tsv,
     build_go_search_payload,
@@ -63,8 +62,7 @@ def main():
     total_prots = load_species_stats(args.species_stats)
     taxon_dict = load_taxonomy(args.taxonomy)
 
-    go_ic = load_go_ic(args.ic_file)
-    go_desc_raw = load_go_descriptions(args.ic_file)
+    go_ic, go_desc_raw = load_go_ic_and_descriptions(args.ic_file)
     # Embed IC in the description string so it surfaces everywhere the
     # description is shown: GO search suggestions, top-loadings sidebar, etc.
     go_desc = {
@@ -82,6 +80,10 @@ def main():
     # Drop GO terms below the IC threshold before fitting the PCA so that
     # overly general terms (present in nearly all species, low information
     # content) don't dominate the variance.
+    n_absent_ic = sum(1 for c in raw_full.columns if c not in go_ic)
+    if n_absent_ic:
+        print(f"Warning: {n_absent_ic} GO terms in matrix have no IC value in {args.ic_file}")
+
     if args.ic_threshold is not None:
         n_before = raw_full.shape[1]
         raw_full = raw_full[[c for c in raw_full.columns if go_ic.get(c, 0.0) >= args.ic_threshold]]
@@ -107,6 +109,7 @@ def main():
         loadings,
         n=args.top_loadings_n,
     )
+    del normalized_df
 
     species_records = [
         {
@@ -146,7 +149,6 @@ def main():
     }
 
     template = TEMPLATE_PATH.read_text()
-    title = payload["meta"]["title"]
     data_json = json.dumps(payload).replace("</", "<\\/")
     html = template.replace(TITLE_MARKER, title).replace(DATA_MARKER, data_json)
 

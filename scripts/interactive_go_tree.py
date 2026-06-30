@@ -24,9 +24,9 @@ from sklearn.preprocessing import StandardScaler
 
 from illuminate_PCA import load_taxonomy, build_global_color_map, remove_outliers
 from go_tree_illuminated_pca import get_go_relations
+from general_pca_common import DEFAULT_IC_PATH
 
 TEMPLATE_PATH = Path(__file__).parent / "templates" / "interactive_tree_template.html"
-DEFAULT_IC_PATH = Path(__file__).parent.parent / "data" / "All_GOs_ic.tsv"
 DATA_MARKER = "__INTERACTIVE_GO_TREE_DATA__"
 TITLE_MARKER = "__INTERACTIVE_GO_TREE_TITLE__"
 

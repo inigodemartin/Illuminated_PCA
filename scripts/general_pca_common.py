@@ -23,35 +23,34 @@ def rgb_to_hex(rgb):
     return "#{:02x}{:02x}{:02x}".format(int(r * 255), int(g * 255), int(b * 255))
 
 
-def load_go_descriptions(ic_file):
+def load_go_ic_and_descriptions(ic_file):
     """
-    GO -> description, from the same bundled headerless TSV used for IC
-    lookups elsewhere in this project (go_id, category, col3, col4, ic,
-    description, trailing-tab). Only the description column is needed
-    here, so this doesn't require a full OBO file.
+    Single-pass read of the headerless IC TSV, returning both dicts.
+    Format: go_id, category, col3, col4, ic, description, trailing-tab.
     """
-    desc = {}
+    ic, desc = {}, {}
     with open(ic_file) as f:
         for line in f:
             parts = line.rstrip("\n").split("\t")
-            if len(parts) < 6 or parts[0] in desc:
-                continue
-            desc[parts[0]] = parts[5]
-    return desc
-
-
-def load_go_ic(ic_file):
-    """GO id -> IC value (float), from the same headerless TSV (column 4)."""
-    ic = {}
-    with open(ic_file) as f:
-        for line in f:
-            parts = line.rstrip("\n").split("\t")
-            if len(parts) < 5 or parts[0] in ic:
+            if len(parts) < 6 or parts[0] in ic:
                 continue
             try:
                 ic[parts[0]] = float(parts[4])
             except ValueError:
                 pass
+            desc[parts[0]] = parts[5]
+    return ic, desc
+
+
+def load_go_descriptions(ic_file):
+    """GO -> description. Wrapper around load_go_ic_and_descriptions."""
+    _, desc = load_go_ic_and_descriptions(ic_file)
+    return desc
+
+
+def load_go_ic(ic_file):
+    """GO id -> IC value (float). Wrapper around load_go_ic_and_descriptions."""
+    ic, _ = load_go_ic_and_descriptions(ic_file)
     return ic
 
 
@@ -111,11 +110,12 @@ def compute_species_contributions(normalized_df, loadings, n=10):
         load_arr = loadings[pc].to_numpy()        # (n_go,)
         contrib = norm_arr * load_arr             # (n_species, n_go)
 
+        n_safe = min(n, len(go_ids))
         for i, name in enumerate(species_list):
             row = contrib[i]
-            top_pos = np.argpartition(row, -n)[-n:]
+            top_pos = np.argpartition(row, -n_safe)[-n_safe:]
             top_pos = top_pos[np.argsort(row[top_pos])[::-1]]
-            top_neg = np.argpartition(row, n)[:n]
+            top_neg = np.argpartition(row, n_safe)[:n_safe]
             top_neg = top_neg[np.argsort(row[top_neg])]
 
             sp = result.setdefault(name, {})
@@ -155,11 +155,12 @@ def build_go_search_payload(raw_full, species, go_desc):
     go_ids = list(raw_full.columns)
     counts = raw_full.loc[species, go_ids].to_numpy()
 
+    counts = np.clip(counts, 0, None)
     max_count = int(counts.max()) if counts.size else 0
     dtype = np.uint16 if max_count <= 65535 else np.uint32
 
     by_go = np.ascontiguousarray(counts.astype(dtype).T)  # shape (n_go, n_species)
-    compressed = gzip.compress(by_go.tobytes(), compresslevel=9)
+    compressed = gzip.compress(by_go.tobytes(), compresslevel=6)
 
     return {
         "go_ids": go_ids,
