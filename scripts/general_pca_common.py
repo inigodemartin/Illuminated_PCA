@@ -57,31 +57,38 @@ def load_go_ic(ic_file):
 
 def top_loadings_by_pc(loadings, go_desc, n):
     """
-    For each PC, the n GO terms with the largest |loading| -- the GO terms
-    whose value most drives that axis, in either direction (sign kept).
+    For each PC, the n GO terms with the most positive loadings and the n
+    with the most negative loadings -- returned as {"positive": [...], "negative": [...]}.
     """
     result = {}
     for pc in loadings.columns:
-        ranked = loadings[pc].reindex(loadings[pc].abs().sort_values(ascending=False).index)
-        top = ranked.head(n)
-        result[pc] = [
-            {"go_id": go_id, "description": go_desc.get(go_id, "unknown"), "loading": float(value)}
-            for go_id, value in top.items()
-        ]
+        col = loadings[pc]
+        result[pc] = {
+            "positive": [
+                {"go_id": go_id, "description": go_desc.get(go_id, "unknown"), "loading": float(v)}
+                for go_id, v in col.nlargest(n).items()
+            ],
+            "negative": [
+                {"go_id": go_id, "description": go_desc.get(go_id, "unknown"), "loading": float(v)}
+                for go_id, v in col.nsmallest(n).items()
+            ],
+        }
     return result
 
 
 def write_top_loadings_tsv(top_loadings, output_path):
     rows = []
-    for pc, entries in top_loadings.items():
-        for rank, entry in enumerate(entries, start=1):
-            rows.append({
-                "PC": pc,
-                "Rank": rank,
-                "GO_id": entry["go_id"],
-                "Description": entry["description"],
-                "Loading": entry["loading"],
-            })
+    for pc, sections in top_loadings.items():
+        for direction, entries in sections.items():
+            for rank, entry in enumerate(entries, start=1):
+                rows.append({
+                    "PC": pc,
+                    "Direction": direction,
+                    "Rank": rank,
+                    "GO_id": entry["go_id"],
+                    "Description": entry["description"],
+                    "Loading": entry["loading"],
+                })
     pd.DataFrame(rows).to_csv(output_path, sep="\t", index=False)
 
 

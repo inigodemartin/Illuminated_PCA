@@ -72,8 +72,8 @@ def parse_args():
     )
     parser.add_argument("--output", default="general_pca_presence_absence.html", help="Output HTML path")
     parser.add_argument("--ic-file", default=str(DEFAULT_IC_PATH), help="GO id -> description TSV (default: bundled data/All_GOs_ic.tsv)")
-    parser.add_argument("--top-loadings-n", type=int, default=15,
-                         help="Number of most-influential GO terms to report per PC (default: 15)")
+    parser.add_argument("--top-loadings-n", type=int, default=10,
+                         help="Number of GO terms to report per direction (positive/negative) per PC (default: 10)")
     parser.add_argument("--loadings-output", default=None,
                          help="Top-loadings TSV path (default: alongside --output, with _top_loadings.tsv)")
     return parser.parse_args()
