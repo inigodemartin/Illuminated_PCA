@@ -153,6 +153,16 @@
   .toolbar-btn:hover {
     background: rgba(255,255,255,0.22);
   }
+  #go-match-mode-label {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+  }
+  #go-match-mode-label input {
+    margin: 0;
+  }
   #sidebar {
     position: fixed;
     top: 0;
@@ -530,6 +540,9 @@
       <div id="go-search-suggestions" class="hidden"></div>
     </div>
     <button id="go-search-clear-btn" class="toolbar-btn">Clear GO</button>
+    <label id="go-match-mode-label" class="toolbar-btn" title="When several GO terms are selected: off = light up by summed abundance, on = fully show only species that have every selected GO term at least once">
+      <input type="checkbox" id="go-match-all-toggle"> Require all
+    </label>
     <div id="species-search-wrap">
       <input id="species-search-input" type="text" autocomplete="off" placeholder="Search a species to highlight...">
       <div id="species-search-suggestions" class="hidden"></div>
@@ -700,6 +713,8 @@
   var activeGos = [];       // [{ go_id, description, idx }, ...] currently illuminated GO terms
   var activeGoCounts = [];  // parallel array of per-GO typed-array count views (same order as activeGos)
   var activeCounts = null;  // summed counts across activeGoCounts, aligned with DATA.species order
+  var activeMatchMask = null; // when goRequireAll is on: bool per species, true iff every activeGos term has count > 0
+  var goRequireAll = false;   // toggled by #go-match-all-toggle: sum-abundance gradient vs binary "has every term"
 
   function percentile(sortedAsc, p) {
     var idx = (p / 100) * (sortedAsc.length - 1);
@@ -778,6 +793,19 @@
       for (var i = 0; i < n; i++) out[i] += arr[i];
     });
     return out;
+  }
+
+  // Binary "has every selected GO term at least once" mask, for the
+  // all-or-nothing "Require all" mode -- deliberately not a threshold on the
+  // sum (a species with counts [5, 0] for two terms should read as a miss,
+  // not a partial match, even though its sum is nonzero).
+  function matchAllMask(countArrays) {
+    var n = GO_SEARCH.n_species;
+    var mask = new Array(n).fill(true);
+    countArrays.forEach(function (arr) {
+      for (var i = 0; i < n; i++) if (arr[i] === 0) mask[i] = false;
+    });
+    return mask;
   }
 
   function escapeHtml(s) {
@@ -871,11 +899,13 @@
   function applyVisibility() {
     circleEls.forEach(function (c, i) {
       var s = DATA.species[i];
-      var count = activeCounts ? activeCounts[i] : 0;
-      var suppressed = hiddenGroups[s.group]
-        || (activeCounts && count === 0)
-        || (activeCounts && count < goCountMin)
-        || (activeCounts && count > goCountMax);
+      var suppressed = hiddenGroups[s.group];
+      if (!suppressed && activeMatchMask) {
+        suppressed = !activeMatchMask[i];
+      } else if (!suppressed && activeCounts) {
+        var count = activeCounts[i];
+        suppressed = count === 0 || count < goCountMin || count > goCountMax;
+      }
       c.style.display = suppressed ? "none" : "";
     });
   }
@@ -1054,9 +1084,18 @@
       setSearchStatus("", false);
       return;
     }
+    var idsLabel = activeGos.map(function (g) { return g.go_id; }).join(", ");
+    if (goRequireAll) {
+      setSearchStatus(
+        "Showing only species with all " + activeGos.length +
+        " GO term" + (activeGos.length > 1 ? "s" : "") + " present (" + idsLabel + ")",
+        false
+      );
+      return;
+    }
     var label = activeGos.length === 1
       ? activeGos[0].go_id + " — " + activeGos[0].description
-      : activeGos.length + " GO terms (" + activeGos.map(function (g) { return g.go_id; }).join(", ") + ")";
+      : activeGos.length + " GO terms (" + idsLabel + ")";
     setSearchStatus(
       "Illuminating " + label +
       " (opacity = " + (activeGos.length === 1 ? "abundance" : "summed abundance") + ", color = taxon group)",
@@ -1089,6 +1128,7 @@
     activeGos = [];
     activeGoCounts = [];
     activeCounts = null;
+    activeMatchMask = null;
     hideRail();
     applyBaseStyles();
     applyVisibility();
@@ -1097,9 +1137,12 @@
   }
 
   // Loads (or reuses already-loaded) counts for every GO term currently in
-  // activeGos and illuminates by their summed abundance -- one GO behaves
-  // exactly like before (sum of one term is just that term's own counts),
-  // several GOs light up species by combined abundance across all of them.
+  // activeGos and illuminates either by their summed abundance (gradient
+  // opacity, threshold rail active) or, under goRequireAll, as a flat
+  // on/off match -- a species is fully shown only if it has every selected
+  // term at least once, no in-between. One GO behaves the same under either
+  // mode's "on" case (present vs not); the two modes only diverge once 2+
+  // GO terms are selected.
   function illuminateGos() {
     if (!activeGos.length) {
       clearIllumination();
@@ -1112,11 +1155,17 @@
     setSearchStatus("Loading GO data…", false);
     loadGoCounts().then(function (typedArray) {
       activeGoCounts = activeGos.map(function (g) { return countsForGoIndex(typedArray, g.idx); });
-      var summed = sumCountArrays(activeGoCounts);
-      activeCounts = summed;
-      var maxCount = Math.max.apply(null, summed);
-      resetRail(maxCount);
-      applyIllumination(summed);
+      activeCounts = sumCountArrays(activeGoCounts);
+      if (goRequireAll) {
+        activeMatchMask = matchAllMask(activeGoCounts);
+        hideRail();
+        applyBaseStyles();
+      } else {
+        activeMatchMask = null;
+        var maxCount = Math.max.apply(null, activeCounts);
+        resetRail(maxCount);
+        applyIllumination(activeCounts);
+      }
       applyVisibility();
       updateSearchStatus();
       renderGoChips();
@@ -1227,9 +1276,15 @@
     clearIllumination();
   };
 
+  document.getElementById("go-match-all-toggle").addEventListener("change", function (evt) {
+    goRequireAll = evt.target.checked;
+    if (activeGos.length) illuminateGos();
+  });
+
   if (!GO_SEARCH_SUPPORTED) {
     goSearchInput.disabled = true;
     goSearchInput.placeholder = "GO search needs a newer browser";
+    document.getElementById("go-match-all-toggle").disabled = true;
     setSearchStatus("This browser doesn't support live GO search (needs fetch + DecompressionStream).", true);
   }
 
