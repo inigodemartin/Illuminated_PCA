@@ -38,15 +38,16 @@
   #toolbar {
     margin-top: 10px;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 10px;
   }
-  #go-search-wrap {
+  #go-search-wrap, #species-search-wrap {
     position: relative;
     flex: 1 1 320px;
     max-width: 420px;
   }
-  #go-search-input {
+  #go-search-input, #species-search-input {
     width: 100%;
     box-sizing: border-box;
     padding: 5px 8px;
@@ -56,7 +57,7 @@
     color: #1a1a1a;
     font-size: 12px;
   }
-  #go-search-suggestions {
+  #go-search-suggestions, #species-search-suggestions {
     position: absolute;
     top: 100%;
     left: 0;
@@ -70,7 +71,7 @@
     z-index: 700;
     box-shadow: 0 4px 10px rgba(0,0,0,0.18);
   }
-  #go-search-suggestions.hidden {
+  #go-search-suggestions.hidden, #species-search-suggestions.hidden {
     display: none;
   }
   .go-suggestion {
@@ -93,19 +94,52 @@
   .go-suggestion-desc {
     color: #64748b;
   }
-  #go-search-status {
+  #go-search-status, #species-search-status {
     margin: 6px 0 0;
     font-size: 12px;
     color: #cbd5e1;
     min-height: 14px;
   }
-  #go-search-status.active {
+  #go-search-status.active, #species-search-status.active {
     color: #fbbf24;
     font-weight: 600;
   }
-  #go-search-status.error {
+  #go-search-status.error, #species-search-status.error {
     color: #fca5a5;
     font-weight: 600;
+  }
+  #go-search-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+  }
+  .go-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(255,255,255,0.14);
+    border: 1px solid rgba(255,255,255,0.4);
+    border-radius: 12px;
+    padding: 2px 6px 2px 10px;
+    font-size: 11px;
+    color: #fff;
+  }
+  .go-chip-remove {
+    background: none;
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+    padding: 0 2px;
+    opacity: 0.75;
+  }
+  .go-chip-remove:hover {
+    opacity: 1;
+  }
+  circle.species-highlighted {
+    filter: drop-shadow(0 0 4px rgba(245, 166, 35, 0.95));
   }
   .toolbar-btn {
     cursor: pointer;
@@ -492,14 +526,21 @@
   <p id="page-subtitle"></p>
   <div id="toolbar">
     <div id="go-search-wrap">
-      <input id="go-search-input" type="text" autocomplete="off" placeholder="Search a GO id or description to illuminate...">
+      <input id="go-search-input" type="text" autocomplete="off" placeholder="Search GO id(s)/description to illuminate (adds to selection)...">
       <div id="go-search-suggestions" class="hidden"></div>
     </div>
-    <button id="go-search-clear-btn" class="toolbar-btn">Clear</button>
+    <button id="go-search-clear-btn" class="toolbar-btn">Clear GO</button>
+    <div id="species-search-wrap">
+      <input id="species-search-input" type="text" autocomplete="off" placeholder="Search a species to highlight...">
+      <div id="species-search-suggestions" class="hidden"></div>
+    </div>
+    <button id="species-search-clear-btn" class="toolbar-btn">Clear species</button>
     <button id="reset-zoom-btn" class="toolbar-btn">Reset zoom</button>
     <button id="download-png-btn" class="toolbar-btn">Download PNG</button>
   </div>
+  <div id="go-search-chips"></div>
   <p id="go-search-status"></p>
+  <p id="species-search-status"></p>
 </header>
 <div id="sidebar">
   <div class="sidebar-section">
@@ -656,8 +697,9 @@
     return { id: id, desc: desc, idx: i, key: (id + " " + desc).toLowerCase() };
   });
 
-  var activeGo = null;     // { go_id, description } or null when not illuminating
-  var activeCounts = null; // typed-array view aligned with DATA.species order
+  var activeGos = [];       // [{ go_id, description, idx }, ...] currently illuminated GO terms
+  var activeGoCounts = [];  // parallel array of per-GO typed-array count views (same order as activeGos)
+  var activeCounts = null;  // summed counts across activeGoCounts, aligned with DATA.species order
 
   function percentile(sortedAsc, p) {
     var idx = (p / 100) * (sortedAsc.length - 1);
@@ -726,6 +768,18 @@
     return typedArray.subarray(idx * n, (idx + 1) * n);
   }
 
+  // Elementwise sum across several per-species count arrays, so illumination
+  // can encode combined abundance across multiple GO terms picked one at a
+  // time instead of only ever a single term.
+  function sumCountArrays(countArrays) {
+    var n = GO_SEARCH.n_species;
+    var out = new Array(n).fill(0);
+    countArrays.forEach(function (arr) {
+      for (var i = 0; i < n; i++) out[i] += arr[i];
+    });
+    return out;
+  }
+
   function escapeHtml(s) {
     return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
@@ -783,8 +837,18 @@
       "Group: " + escapeHtml(species.group) + "<br>" +
       "GO terms present: " + species.go_terms_present + " / " + DATA.meta.n_go_terms_used + "<br>" +
       "Share: " + pct.toFixed(2) + "%";
-    if (activeGo && activeCounts) {
-      html += "<br>" + escapeHtml(activeGo.go_id) + " count: " + activeCounts[idx];
+    if (activeGos.length && activeCounts) {
+      if (activeGos.length === 1) {
+        html += "<br>" + escapeHtml(activeGos[0].go_id) + " count: " + activeCounts[idx];
+      } else {
+        html += "<br>Summed count (" + activeGos.length + " GO terms): " + activeCounts[idx];
+        activeGos.forEach(function (g, k) {
+          html += "<br>&nbsp;&nbsp;" + escapeHtml(g.go_id) + ": " + activeGoCounts[k][idx];
+        });
+      }
+    }
+    if (speciesHighlightIdx === idx) {
+      html += "<br><i>Highlighted species</i>";
     }
     tooltip.innerHTML = html;
     tooltip.classList.remove("hidden");
@@ -986,30 +1050,59 @@
   }
 
   function updateSearchStatus() {
-    if (!activeGo) {
+    if (!activeGos.length) {
       setSearchStatus("", false);
       return;
     }
+    var label = activeGos.length === 1
+      ? activeGos[0].go_id + " — " + activeGos[0].description
+      : activeGos.length + " GO terms (" + activeGos.map(function (g) { return g.go_id; }).join(", ") + ")";
     setSearchStatus(
-      "Illuminating " + activeGo.go_id + " — " + activeGo.description +
-      " (opacity = abundance, color = taxon group)",
+      "Illuminating " + label +
+      " (opacity = " + (activeGos.length === 1 ? "abundance" : "summed abundance") + ", color = taxon group)",
       false
     );
   }
 
+  function renderGoChips() {
+    var container = document.getElementById("go-search-chips");
+    container.innerHTML = "";
+    activeGos.forEach(function (g) {
+      var chip = document.createElement("span");
+      chip.className = "go-chip";
+      chip.title = g.description;
+      var label = document.createElement("span");
+      label.textContent = g.go_id;
+      var removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "go-chip-remove";
+      removeBtn.textContent = "✕";
+      removeBtn.title = "Remove " + g.go_id;
+      removeBtn.onclick = function () { removeGoTerm(g.go_id); };
+      chip.appendChild(label);
+      chip.appendChild(removeBtn);
+      container.appendChild(chip);
+    });
+  }
+
   function clearIllumination() {
-    activeGo = null;
+    activeGos = [];
+    activeGoCounts = [];
     activeCounts = null;
     hideRail();
     applyBaseStyles();
     applyVisibility();
     updateSearchStatus();
+    renderGoChips();
   }
 
-  function illuminateGo(goId) {
-    var idx = goIndexById[goId];
-    if (idx === undefined) {
-      setSearchStatus("GO term not found: " + goId, true);
+  // Loads (or reuses already-loaded) counts for every GO term currently in
+  // activeGos and illuminates by their summed abundance -- one GO behaves
+  // exactly like before (sum of one term is just that term's own counts),
+  // several GOs light up species by combined abundance across all of them.
+  function illuminateGos() {
+    if (!activeGos.length) {
+      clearIllumination();
       return;
     }
     if (!GO_SEARCH_SUPPORTED) {
@@ -1018,17 +1111,41 @@
     }
     setSearchStatus("Loading GO data…", false);
     loadGoCounts().then(function (typedArray) {
-      var counts = countsForGoIndex(typedArray, idx);
-      activeGo = { go_id: goId, description: GO_SEARCH.go_desc[goId] || "unknown" };
-      activeCounts = counts;
-      var maxCount = Math.max.apply(null, Array.prototype.slice.call(counts));
+      activeGoCounts = activeGos.map(function (g) { return countsForGoIndex(typedArray, g.idx); });
+      var summed = sumCountArrays(activeGoCounts);
+      activeCounts = summed;
+      var maxCount = Math.max.apply(null, summed);
       resetRail(maxCount);
-      applyIllumination(counts);
+      applyIllumination(summed);
       applyVisibility();
       updateSearchStatus();
+      renderGoChips();
     }).catch(function (err) {
       setSearchStatus("Could not decode GO data: " + err, true);
     });
+  }
+
+  function addGoTerm(goId) {
+    var idx = goIndexById[goId];
+    if (idx === undefined) {
+      setSearchStatus("GO term not found: " + goId, true);
+      return;
+    }
+    if (activeGos.some(function (g) { return g.go_id === goId; })) {
+      setSearchStatus(goId + " is already illuminated.", false);
+      return;
+    }
+    activeGos.push({ go_id: goId, description: GO_SEARCH.go_desc[goId] || "unknown", idx: idx });
+    illuminateGos();
+  }
+
+  function removeGoTerm(goId) {
+    activeGos = activeGos.filter(function (g) { return g.go_id !== goId; });
+    if (!activeGos.length) {
+      clearIllumination();
+    } else {
+      illuminateGos();
+    }
   }
 
   // ---- search box wiring ----
@@ -1050,9 +1167,9 @@
         '<span class="go-suggestion-desc">' + escapeHtml(m.desc) + "</span>";
       item.addEventListener("mousedown", function (evt) {
         evt.preventDefault();
-        goSearchInput.value = m.id;
+        goSearchInput.value = "";
         goSearchSuggestions.classList.add("hidden");
-        illuminateGo(m.id);
+        addGoTerm(m.id);
       });
       goSearchSuggestions.appendChild(item);
     });
@@ -1091,8 +1208,8 @@
     }
     goSearchSuggestions.classList.add("hidden");
     if (target) {
-      goSearchInput.value = target;
-      illuminateGo(target);
+      goSearchInput.value = "";
+      addGoTerm(target);
     } else {
       setSearchStatus("GO term not found: " + query, true);
     }
@@ -1115,6 +1232,128 @@
     goSearchInput.placeholder = "GO search needs a newer browser";
     setSearchStatus("This browser doesn't support live GO search (needs fetch + DecompressionStream).", true);
   }
+
+  // ---- species search / highlight ----
+  // Unlike GO illumination, picking a species never hides or dims anything
+  // else -- it just marks the matching dot (bigger radius, amber stroke,
+  // brought to front) so it's easy to spot among ~1000+ points, while every
+  // other point keeps its normal color/opacity/visibility.
+  var SPECIES_ENTRIES = DATA.species.map(function (s, i) {
+    return { name: s.name, group: s.group, idx: i, key: (s.name + " " + s.group).toLowerCase() };
+  });
+  var speciesHighlightIdx = null;
+  var speciesSearchInput = document.getElementById("species-search-input");
+  var speciesSearchSuggestions = document.getElementById("species-search-suggestions");
+  var SPECIES_SEARCH_MAX_SUGGESTIONS = 20;
+
+  function setSpeciesSearchStatus(text, isError) {
+    var status = document.getElementById("species-search-status");
+    status.textContent = text;
+    status.classList.toggle("active", !isError && !!text);
+    status.classList.toggle("error", !!isError);
+  }
+
+  function clearSpeciesHighlight() {
+    if (speciesHighlightIdx !== null) {
+      var prev = circleEls[speciesHighlightIdx];
+      prev.setAttribute("data-base-r", BASE_RADIUS);
+      prev.setAttribute("stroke", "black");
+      prev.classList.remove("species-highlighted");
+      updateMarkerScale();
+    }
+    speciesHighlightIdx = null;
+    setSpeciesSearchStatus("", false);
+  }
+
+  function highlightSpecies(idx) {
+    if (speciesHighlightIdx === idx) return;
+    var hadPrevious = speciesHighlightIdx !== null;
+    if (hadPrevious) {
+      var prev = circleEls[speciesHighlightIdx];
+      prev.setAttribute("data-base-r", BASE_RADIUS);
+      prev.setAttribute("stroke", "black");
+      prev.classList.remove("species-highlighted");
+    }
+    var s = DATA.species[idx];
+    var c = circleEls[idx];
+    c.setAttribute("data-base-r", BASE_RADIUS * 2.2);
+    c.setAttribute("stroke", "#F5A623");
+    c.classList.add("species-highlighted");
+    svg.appendChild(c); // re-inserting an existing child moves it to the end -> drawn on top
+    speciesHighlightIdx = idx;
+    updateMarkerScale();
+    setSpeciesSearchStatus("Highlighting: " + s.name + " (" + s.group + ")", false);
+  }
+
+  function renderSpeciesSuggestions(matches) {
+    speciesSearchSuggestions.innerHTML = "";
+    if (!matches.length) {
+      speciesSearchSuggestions.classList.add("hidden");
+      return;
+    }
+    matches.forEach(function (m) {
+      var item = document.createElement("div");
+      item.className = "go-suggestion";
+      item.innerHTML =
+        '<span class="go-suggestion-id">' + escapeHtml(m.name) + "</span>" +
+        '<span class="go-suggestion-desc">' + escapeHtml(m.group) + "</span>";
+      item.addEventListener("mousedown", function (evt) {
+        evt.preventDefault();
+        speciesSearchInput.value = m.name;
+        speciesSearchSuggestions.classList.add("hidden");
+        highlightSpecies(m.idx);
+      });
+      speciesSearchSuggestions.appendChild(item);
+    });
+    speciesSearchSuggestions.classList.remove("hidden");
+  }
+
+  function findSpeciesMatches(query) {
+    var q = query.trim().toLowerCase();
+    if (!q) return [];
+    var matches = [];
+    for (var i = 0; i < SPECIES_ENTRIES.length && matches.length < SPECIES_SEARCH_MAX_SUGGESTIONS; i++) {
+      if (SPECIES_ENTRIES[i].key.indexOf(q) !== -1) matches.push(SPECIES_ENTRIES[i]);
+    }
+    return matches;
+  }
+
+  speciesSearchInput.addEventListener("input", function () {
+    renderSpeciesSuggestions(findSpeciesMatches(speciesSearchInput.value));
+  });
+
+  speciesSearchInput.addEventListener("keydown", function (evt) {
+    if (evt.key === "Escape") {
+      speciesSearchSuggestions.classList.add("hidden");
+      return;
+    }
+    if (evt.key !== "Enter") return;
+    evt.preventDefault();
+    var query = speciesSearchInput.value.trim();
+    if (!query) return;
+    var matches = findSpeciesMatches(query);
+    var exact = matches.find(function (m) { return m.name.toLowerCase() === query.toLowerCase(); });
+    var target = exact || matches[0];
+    speciesSearchSuggestions.classList.add("hidden");
+    if (target) {
+      speciesSearchInput.value = target.name;
+      highlightSpecies(target.idx);
+    } else {
+      setSpeciesSearchStatus("Species not found: " + query, true);
+    }
+  });
+
+  document.addEventListener("click", function (evt) {
+    if (!document.getElementById("species-search-wrap").contains(evt.target)) {
+      speciesSearchSuggestions.classList.add("hidden");
+    }
+  });
+
+  document.getElementById("species-search-clear-btn").onclick = function () {
+    speciesSearchInput.value = "";
+    renderSpeciesSuggestions([]);
+    clearSpeciesHighlight();
+  };
 
   var PNG_EXPORT_SCALE = 2;
   var LEGEND_ROW_H = 20;
@@ -1231,8 +1470,8 @@
     title.setAttribute("font-family", "Arial, Helvetica, sans-serif");
     title.setAttribute("font-size", "15");
     title.setAttribute("font-weight", "bold");
-    title.textContent = activeGo
-      ? DATA.meta.title + " — illuminated: " + activeGo.go_id + " (" + activeGo.description + ")"
+    title.textContent = activeGos.length
+      ? DATA.meta.title + " — illuminated: " + activeGos.map(function (g) { return g.go_id; }).join(", ")
       : DATA.meta.title;
     exportSvg.appendChild(title);
 
