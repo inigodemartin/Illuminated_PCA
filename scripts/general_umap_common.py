@@ -18,6 +18,8 @@ builder don't depend on the fitting algorithm at all, so they're reused
 as-is from general_pca_common.py rather than duplicated here.
 """
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 
@@ -30,8 +32,15 @@ from general_pca_common import (
     build_go_search_payload,
 )
 
+TEMPLATE_PATH = Path(__file__).parent / "templates" / "general_umap_template.html"
+DATA_MARKER = "__GENERAL_UMAP_DATA__"
+TITLE_MARKER = "__GENERAL_UMAP_TITLE__"
+
 __all__ = [
     "DEFAULT_IC_PATH",
+    "TEMPLATE_PATH",
+    "DATA_MARKER",
+    "TITLE_MARKER",
     "rgb_to_hex",
     "load_go_ic_and_descriptions",
     "load_go_descriptions",
