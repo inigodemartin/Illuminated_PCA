@@ -1,0 +1,1617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>__GENERAL_PHATE_TITLE__</title>
+<style>
+  :root {
+    color-scheme: light;
+  }
+  html, body {
+    height: 100%;
+  }
+  body {
+    font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    margin: 0;
+    background: #f5f6f8;
+    color: #1a1a1a;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    flex: 0 0 auto;
+    box-sizing: border-box;
+    padding: 16px 24px;
+    margin-right: 260px;
+    background: #2c3e50;
+    color: #fff;
+  }
+  header h1 {
+    margin: 0 0 4px;
+    font-size: 18px;
+  }
+  header p {
+    margin: 0;
+    font-size: 13px;
+    color: #cbd5e1;
+  }
+  #toolbar {
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+  }
+  #go-search-wrap, #species-search-wrap {
+    position: relative;
+    flex: 1 1 320px;
+    max-width: 420px;
+  }
+  #go-search-input, #species-search-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 5px 8px;
+    border-radius: 4px;
+    border: 1px solid rgba(255,255,255,0.4);
+    background: rgba(255,255,255,0.92);
+    color: #1a1a1a;
+    font-size: 12px;
+  }
+  #go-search-suggestions, #species-search-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 2px;
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    max-height: 260px;
+    overflow-y: auto;
+    z-index: 700;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.18);
+  }
+  #go-search-suggestions.hidden, #species-search-suggestions.hidden {
+    display: none;
+  }
+  .go-suggestion {
+    padding: 5px 8px;
+    font-size: 12px;
+    color: #1a1a1a;
+    cursor: pointer;
+    border-bottom: 1px solid #eef1f5;
+  }
+  .go-suggestion:last-child {
+    border-bottom: none;
+  }
+  .go-suggestion:hover {
+    background: #eef2ff;
+  }
+  .go-suggestion-id {
+    font-weight: 600;
+    margin-right: 6px;
+  }
+  .go-suggestion-desc {
+    color: #64748b;
+  }
+  #go-search-status, #species-search-status {
+    margin: 6px 0 0;
+    font-size: 12px;
+    color: #cbd5e1;
+    min-height: 14px;
+  }
+  #go-search-status.active, #species-search-status.active {
+    color: #fbbf24;
+    font-weight: 600;
+  }
+  #go-search-status.error, #species-search-status.error {
+    color: #fca5a5;
+    font-weight: 600;
+  }
+  #go-search-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+  }
+  .go-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(255,255,255,0.14);
+    border: 1px solid rgba(255,255,255,0.4);
+    border-radius: 12px;
+    padding: 2px 6px 2px 10px;
+    font-size: 11px;
+    color: #fff;
+  }
+  .go-chip-remove {
+    background: none;
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+    padding: 0 2px;
+    opacity: 0.75;
+  }
+  .go-chip-remove:hover {
+    opacity: 1;
+  }
+  circle.species-highlighted {
+    filter: drop-shadow(0 0 4px rgba(245, 166, 35, 0.95));
+  }
+  .toolbar-btn {
+    cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.4);
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+    border-radius: 4px;
+    font-size: 12px;
+    padding: 4px 10px;
+  }
+  .toolbar-btn:hover {
+    background: rgba(255,255,255,0.22);
+  }
+  #go-match-mode-label {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+  }
+  #go-match-mode-label input {
+    margin: 0;
+  }
+  #sidebar {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 250px;
+    height: 100vh;
+    overflow-y: auto;
+    background: #f8fafc;
+    border-left: 1px solid #cbd5e1;
+    box-shadow: -2px 0 8px rgba(0,0,0,0.06);
+    padding: 16px;
+    box-sizing: border-box;
+    z-index: 600;
+  }
+  .sidebar-section {
+    margin-bottom: 22px;
+  }
+  .sidebar-section h4 {
+    margin: 0 0 8px;
+    font-size: 12px;
+    color: #334155;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .legend-actions {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .legend-action {
+    cursor: pointer;
+    border: 1px solid #cbd5e1;
+    background: #f8fafc;
+    border-radius: 4px;
+    font-size: 11px;
+    padding: 2px 8px;
+    color: #334155;
+  }
+  .legend-action:hover {
+    background: #e2e8f0;
+  }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    font-size: 12px;
+    margin-bottom: 6px;
+  }
+  .legend label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+  }
+  .legend .swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  #plot-container {
+    flex: 1 1 auto;
+    min-height: 0;
+    margin-right: 260px;
+    padding: 20px 24px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+  }
+  .plot-card {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 16px 20px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+  }
+  .plot-row {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    align-items: stretch;
+    gap: 4px;
+  }
+  .axis-label-y {
+    flex: 0 0 auto;
+    width: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .axis-label-y span {
+    display: inline-block;
+    transform: rotate(-90deg);
+    white-space: nowrap;
+    font-size: 12px;
+    color: #555;
+  }
+  .axis-label-x {
+    flex: 0 0 auto;
+    text-align: center;
+    font-size: 12px;
+    color: #555;
+    margin-top: 4px;
+  }
+  .plot-hint {
+    flex: 0 0 auto;
+    text-align: center;
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 6px;
+  }
+  .scatter {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    cursor: grab;
+    touch-action: none;
+  }
+  .scatter.panning {
+    cursor: grabbing;
+  }
+  .scatter circle {
+    transition: opacity 0.1s;
+    cursor: pointer;
+  }
+  .threshold-rail {
+    flex: 0 0 36px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 0;
+    user-select: none;
+  }
+  .threshold-rail.inactive {
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .threshold-rail-input {
+    width: 32px;
+    font-size: 10px;
+    text-align: center;
+    border: 1px solid #cbd5e1;
+    border-radius: 3px;
+    padding: 1px 2px;
+    background: #f8fafc;
+    color: #1a1a1a;
+  }
+  .threshold-rail-input:hover,
+  .threshold-rail-input:focus {
+    border-color: #6366f1;
+    outline: none;
+  }
+  .threshold-rail-input::-webkit-inner-spin-button,
+  .threshold-rail-input::-webkit-outer-spin-button {
+    display: none;
+  }
+  .threshold-rail-track {
+    flex: 1 1 auto;
+    width: 6px;
+    background: #e2e8f0;
+    border-radius: 3px;
+    position: relative;
+    cursor: pointer;
+  }
+  .threshold-rail-fill {
+    position: absolute;
+    left: 0; right: 0;
+    background: #6366f1;
+    border-radius: 3px;
+  }
+  .threshold-rail-handle {
+    position: absolute;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #fff;
+    border: 2px solid #6366f1;
+    cursor: ns-resize;
+    box-sizing: border-box;
+  }
+  .threshold-rail-handle:hover {
+    background: #eef2ff;
+  }
+  .threshold-rail-handle:active {
+    background: #c7d2fe;
+  }
+  .axis-line {
+    stroke: #9ca3af;
+    stroke-dasharray: 4 3;
+    stroke-width: 1;
+  }
+  #tooltip {
+    position: fixed;
+    pointer-events: none;
+    background: rgba(15, 23, 42, 0.92);
+    color: #fff;
+    padding: 6px 9px;
+    border-radius: 4px;
+    font-size: 12px;
+    line-height: 1.45;
+    z-index: 1000;
+    max-width: 240px;
+  }
+  #tooltip.hidden {
+    display: none;
+  }
+  #species-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #species-modal.hidden {
+    display: none;
+  }
+  .modal-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+  }
+  .modal-dialog {
+    position: relative;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.22);
+    width: 700px;
+    max-width: 95vw;
+    max-height: 82vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .modal-header {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid #e2e8f0;
+    background: #2c3e50;
+    color: #fff;
+  }
+  .modal-header-title {
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .modal-header-sub {
+    font-size: 11px;
+    color: #cbd5e1;
+    margin-top: 2px;
+  }
+  #modal-close {
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+    opacity: 0.7;
+  }
+  #modal-close:hover {
+    opacity: 1;
+  }
+  .modal-body {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 16px 18px;
+    display: flex;
+    gap: 24px;
+  }
+  .modal-pc-section {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .modal-pc-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 2px solid #e2e8f0;
+  }
+  .modal-direction-label {
+    font-size: 10px;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin: 8px 0 3px;
+  }
+  .modal-contrib-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 6px;
+    padding: 3px 0;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 11px;
+  }
+  .modal-contrib-go {
+    font-weight: 600;
+    color: #1f2937;
+    white-space: nowrap;
+  }
+  .modal-contrib-value {
+    font-family: monospace;
+    color: #64748b;
+    white-space: nowrap;
+  }
+  .modal-contrib-desc {
+    flex: 1 1 100%;
+    color: #64748b;
+    font-size: 10px;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="page-title"></h1>
+  <p id="page-subtitle"></p>
+  <div id="toolbar">
+    <div id="go-search-wrap">
+      <input id="go-search-input" type="text" autocomplete="off" placeholder="Search GO id(s)/description to illuminate (adds to selection)...">
+      <div id="go-search-suggestions" class="hidden"></div>
+    </div>
+    <button id="go-search-clear-btn" class="toolbar-btn">Clear GO</button>
+    <label id="go-match-mode-label" class="toolbar-btn" title="When several GO terms are selected: off = light up by summed abundance, on = fully show only species that have every selected GO term at least once">
+      <input type="checkbox" id="go-match-all-toggle"> Require all
+    </label>
+    <div id="species-search-wrap">
+      <input id="species-search-input" type="text" autocomplete="off" placeholder="Search a species to highlight...">
+      <div id="species-search-suggestions" class="hidden"></div>
+    </div>
+    <button id="species-search-clear-btn" class="toolbar-btn">Clear species</button>
+    <button id="reset-zoom-btn" class="toolbar-btn">Reset zoom</button>
+    <button id="download-png-btn" class="toolbar-btn">Download PNG</button>
+  </div>
+  <div id="go-search-chips"></div>
+  <p id="go-search-status"></p>
+  <p id="species-search-status"></p>
+</header>
+<div id="sidebar">
+  <div class="sidebar-section">
+    <h4>Taxonomic groups</h4>
+    <div class="legend-actions">
+      <button id="sidebar-select-all" class="legend-action">Select all</button>
+      <button id="sidebar-select-none" class="legend-action">Select none</button>
+    </div>
+    <div id="sidebar-legend" class="legend"></div>
+  </div>
+</div>
+<div id="plot-container">
+  <div class="plot-card">
+    <div class="plot-row">
+      <div class="axis-label-y"><span id="y-axis-label"></span></div>
+      <svg id="scatter" class="scatter"></svg>
+      <div id="go-count-rail" class="threshold-rail inactive" title="Drag to filter by GO count"></div>
+    </div>
+    <div class="axis-label-x" id="x-axis-label"></div>
+    <div class="plot-hint">Scroll to zoom, drag to pan.</div>
+  </div>
+</div>
+<div id="species-modal" class="hidden">
+  <div class="modal-backdrop"></div>
+  <div class="modal-dialog">
+    <div class="modal-header">
+      <div>
+        <div class="modal-header-title" id="modal-species-name"></div>
+        <div class="modal-header-sub" id="modal-species-sub"></div>
+      </div>
+      <button id="modal-close">&#x2715;</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+<div id="tooltip" class="hidden"></div>
+
+<script id="general-phate-data" type="application/json">__GENERAL_PHATE_DATA__</script>
+<script>
+(function () {
+  "use strict";
+
+  var DATA = JSON.parse(document.getElementById("general-phate-data").textContent);
+
+  var tooltip = document.getElementById("tooltip");
+
+  document.getElementById("page-title").textContent = DATA.meta.title;
+  document.getElementById("page-subtitle").textContent =
+    DATA.species.length + " species, " + DATA.meta.n_go_terms_used +
+    " GO terms used (" + DATA.meta.mode_label + ")";
+
+  var ALL_GROUPS = (function () {
+    var present = {};
+    DATA.species.forEach(function (s) { present[s.group] = true; });
+    return Object.keys(present).sort();
+  })();
+
+  var xs = DATA.species.map(function (s) { return s.phate1; });
+  var ys = DATA.species.map(function (s) { return s.phate2; });
+  var xMin = Math.min.apply(null, xs), xMax = Math.max.apply(null, xs);
+  var yMin = Math.min.apply(null, ys), yMax = Math.max.apply(null, ys);
+  var xPad = (xMax - xMin) * 0.08 || 1, yPad = (yMax - yMin) * 0.08 || 1;
+  xMin -= xPad; xMax += xPad; yMin -= yPad; yMax += yPad;
+
+  var PLOT_W = 900, PLOT_H = 540;
+  var BASE_RADIUS = 3.5;
+  var BASE_STROKE_WIDTH = 0.5;
+  // Same zoom-separation/marker-counter-scale behavior as the illuminated
+  // PCA panels in interactive_go_tree.py: letting the viewBox shrink this
+  // far, combined with counter-scaling marker radius back down on every
+  // zoom step, is what lets a dense cluster pull apart under zoom instead
+  // of every point + the gap between them growing at the same rate.
+  var MIN_VIEW_FRACTION = 1 / 8000;
+  var MARKER_ZOOM_GROWTH = 0.4;
+  function scaleX(v) { return ((v - xMin) / (xMax - xMin)) * PLOT_W; }
+  function scaleY(v) { return PLOT_H - ((v - yMin) / (yMax - yMin)) * PLOT_H; }
+
+  var PHATE1_LABEL = "PHATE1";
+  var PHATE2_LABEL = "PHATE2";
+  document.getElementById("y-axis-label").textContent = PHATE2_LABEL;
+  document.getElementById("x-axis-label").textContent = PHATE1_LABEL;
+
+  var hiddenGroups = {};
+
+  // ---- GO count threshold rail ----
+  var goCountMin = 0;
+  var goCountMax = Infinity;
+  var railTrackMax = 1;
+  var railMaxInput, railMinInput, railFill, railMinHandle, railMaxHandle, railTrackEl;
+  var railEl = document.getElementById("go-count-rail");
+
+  function positionRailHandles() {
+    var minPct = (goCountMin / railTrackMax) * 100;
+    var maxClamped = Math.min(goCountMax === Infinity ? railTrackMax : goCountMax, railTrackMax);
+    var maxPct = (maxClamped / railTrackMax) * 100;
+    railMinHandle.style.top = (100 - minPct) + "%";
+    railMaxHandle.style.top = (100 - maxPct) + "%";
+    railFill.style.top = (100 - maxPct) + "%";
+    railFill.style.height = (maxPct - minPct) + "%";
+  }
+
+  function setRailMin(v) {
+    if (isNaN(v)) return;
+    v = Math.min(railTrackMax, Math.max(0, Math.round(v)));
+    if (v > goCountMax) v = goCountMax;
+    goCountMin = v;
+    railMinInput.value = v;
+    positionRailHandles();
+    applyVisibility();
+  }
+
+  function setRailMax(v) {
+    if (isNaN(v)) return;
+    v = Math.min(railTrackMax, Math.max(0, Math.round(v)));
+    if (v < goCountMin) v = goCountMin;
+    goCountMax = v;
+    railMaxInput.value = v;
+    positionRailHandles();
+    applyVisibility();
+  }
+
+  function resetRail(maxCount) {
+    if (maxCount === 0) { hideRail(); return; }
+    railTrackMax = maxCount;
+    goCountMin = 0;
+    goCountMax = maxCount;
+    railMinInput.value = 0;
+    railMaxInput.value = maxCount;
+    positionRailHandles();
+    railEl.classList.remove("inactive");
+  }
+
+  function hideRail() {
+    railEl.classList.add("inactive");
+    goCountMin = 0;
+    goCountMax = Infinity;
+  }
+
+  // ---- GO term search / illumination ----
+  var GO_SEARCH = DATA.go_search;
+  var GO_SEARCH_SUPPORTED = typeof DecompressionStream !== "undefined" && typeof fetch !== "undefined";
+  var goIndexById = {};
+  GO_SEARCH.go_ids.forEach(function (id, i) { goIndexById[id] = i; });
+  // Precomputed once so every keystroke is a plain substring scan, not a
+  // re-derivation of "id + description" -- cheap enough at this term count
+  // (tens of thousands) to not need an index structure.
+  var GO_SEARCH_ENTRIES = GO_SEARCH.go_ids.map(function (id, i) {
+    var desc = GO_SEARCH.go_desc[id] || "";
+    return { id: id, desc: desc, idx: i, key: (id + " " + desc).toLowerCase() };
+  });
+
+  var activeGos = [];       // [{ go_id, description, idx }, ...] currently illuminated GO terms
+  var activeGoCounts = [];  // parallel array of per-GO typed-array count views (same order as activeGos)
+  var activeCounts = null;  // summed counts across activeGoCounts, aligned with DATA.species order
+  var activeMatchMask = null; // when goRequireAll is on: bool per species, true iff every activeGos term has count > 0
+  var goRequireAll = false;   // toggled by #go-match-all-toggle: sum-abundance gradient vs binary "has every term"
+
+  function percentile(sortedAsc, p) {
+    var idx = (p / 100) * (sortedAsc.length - 1);
+    var lo = Math.floor(idx), hi = Math.ceil(idx);
+    if (lo === hi) return sortedAsc[lo];
+    return sortedAsc[lo] + (sortedAsc[hi] - sortedAsc[lo]) * (idx - lo);
+  }
+
+  // Only opacity encodes abundance here -- marker size stays fixed, unlike
+  // illuminate_PCA.run_illuminated_PCA's PNGs which also grow the marker.
+  //
+  // Percentile-clipped (globally, across every plotted species) + sqrt
+  // gamma, never plain log1p-of-global-max: with real data, a single
+  // high-outlier species pushes log_max up enough that everything else
+  // (e.g. 30 vs 600 counts, a 20x difference) lands within a narrow alpha
+  // band and looks nearly identical. Clipping at the 99th percentile
+  // before rescaling stretches the non-outlier majority back out to use
+  // most of the 0-1 range, regardless of how extreme the single biggest
+  // outlier is.
+  //
+  // The percentile is computed globally, not per taxon group: an earlier
+  // version clipped within each group separately, which seemed like a
+  // reasonable way to stay robust to one group having outlier abundance --
+  // but it means each group's own top value gets rescaled to ~1.0 opacity
+  // regardless of its absolute count, so a count of 30 in a low-abundance
+  // group could outshine a count of 600 in a high-abundance group. A
+  // global percentile keeps opacity tied to absolute abundance everywhere.
+  function computeAlpha(counts) {
+    var maxCount = Math.max.apply(null, counts);
+    if (!(maxCount > 0)) {
+      return counts.map(function () { return 0; });
+    }
+
+    var norm = counts.map(function (c) { return c / maxCount; });
+    var nonzero = norm.filter(function (n) { return n > 0; }).sort(function (a, b) { return a - b; });
+    var p99 = nonzero.length ? percentile(nonzero, 99) : 1.0;
+    norm = norm.map(function (n) { return Math.min(n, p99); });
+    if (p99 > 0) norm = norm.map(function (n) { return n / p99; });
+    norm = norm.map(function (n) { return Math.sqrt(n); });
+
+    return counts.map(function (c, i) { return c === 0 ? 0 : norm[i]; });
+  }
+
+  // The counts blob is gzip-compressed + base64-encoded server-side (see
+  // build_go_search_payload in presence_absence_pca.py) since a dense
+  // species x GO-term matrix is tens of MB as raw JSON. Decoded once, on
+  // first search, via the native DecompressionStream -- no bundled inflate
+  // library. fetch() of a data: URL hands the base64 decoding itself to
+  // the browser's native (fast) implementation instead of a manual atob +
+  // per-character loop over a multi-million-character string.
+  var goCountsPromise = null;
+  function loadGoCounts() {
+    if (goCountsPromise) return goCountsPromise;
+    goCountsPromise = fetch("data:application/octet-stream;base64," + GO_SEARCH.counts_gzip_b64)
+      .then(function (resp) { return resp.body.pipeThrough(new DecompressionStream("gzip")); })
+      .then(function (stream) { return new Response(stream).arrayBuffer(); })
+      .then(function (buf) { return GO_SEARCH.bytes_per_value === 4 ? new Uint32Array(buf) : new Uint16Array(buf); });
+    return goCountsPromise;
+  }
+
+  // Counts are stored GO-major (see build_go_search_payload): all counts
+  // for go_ids[0], then all counts for go_ids[1], etc, so one GO's counts
+  // for every species is a single contiguous slice.
+  function countsForGoIndex(typedArray, idx) {
+    var n = GO_SEARCH.n_species;
+    return typedArray.subarray(idx * n, (idx + 1) * n);
+  }
+
+  // Elementwise sum across several per-species count arrays, so illumination
+  // can encode combined abundance across multiple GO terms picked one at a
+  // time instead of only ever a single term.
+  function sumCountArrays(countArrays) {
+    var n = GO_SEARCH.n_species;
+    var out = new Array(n).fill(0);
+    countArrays.forEach(function (arr) {
+      for (var i = 0; i < n; i++) out[i] += arr[i];
+    });
+    return out;
+  }
+
+  // Binary "has every selected GO term at least once" mask, for the
+  // all-or-nothing "Require all" mode -- deliberately not a threshold on the
+  // sum (a species with counts [5, 0] for two terms should read as a miss,
+  // not a partial match, even though its sum is nonzero).
+  function matchAllMask(countArrays) {
+    var n = GO_SEARCH.n_species;
+    var mask = new Array(n).fill(true);
+    countArrays.forEach(function (arr) {
+      for (var i = 0; i < n; i++) if (arr[i] === 0) mask[i] = false;
+    });
+    return mask;
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  function showTooltip(evt, species, idx) {
+    var pct = DATA.meta.n_go_terms_used > 0
+      ? (species.go_terms_present / DATA.meta.n_go_terms_used) * 100
+      : 0;
+    var html =
+      "<b>" + escapeHtml(species.name) + "</b><br>" +
+      "Group: " + escapeHtml(species.group) + "<br>" +
+      "GO terms present: " + species.go_terms_present + " / " + DATA.meta.n_go_terms_used + "<br>" +
+      "Share: " + pct.toFixed(2) + "%";
+    if (activeGos.length && activeCounts) {
+      if (activeGos.length === 1) {
+        html += "<br>" + escapeHtml(activeGos[0].go_id) + " count: " + activeCounts[idx];
+      } else {
+        html += "<br>Summed count (" + activeGos.length + " GO terms): " + activeCounts[idx];
+        activeGos.forEach(function (g, k) {
+          html += "<br>&nbsp;&nbsp;" + escapeHtml(g.go_id) + ": " + activeGoCounts[k][idx];
+        });
+      }
+    }
+    if (speciesHighlightIdx === idx) {
+      html += "<br><i>Highlighted species</i>";
+    }
+    tooltip.innerHTML = html;
+    tooltip.classList.remove("hidden");
+    moveTooltip(evt);
+  }
+
+  function moveTooltip(evt) {
+    tooltip.style.left = (evt.clientX + 14) + "px";
+    tooltip.style.top = (evt.clientY + 14) + "px";
+  }
+
+  function hideTooltip() {
+    tooltip.classList.add("hidden");
+  }
+
+  // A point is hidden if its taxon group is toggled off, or -- while
+  // illuminating a searched GO term -- it has zero counts for that term, or
+  // its count falls outside the [goCountMin, goCountMax] threshold range.
+  var circleEls = [];
+  function applyVisibility() {
+    circleEls.forEach(function (c, i) {
+      var s = DATA.species[i];
+      var suppressed = hiddenGroups[s.group];
+      if (!suppressed && activeMatchMask) {
+        suppressed = !activeMatchMask[i];
+      } else if (!suppressed && activeCounts) {
+        var count = activeCounts[i];
+        suppressed = count === 0 || count < goCountMin || count > goCountMax;
+      }
+      c.style.display = suppressed ? "none" : "";
+    });
+  }
+
+  function syncLegendCheckboxes() {
+    document.querySelectorAll("input[data-group-checkbox]").forEach(function (cb) {
+      cb.checked = !hiddenGroups[cb.getAttribute("data-group-checkbox")];
+    });
+  }
+
+  function setAllGroupsHidden(hidden) {
+    ALL_GROUPS.forEach(function (g) { hiddenGroups[g] = hidden; });
+    applyVisibility();
+    syncLegendCheckboxes();
+  }
+
+  function buildSidebarLegend() {
+    var selectAllBtn = document.getElementById("sidebar-select-all");
+    var selectNoneBtn = document.getElementById("sidebar-select-none");
+    selectAllBtn.onclick = function () { setAllGroupsHidden(false); };
+    selectNoneBtn.onclick = function () { setAllGroupsHidden(true); };
+
+    var legend = document.getElementById("sidebar-legend");
+    ALL_GROUPS.forEach(function (g) {
+      var label = document.createElement("label");
+      var cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.setAttribute("data-group-checkbox", g);
+      cb.checked = !hiddenGroups[g];
+      cb.onchange = function () {
+        hiddenGroups[g] = !cb.checked;
+        applyVisibility();
+      };
+      var swatch = document.createElement("span");
+      swatch.className = "swatch";
+      swatch.style.background = DATA.groups[g] || "#999";
+      label.appendChild(cb);
+      label.appendChild(swatch);
+      label.appendChild(document.createTextNode(g));
+      legend.appendChild(label);
+    });
+  }
+
+  var svgNS = "http://www.w3.org/2000/svg";
+  var svg = document.getElementById("scatter");
+
+  var viewBox = { x: 0, y: 0, w: PLOT_W, h: PLOT_H };
+  function applyViewBox() {
+    svg.setAttribute("viewBox", viewBox.x + " " + viewBox.y + " " + viewBox.w + " " + viewBox.h);
+  }
+  applyViewBox();
+
+  function updateMarkerScale() {
+    var ratio = viewBox.w / PLOT_W;
+    var scale = ratio * (1 + MARKER_ZOOM_GROWTH * (1 - ratio));
+    svg.querySelectorAll("circle[data-base-r]").forEach(function (c) {
+      c.setAttribute("r", parseFloat(c.getAttribute("data-base-r")) * scale);
+      c.setAttribute("stroke-width", BASE_STROKE_WIDTH * scale);
+    });
+  }
+
+  document.getElementById("reset-zoom-btn").onclick = function () {
+    viewBox.x = 0; viewBox.y = 0; viewBox.w = PLOT_W; viewBox.h = PLOT_H;
+    applyViewBox();
+    updateMarkerScale();
+  };
+
+  var minViewW = PLOT_W * MIN_VIEW_FRACTION;
+  svg.addEventListener("wheel", function (evt) {
+    evt.preventDefault();
+    var rect = svg.getBoundingClientRect();
+    var mx = (evt.clientX - rect.left) / rect.width;
+    var my = (evt.clientY - rect.top) / rect.height;
+    var pointX = viewBox.x + mx * viewBox.w;
+    var pointY = viewBox.y + my * viewBox.h;
+    var factor = evt.deltaY > 0 ? 1.15 : (1 / 1.15);
+    var newW = Math.min(PLOT_W, Math.max(minViewW, viewBox.w * factor));
+    var newH = newW * (PLOT_H / PLOT_W);
+    viewBox.x = pointX - mx * newW;
+    viewBox.y = pointY - my * newH;
+    viewBox.w = newW;
+    viewBox.h = newH;
+    applyViewBox();
+    updateMarkerScale();
+  }, { passive: false });
+
+  var isPanning = false, panMoved = false, panStart = null;
+  svg.addEventListener("mousedown", function (evt) {
+    isPanning = true;
+    panMoved = false;
+    panStart = { x: evt.clientX, y: evt.clientY, vbX: viewBox.x, vbY: viewBox.y };
+    svg.classList.add("panning");
+    hideTooltip();
+    evt.preventDefault();
+  });
+  window.addEventListener("mousemove", function (evt) {
+    if (!isPanning) return;
+    panMoved = true;
+    var rect = svg.getBoundingClientRect();
+    var dx = (evt.clientX - panStart.x) / rect.width * viewBox.w;
+    var dy = (evt.clientY - panStart.y) / rect.height * viewBox.h;
+    viewBox.x = panStart.vbX - dx;
+    viewBox.y = panStart.vbY - dy;
+    applyViewBox();
+  });
+  window.addEventListener("mouseup", function () {
+    isPanning = false;
+    svg.classList.remove("panning");
+  });
+
+  function styleAxisLine(line) {
+    line.setAttribute("class", "axis-line");
+    line.setAttribute("stroke", "#9ca3af");
+    line.setAttribute("stroke-dasharray", "4 3");
+    line.setAttribute("stroke-width", "1");
+  }
+
+  var axisX = document.createElementNS(svgNS, "line");
+  axisX.setAttribute("x1", 0); axisX.setAttribute("x2", PLOT_W);
+  axisX.setAttribute("y1", scaleY(0)); axisX.setAttribute("y2", scaleY(0));
+  styleAxisLine(axisX);
+  svg.appendChild(axisX);
+
+  var axisY = document.createElementNS(svgNS, "line");
+  axisY.setAttribute("y1", 0); axisY.setAttribute("y2", PLOT_H);
+  axisY.setAttribute("x1", scaleX(0)); axisY.setAttribute("x2", scaleX(0));
+  styleAxisLine(axisY);
+  svg.appendChild(axisY);
+
+  DATA.species.forEach(function (s, i) {
+    var c = document.createElementNS(svgNS, "circle");
+    c.setAttribute("cx", scaleX(s.phate1));
+    c.setAttribute("cy", scaleY(s.phate2));
+    c.setAttribute("r", BASE_RADIUS);
+    c.setAttribute("data-base-r", BASE_RADIUS);
+    c.setAttribute("fill", DATA.groups[s.group] || "#999");
+    c.setAttribute("opacity", 0.85);
+    c.setAttribute("stroke", "black");
+    c.setAttribute("stroke-width", BASE_STROKE_WIDTH);
+    c.setAttribute("data-group", s.group);
+    c.style.display = hiddenGroups[s.group] ? "none" : "";
+    c.addEventListener("mouseenter", function (evt) { if (!isPanning) showTooltip(evt, s, i); });
+    c.addEventListener("mousemove", function (evt) { if (!isPanning) moveTooltip(evt); });
+    c.addEventListener("mouseleave", hideTooltip);
+    c.addEventListener("mouseup", function () { if (!panMoved) openSpeciesModal(s); });
+    svg.appendChild(c);
+    circleEls.push(c);
+  });
+
+  // ---- illumination state transitions ----
+  // Radius is never touched here -- data-base-r stays at BASE_RADIUS for
+  // every point, illuminated or not, so updateMarkerScale (zoom) is the
+  // only thing that ever changes marker size.
+  function applyBaseStyles() {
+    circleEls.forEach(function (c) {
+      c.setAttribute("opacity", 0.85);
+    });
+  }
+
+  function applyIllumination(counts) {
+    var alphas = computeAlpha(Array.prototype.slice.call(counts));
+    circleEls.forEach(function (c, i) {
+      c.setAttribute("opacity", alphas[i]);
+    });
+  }
+
+  function setSearchStatus(text, isError) {
+    var status = document.getElementById("go-search-status");
+    status.textContent = text;
+    status.classList.toggle("active", !isError && !!text);
+    status.classList.toggle("error", !!isError);
+  }
+
+  function updateSearchStatus() {
+    if (!activeGos.length) {
+      setSearchStatus("", false);
+      return;
+    }
+    var idsLabel = activeGos.map(function (g) { return g.go_id; }).join(", ");
+    if (goRequireAll) {
+      setSearchStatus(
+        "Showing only species with all " + activeGos.length +
+        " GO term" + (activeGos.length > 1 ? "s" : "") + " present (" + idsLabel + ")",
+        false
+      );
+      return;
+    }
+    var label = activeGos.length === 1
+      ? activeGos[0].go_id + " — " + activeGos[0].description
+      : activeGos.length + " GO terms (" + idsLabel + ")";
+    setSearchStatus(
+      "Illuminating " + label +
+      " (opacity = " + (activeGos.length === 1 ? "abundance" : "summed abundance") + ", color = taxon group)",
+      false
+    );
+  }
+
+  function renderGoChips() {
+    var container = document.getElementById("go-search-chips");
+    container.innerHTML = "";
+    activeGos.forEach(function (g) {
+      var chip = document.createElement("span");
+      chip.className = "go-chip";
+      chip.title = g.description;
+      var label = document.createElement("span");
+      label.textContent = g.go_id;
+      var removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "go-chip-remove";
+      removeBtn.textContent = "✕";
+      removeBtn.title = "Remove " + g.go_id;
+      removeBtn.onclick = function () { removeGoTerm(g.go_id); };
+      chip.appendChild(label);
+      chip.appendChild(removeBtn);
+      container.appendChild(chip);
+    });
+  }
+
+  function clearIllumination() {
+    activeGos = [];
+    activeGoCounts = [];
+    activeCounts = null;
+    activeMatchMask = null;
+    hideRail();
+    applyBaseStyles();
+    applyVisibility();
+    updateSearchStatus();
+    renderGoChips();
+  }
+
+  // Loads (or reuses already-loaded) counts for every GO term currently in
+  // activeGos and illuminates either by their summed abundance (gradient
+  // opacity, threshold rail active) or, under goRequireAll, as a flat
+  // on/off match -- a species is fully shown only if it has every selected
+  // term at least once, no in-between. One GO behaves the same under either
+  // mode's "on" case (present vs not); the two modes only diverge once 2+
+  // GO terms are selected.
+  function illuminateGos() {
+    if (!activeGos.length) {
+      clearIllumination();
+      return;
+    }
+    if (!GO_SEARCH_SUPPORTED) {
+      setSearchStatus("This browser doesn't support live GO search (needs fetch + DecompressionStream).", true);
+      return;
+    }
+    setSearchStatus("Loading GO data…", false);
+    loadGoCounts().then(function (typedArray) {
+      activeGoCounts = activeGos.map(function (g) { return countsForGoIndex(typedArray, g.idx); });
+      activeCounts = sumCountArrays(activeGoCounts);
+      if (goRequireAll) {
+        activeMatchMask = matchAllMask(activeGoCounts);
+        hideRail();
+        applyBaseStyles();
+      } else {
+        activeMatchMask = null;
+        var maxCount = Math.max.apply(null, activeCounts);
+        resetRail(maxCount);
+        applyIllumination(activeCounts);
+      }
+      applyVisibility();
+      updateSearchStatus();
+      renderGoChips();
+    }).catch(function (err) {
+      setSearchStatus("Could not decode GO data: " + err, true);
+    });
+  }
+
+  function addGoTerm(goId) {
+    var idx = goIndexById[goId];
+    if (idx === undefined) {
+      setSearchStatus("GO term not found: " + goId, true);
+      return;
+    }
+    if (activeGos.some(function (g) { return g.go_id === goId; })) {
+      setSearchStatus(goId + " is already illuminated.", false);
+      return;
+    }
+    activeGos.push({ go_id: goId, description: GO_SEARCH.go_desc[goId] || "unknown", idx: idx });
+    illuminateGos();
+  }
+
+  function removeGoTerm(goId) {
+    activeGos = activeGos.filter(function (g) { return g.go_id !== goId; });
+    if (!activeGos.length) {
+      clearIllumination();
+    } else {
+      illuminateGos();
+    }
+  }
+
+  // ---- search box wiring ----
+  var goSearchInput = document.getElementById("go-search-input");
+  var goSearchSuggestions = document.getElementById("go-search-suggestions");
+  var GO_SEARCH_MAX_SUGGESTIONS = 20;
+
+  function renderSuggestions(matches) {
+    goSearchSuggestions.innerHTML = "";
+    if (!matches.length) {
+      goSearchSuggestions.classList.add("hidden");
+      return;
+    }
+    matches.forEach(function (m) {
+      var item = document.createElement("div");
+      item.className = "go-suggestion";
+      item.innerHTML =
+        '<span class="go-suggestion-id">' + escapeHtml(m.id) + "</span>" +
+        '<span class="go-suggestion-desc">' + escapeHtml(m.desc) + "</span>";
+      item.addEventListener("mousedown", function (evt) {
+        evt.preventDefault();
+        goSearchInput.value = "";
+        goSearchSuggestions.classList.add("hidden");
+        addGoTerm(m.id);
+      });
+      goSearchSuggestions.appendChild(item);
+    });
+    goSearchSuggestions.classList.remove("hidden");
+  }
+
+  function findMatches(query) {
+    var q = query.trim().toLowerCase();
+    if (!q) return [];
+    var matches = [];
+    for (var i = 0; i < GO_SEARCH_ENTRIES.length && matches.length < GO_SEARCH_MAX_SUGGESTIONS; i++) {
+      if (GO_SEARCH_ENTRIES[i].key.indexOf(q) !== -1) matches.push(GO_SEARCH_ENTRIES[i]);
+    }
+    return matches;
+  }
+
+  goSearchInput.addEventListener("input", function () {
+    renderSuggestions(findMatches(goSearchInput.value));
+  });
+
+  goSearchInput.addEventListener("keydown", function (evt) {
+    if (evt.key === "Escape") {
+      goSearchSuggestions.classList.add("hidden");
+      return;
+    }
+    if (evt.key !== "Enter") return;
+    evt.preventDefault();
+    var query = goSearchInput.value.trim();
+    if (!query) return;
+    var exact = goIndexById[query] !== undefined ? query
+      : (goIndexById[query.toUpperCase()] !== undefined ? query.toUpperCase() : null);
+    var target = exact;
+    if (!target) {
+      var matches = findMatches(query);
+      if (matches.length) target = matches[0].id;
+    }
+    goSearchSuggestions.classList.add("hidden");
+    if (target) {
+      goSearchInput.value = "";
+      addGoTerm(target);
+    } else {
+      setSearchStatus("GO term not found: " + query, true);
+    }
+  });
+
+  document.addEventListener("click", function (evt) {
+    if (!document.getElementById("go-search-wrap").contains(evt.target)) {
+      goSearchSuggestions.classList.add("hidden");
+    }
+  });
+
+  document.getElementById("go-search-clear-btn").onclick = function () {
+    goSearchInput.value = "";
+    renderSuggestions([]);
+    clearIllumination();
+  };
+
+  document.getElementById("go-match-all-toggle").addEventListener("change", function (evt) {
+    goRequireAll = evt.target.checked;
+    if (activeGos.length) illuminateGos();
+  });
+
+  if (!GO_SEARCH_SUPPORTED) {
+    goSearchInput.disabled = true;
+    goSearchInput.placeholder = "GO search needs a newer browser";
+    document.getElementById("go-match-all-toggle").disabled = true;
+    setSearchStatus("This browser doesn't support live GO search (needs fetch + DecompressionStream).", true);
+  }
+
+  // ---- species search / highlight ----
+  // Unlike GO illumination, picking a species never hides or dims anything
+  // else -- it just marks the matching dot (bigger radius, amber stroke,
+  // brought to front) so it's easy to spot among ~1000+ points, while every
+  // other point keeps its normal color/opacity/visibility.
+  var SPECIES_ENTRIES = DATA.species.map(function (s, i) {
+    return { name: s.name, group: s.group, idx: i, key: (s.name + " " + s.group).toLowerCase() };
+  });
+  var speciesHighlightIdx = null;
+  var speciesSearchInput = document.getElementById("species-search-input");
+  var speciesSearchSuggestions = document.getElementById("species-search-suggestions");
+  var SPECIES_SEARCH_MAX_SUGGESTIONS = 20;
+
+  function setSpeciesSearchStatus(text, isError) {
+    var status = document.getElementById("species-search-status");
+    status.textContent = text;
+    status.classList.toggle("active", !isError && !!text);
+    status.classList.toggle("error", !!isError);
+  }
+
+  function clearSpeciesHighlight() {
+    if (speciesHighlightIdx !== null) {
+      var prev = circleEls[speciesHighlightIdx];
+      prev.setAttribute("data-base-r", BASE_RADIUS);
+      prev.setAttribute("stroke", "black");
+      prev.classList.remove("species-highlighted");
+      updateMarkerScale();
+    }
+    speciesHighlightIdx = null;
+    setSpeciesSearchStatus("", false);
+  }
+
+  function highlightSpecies(idx) {
+    if (speciesHighlightIdx === idx) return;
+    var hadPrevious = speciesHighlightIdx !== null;
+    if (hadPrevious) {
+      var prev = circleEls[speciesHighlightIdx];
+      prev.setAttribute("data-base-r", BASE_RADIUS);
+      prev.setAttribute("stroke", "black");
+      prev.classList.remove("species-highlighted");
+    }
+    var s = DATA.species[idx];
+    var c = circleEls[idx];
+    c.setAttribute("data-base-r", BASE_RADIUS * 2.2);
+    c.setAttribute("stroke", "#F5A623");
+    c.classList.add("species-highlighted");
+    svg.appendChild(c); // re-inserting an existing child moves it to the end -> drawn on top
+    speciesHighlightIdx = idx;
+    updateMarkerScale();
+    setSpeciesSearchStatus("Highlighting: " + s.name + " (" + s.group + ")", false);
+  }
+
+  function renderSpeciesSuggestions(matches) {
+    speciesSearchSuggestions.innerHTML = "";
+    if (!matches.length) {
+      speciesSearchSuggestions.classList.add("hidden");
+      return;
+    }
+    matches.forEach(function (m) {
+      var item = document.createElement("div");
+      item.className = "go-suggestion";
+      item.innerHTML =
+        '<span class="go-suggestion-id">' + escapeHtml(m.name) + "</span>" +
+        '<span class="go-suggestion-desc">' + escapeHtml(m.group) + "</span>";
+      item.addEventListener("mousedown", function (evt) {
+        evt.preventDefault();
+        speciesSearchInput.value = m.name;
+        speciesSearchSuggestions.classList.add("hidden");
+        highlightSpecies(m.idx);
+      });
+      speciesSearchSuggestions.appendChild(item);
+    });
+    speciesSearchSuggestions.classList.remove("hidden");
+  }
+
+  function findSpeciesMatches(query) {
+    var q = query.trim().toLowerCase();
+    if (!q) return [];
+    var matches = [];
+    for (var i = 0; i < SPECIES_ENTRIES.length && matches.length < SPECIES_SEARCH_MAX_SUGGESTIONS; i++) {
+      if (SPECIES_ENTRIES[i].key.indexOf(q) !== -1) matches.push(SPECIES_ENTRIES[i]);
+    }
+    return matches;
+  }
+
+  speciesSearchInput.addEventListener("input", function () {
+    renderSpeciesSuggestions(findSpeciesMatches(speciesSearchInput.value));
+  });
+
+  speciesSearchInput.addEventListener("keydown", function (evt) {
+    if (evt.key === "Escape") {
+      speciesSearchSuggestions.classList.add("hidden");
+      return;
+    }
+    if (evt.key !== "Enter") return;
+    evt.preventDefault();
+    var query = speciesSearchInput.value.trim();
+    if (!query) return;
+    var matches = findSpeciesMatches(query);
+    var exact = matches.find(function (m) { return m.name.toLowerCase() === query.toLowerCase(); });
+    var target = exact || matches[0];
+    speciesSearchSuggestions.classList.add("hidden");
+    if (target) {
+      speciesSearchInput.value = target.name;
+      highlightSpecies(target.idx);
+    } else {
+      setSpeciesSearchStatus("Species not found: " + query, true);
+    }
+  });
+
+  document.addEventListener("click", function (evt) {
+    if (!document.getElementById("species-search-wrap").contains(evt.target)) {
+      speciesSearchSuggestions.classList.add("hidden");
+    }
+  });
+
+  document.getElementById("species-search-clear-btn").onclick = function () {
+    speciesSearchInput.value = "";
+    renderSpeciesSuggestions([]);
+    clearSpeciesHighlight();
+  };
+
+  var PNG_EXPORT_SCALE = 2;
+  var LEGEND_ROW_H = 20;
+  var LEGEND_SWATCH = 10;
+  var LEGEND_GAP = 16;
+  var LEGEND_CHAR_PX = 6.3;
+
+  function packLegendRows(legendGroups, rowMaxWidth) {
+    var rows = [[]];
+    var rowWidth = 0;
+    legendGroups.forEach(function (g) {
+      var itemWidth = LEGEND_SWATCH + 4 + g.length * LEGEND_CHAR_PX + LEGEND_GAP;
+      if (rowWidth + itemWidth > rowMaxWidth && rows[rows.length - 1].length > 0) {
+        rows.push([]);
+        rowWidth = 0;
+      }
+      rows[rows.length - 1].push({ name: g, width: itemWidth });
+      rowWidth += itemWidth;
+    });
+    return rows;
+  }
+
+  function appendLegendRows(parentSvg, rows, originX, originY) {
+    rows.forEach(function (row, rowIdx) {
+      var x = originX;
+      var y = originY + rowIdx * LEGEND_ROW_H + LEGEND_ROW_H / 2;
+      row.forEach(function (item) {
+        var swatch = document.createElementNS(svgNS, "circle");
+        swatch.setAttribute("cx", x + LEGEND_SWATCH / 2);
+        swatch.setAttribute("cy", y);
+        swatch.setAttribute("r", LEGEND_SWATCH / 2);
+        swatch.setAttribute("fill", DATA.groups[item.name] || "#999");
+        swatch.setAttribute("stroke", "black");
+        swatch.setAttribute("stroke-width", "0.5");
+        parentSvg.appendChild(swatch);
+
+        var label = document.createElementNS(svgNS, "text");
+        label.setAttribute("x", x + LEGEND_SWATCH + 4);
+        label.setAttribute("y", y + 4);
+        label.setAttribute("font-family", "Arial, Helvetica, sans-serif");
+        label.setAttribute("font-size", "11");
+        label.setAttribute("fill", "#1a1a1a");
+        label.textContent = item.name;
+        parentSvg.appendChild(label);
+
+        x += item.width;
+      });
+    });
+  }
+
+  function downloadSvgAsPng(exportSvg, width, height, filenameBase) {
+    var outW = Math.round(width * PNG_EXPORT_SCALE);
+    var outH = Math.round(height * PNG_EXPORT_SCALE);
+
+    var svgString = new XMLSerializer().serializeToString(exportSvg);
+    var svgBlob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+    var url = URL.createObjectURL(svgBlob);
+
+    var img = new Image();
+    img.onload = function () {
+      var canvas = document.createElement("canvas");
+      canvas.width = outW;
+      canvas.height = outH;
+      var ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, outW, outH);
+      ctx.drawImage(img, 0, 0, outW, outH);
+      URL.revokeObjectURL(url);
+
+      canvas.toBlob(function (blob) {
+        var a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = filenameBase + ".png";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }, "image/png");
+    };
+    img.onerror = function () {
+      URL.revokeObjectURL(url);
+      window.alert("Could not export this PCA as PNG.");
+    };
+    img.src = url;
+  }
+
+  document.getElementById("download-png-btn").onclick = function () {
+    var MARGIN = 16;
+    var TITLE_H = 28;
+    var Y_LABEL_W = 20;
+    var X_LABEL_H = 22;
+
+    var rows = packLegendRows(ALL_GROUPS, Y_LABEL_W + PLOT_W);
+    var legendH = rows.length * LEGEND_ROW_H;
+
+    var totalW = MARGIN * 2 + Y_LABEL_W + PLOT_W;
+    var totalH = MARGIN * 2 + TITLE_H + PLOT_H + X_LABEL_H + legendH;
+
+    var exportSvg = document.createElementNS(svgNS, "svg");
+    exportSvg.setAttribute("width", totalW);
+    exportSvg.setAttribute("height", totalH);
+    exportSvg.setAttribute("viewBox", "0 0 " + totalW + " " + totalH);
+    exportSvg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+
+    var bg = document.createElementNS(svgNS, "rect");
+    bg.setAttribute("x", 0); bg.setAttribute("y", 0);
+    bg.setAttribute("width", totalW); bg.setAttribute("height", totalH);
+    bg.setAttribute("fill", "#ffffff");
+    exportSvg.appendChild(bg);
+
+    var title = document.createElementNS(svgNS, "text");
+    title.setAttribute("x", totalW / 2);
+    title.setAttribute("y", MARGIN + 18);
+    title.setAttribute("text-anchor", "middle");
+    title.setAttribute("font-family", "Arial, Helvetica, sans-serif");
+    title.setAttribute("font-size", "15");
+    title.setAttribute("font-weight", "bold");
+    title.textContent = activeGos.length
+      ? DATA.meta.title + " — illuminated: " + activeGos.map(function (g) { return g.go_id; }).join(", ")
+      : DATA.meta.title;
+    exportSvg.appendChild(title);
+
+    var plotClone = svg.cloneNode(true);
+    plotClone.removeAttribute("class");
+    plotClone.setAttribute("width", PLOT_W);
+    plotClone.setAttribute("height", PLOT_H);
+    plotClone.setAttribute("x", MARGIN + Y_LABEL_W);
+    plotClone.setAttribute("y", MARGIN + TITLE_H);
+    exportSvg.appendChild(plotClone);
+
+    var yLabel = document.createElementNS(svgNS, "text");
+    var yLabelX = MARGIN + 10;
+    var yLabelY = MARGIN + TITLE_H + PLOT_H / 2;
+    yLabel.setAttribute("transform", "translate(" + yLabelX + "," + yLabelY + ") rotate(-90)");
+    yLabel.setAttribute("text-anchor", "middle");
+    yLabel.setAttribute("font-family", "Arial, Helvetica, sans-serif");
+    yLabel.setAttribute("font-size", "12");
+    yLabel.setAttribute("fill", "#555");
+    yLabel.textContent = PHATE2_LABEL;
+    exportSvg.appendChild(yLabel);
+
+    var xLabel = document.createElementNS(svgNS, "text");
+    xLabel.setAttribute("x", MARGIN + Y_LABEL_W + PLOT_W / 2);
+    xLabel.setAttribute("y", MARGIN + TITLE_H + PLOT_H + 16);
+    xLabel.setAttribute("text-anchor", "middle");
+    xLabel.setAttribute("font-family", "Arial, Helvetica, sans-serif");
+    xLabel.setAttribute("font-size", "12");
+    xLabel.setAttribute("fill", "#555");
+    xLabel.textContent = PHATE1_LABEL;
+    exportSvg.appendChild(xLabel);
+
+    appendLegendRows(exportSvg, rows, MARGIN + Y_LABEL_W, MARGIN + TITLE_H + PLOT_H + X_LABEL_H);
+
+    downloadSvgAsPng(exportSvg, totalW, totalH, DATA.meta.filename_base);
+  };
+
+  // ---- species contribution modal ----
+  var speciesModal = document.getElementById("species-modal");
+
+  function closeSpeciesModal() {
+    speciesModal.classList.add("hidden");
+  }
+
+  document.getElementById("modal-close").onclick = closeSpeciesModal;
+  speciesModal.querySelector(".modal-backdrop").addEventListener("click", closeSpeciesModal);
+  document.addEventListener("keydown", function (evt) {
+    if (evt.key === "Escape") closeSpeciesModal();
+  });
+
+  function formatContrib(v) {
+    return (v >= 0 ? "+" : "") + v.toFixed(5);
+  }
+
+  function openSpeciesModal(s) {
+    if (!s.contributions || !Object.keys(s.contributions).length) return;
+    hideTooltip();
+
+    document.getElementById("modal-species-name").textContent = s.name;
+    document.getElementById("modal-species-sub").textContent =
+      s.group + "  ·  PHATE1: " + s.phate1.toFixed(3) + "  PHATE2: " + s.phate2.toFixed(3);
+
+    var body = document.getElementById("modal-body");
+    body.innerHTML = "";
+
+    var pcLabels = { PC1: PHATE1_LABEL, PC2: PHATE2_LABEL };
+    Object.keys(s.contributions).forEach(function (pc) {
+      var section = document.createElement("div");
+      section.className = "modal-pc-section";
+
+      var pcLabel = document.createElement("div");
+      pcLabel.className = "modal-pc-label";
+      pcLabel.textContent = pcLabels[pc] || pc;
+      section.appendChild(pcLabel);
+
+      [["positive", "▲ Positive", "total_positive"], ["negative", "▼ Negative", "total_negative"]].forEach(function (pair) {
+        var key = pair[0], label = pair[1], totalKey = pair[2];
+        var entries = s.contributions[pc][key];
+        if (!entries || !entries.length) return;
+
+        var total = s.contributions[pc][totalKey];
+        var totalStr = (total !== undefined)
+          ? "  (total: " + (total >= 0 ? "+" : "") + total.toFixed(3) + ")"
+          : "";
+
+        var dirLabel = document.createElement("div");
+        dirLabel.className = "modal-direction-label";
+        dirLabel.textContent = label + totalStr;
+        section.appendChild(dirLabel);
+
+        entries.forEach(function (entry) {
+          var goDesc = (GO_SEARCH_SUPPORTED && GO_SEARCH.go_desc[entry.go_id]) || "unknown";
+          var row = document.createElement("div");
+          row.className = "modal-contrib-row";
+          row.innerHTML =
+            '<span class="modal-contrib-go">' + escapeHtml(entry.go_id) + "</span>" +
+            '<span class="modal-contrib-value">' + formatContrib(entry.contribution) + "</span>" +
+            '<div class="modal-contrib-desc">' + escapeHtml(goDesc) + "</div>";
+          section.appendChild(row);
+        });
+      });
+
+      body.appendChild(section);
+    });
+
+    speciesModal.classList.remove("hidden");
+  }
+
+  // Build the GO-count threshold rail DOM once (shown/hidden by resetRail/hideRail).
+  (function () {
+    railMaxInput = document.createElement("input");
+    railMaxInput.type = "number";
+    railMaxInput.min = "0";
+    railMaxInput.className = "threshold-rail-input";
+    railEl.appendChild(railMaxInput);
+
+    railTrackEl = document.createElement("div");
+    railTrackEl.className = "threshold-rail-track";
+    railFill = document.createElement("div");
+    railFill.className = "threshold-rail-fill";
+    railMinHandle = document.createElement("div");
+    railMinHandle.className = "threshold-rail-handle";
+    railMaxHandle = document.createElement("div");
+    railMaxHandle.className = "threshold-rail-handle";
+    railTrackEl.appendChild(railFill);
+    railTrackEl.appendChild(railMinHandle);
+    railTrackEl.appendChild(railMaxHandle);
+    railEl.appendChild(railTrackEl);
+
+    railMinInput = document.createElement("input");
+    railMinInput.type = "number";
+    railMinInput.min = "0";
+    railMinInput.className = "threshold-rail-input";
+    railEl.appendChild(railMinInput);
+
+    railMinInput.oninput = function () { setRailMin(parseFloat(railMinInput.value)); };
+    railMaxInput.oninput = function () { setRailMax(parseFloat(railMaxInput.value)); };
+
+    function valueFromClientY(clientY) {
+      var rect = railTrackEl.getBoundingClientRect();
+      var frac = Math.min(1, Math.max(0, (rect.bottom - clientY) / rect.height));
+      return frac * railTrackMax;
+    }
+
+    function startDrag(setter) {
+      return function (evt) {
+        evt.preventDefault();
+        setter(valueFromClientY(evt.clientY));
+        function onMove(e) { setter(valueFromClientY(e.clientY)); }
+        function onUp() {
+          window.removeEventListener("mousemove", onMove);
+          window.removeEventListener("mouseup", onUp);
+        }
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", onUp);
+      };
+    }
+
+    railMinHandle.addEventListener("mousedown", startDrag(setRailMin));
+    railMaxHandle.addEventListener("mousedown", startDrag(setRailMax));
+    railTrackEl.addEventListener("mousedown", function (evt) {
+      if (evt.target === railMinHandle || evt.target === railMaxHandle) return;
+      var v = valueFromClientY(evt.clientY);
+      (Math.abs(v - goCountMin) <= Math.abs(v - (goCountMax === Infinity ? railTrackMax : goCountMax))
+        ? setRailMin : setRailMax)(v);
+    });
+
+    positionRailHandles();
+  })();
+
+  buildSidebarLegend();
+})();
+</script>
+</body>
+</html>
