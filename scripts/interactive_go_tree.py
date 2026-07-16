@@ -24,7 +24,13 @@ from sklearn.preprocessing import StandardScaler
 
 from illuminate_PCA import load_taxonomy, build_global_color_map, remove_outliers
 from go_tree_illuminated_pca import get_go_relations
-from general_pca_common import DEFAULT_IC_PATH, load_go_ic_and_descriptions, compute_species_contributions
+from general_pca_common import (
+    DEFAULT_IC_PATH,
+    load_go_ic_and_descriptions,
+    compute_species_contributions,
+    top_loadings_by_pc,
+    write_top_loadings_tsv,
+)
 
 TEMPLATE_PATH = Path(__file__).parent / "templates" / "interactive_tree_template.html"
 DATA_MARKER = "__INTERACTIVE_GO_TREE_DATA__"
@@ -98,38 +104,6 @@ def run_pca_on_relative_abundance(raw_df, total_prots):
     loadings = pd.DataFrame(model.components_.T, columns=["PC1", "PC2"], index=pca_input.columns)
     normalized_df = pd.DataFrame(normalized, columns=pca_input.columns, index=species)
     return pca_df, model.explained_variance_ratio_, loadings, normalized_df
-
-
-def top_loadings_by_pc(loadings, go_desc, n):
-    """
-    For each PC, the n GO terms with the largest |loading| -- i.e. the GO
-    terms whose relative abundance most drives that axis of the PCA, in
-    either direction (sign is kept: it tells which end of the axis a term
-    pulls towards, not just how strongly).
-    """
-    result = {}
-    for pc in loadings.columns:
-        ranked = loadings[pc].reindex(loadings[pc].abs().sort_values(ascending=False).index)
-        top = ranked.head(n)
-        result[pc] = [
-            {"go_id": go_id, "description": go_desc.get(go_id, "unknown"), "loading": float(value)}
-            for go_id, value in top.items()
-        ]
-    return result
-
-
-def write_top_loadings_tsv(top_loadings, output_path):
-    rows = []
-    for pc, entries in top_loadings.items():
-        for rank, entry in enumerate(entries, start=1):
-            rows.append({
-                "PC": pc,
-                "Rank": rank,
-                "GO_id": entry["go_id"],
-                "Description": entry["description"],
-                "Loading": entry["loading"],
-            })
-    pd.DataFrame(rows).to_csv(output_path, sep="\t", index=False)
 
 
 def rgb_to_hex(rgb):
