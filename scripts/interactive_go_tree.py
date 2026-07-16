@@ -24,7 +24,7 @@ from sklearn.preprocessing import StandardScaler
 
 from illuminate_PCA import load_taxonomy, build_global_color_map, remove_outliers
 from go_tree_illuminated_pca import get_go_relations
-from general_pca_common import DEFAULT_IC_PATH
+from general_pca_common import DEFAULT_IC_PATH, load_go_ic_and_descriptions, compute_species_contributions
 
 TEMPLATE_PATH = Path(__file__).parent / "templates" / "interactive_tree_template.html"
 DATA_MARKER = "__INTERACTIVE_GO_TREE_DATA__"
@@ -317,6 +317,8 @@ def parse_args():
     parser.add_argument("--taxonomy", required=True, help="TSV with Species and Group columns")
     parser.add_argument("--obo", required=True, help="GO OBO file")
     parser.add_argument("--ic-file", default=str(DEFAULT_IC_PATH), help="GO Information Content TSV (default: bundled data/All_GOs_ic.tsv)")
+    parser.add_argument("--ic-threshold", type=float, default=None,
+                        help="Minimum IC to include a GO term in the PCA; GOs below this value are dropped from the matrix before fitting")
     parser.add_argument("-t", "--taxa", nargs="*", default=None, help="Restrict to these taxonomic groups")
     parser.add_argument("-d", "--count_descendants", action="store_true", help="Sum counts over each node's own descendants too")
     parser.add_argument("-o", "--no_outliers", action="store_true", help="Robust (percentile-clipped) scaling instead of log scaling")
@@ -340,7 +342,19 @@ def main():
     taxon_dict = load_taxonomy(args.taxonomy)
     t = _log(t, f"loaded taxonomy ({len(taxon_dict)} species)")
 
-    pca_df, explained_variance, loadings, _ = run_pca_on_relative_abundance(raw_full, total_prots)
+    go_ic_full, go_desc_full = load_go_ic_and_descriptions(args.ic_file)
+    t = _log(t, f"loaded GO IC/description table ({len(go_ic_full)} GO terms)")
+
+    raw_for_pca = raw_full
+    if args.ic_threshold is not None:
+        n_absent_ic = sum(1 for c in raw_for_pca.columns if c not in go_ic_full)
+        if n_absent_ic:
+            print(f"Warning: {n_absent_ic} GO terms in matrix have no IC value in {args.ic_file}", file=sys.stderr)
+        n_before = raw_for_pca.shape[1]
+        raw_for_pca = raw_for_pca[[c for c in raw_for_pca.columns if go_ic_full.get(c, 0.0) >= args.ic_threshold]]
+        t = _log(t, f"IC filter (>= {args.ic_threshold}): kept {raw_for_pca.shape[1]} / {n_before} GO terms")
+
+    pca_df, explained_variance, loadings, normalized_df = run_pca_on_relative_abundance(raw_for_pca, total_prots)
     pca_df = remove_outliers(pca_df, low=5, high=95)
     t = _log(t, "ran PCA on relative abundance")
 
@@ -353,6 +367,13 @@ def main():
     species = list(pca_df.index)
     color_map = build_global_color_map(taxon_dict)
 
+    contributions = compute_species_contributions(
+        normalized_df.loc[[s for s in species if s in normalized_df.index]],
+        loadings,
+        n=args.top_loadings_n,
+    )
+    t = _log(t, f"computed per-species PC contributions (top {args.top_loadings_n} per direction)")
+
     species_records = [
         {
             "name": name,
@@ -360,6 +381,7 @@ def main():
             "pc2": float(pca_df.loc[name, "PC2"]),
             "group": pca_df.loc[name, "Group"],
             "total_prots": float(total_prots.get(name, 0.0)),
+            "contributions": contributions.get(name, {}),
         }
         for name in species
     ]
@@ -384,23 +406,40 @@ def main():
     top_loadings = top_loadings_by_pc(loadings, go_desc, args.top_loadings_n)
     t = _log(t, f"ranked top {args.top_loadings_n} GO terms per PC by loading")
 
+    # Descriptions for whichever GO ids show up in the per-species
+    # contributions modal -- not tied to the ontology subtree currently on
+    # screen, since a species' top-contributing terms can be anywhere in
+    # the matrix. Kept to just the referenced ids (not the full IC table)
+    # so the payload stays small.
+    contrib_go_ids = {
+        entry["go_id"]
+        for sp in contributions.values()
+        for pc_data in sp.values()
+        for entry in pc_data["positive"] + pc_data["negative"]
+    }
+    contrib_go_desc = {go_id: go_desc_full.get(go_id, "unknown") for go_id in contrib_go_ids}
+
     payload = {
         "species": species_records,
         "groups": groups_hex,
         "tree": {"nodes": nodes, "edges": edges},
         "counts": counts,
         "top_loadings": top_loadings,
+        "contrib_go_desc": contrib_go_desc,
         "meta": {
             "root": args.go,
             "mode": "descendants" if args.plot_descendants else "ancestors",
             "count_descendants": bool(args.count_descendants),
             "no_outliers": bool(args.no_outliers),
             "explained_variance": [float(v) for v in explained_variance],
+            "ic_threshold": args.ic_threshold,
         },
     }
 
     template = TEMPLATE_PATH.read_text()
     title = f"Interactive GO tree: {args.go} ({go_desc.get(args.go, 'unknown')})"
+    if args.ic_threshold is not None:
+        title += f" (IC >= {args.ic_threshold})"
     title_safe = title.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     data_json = json.dumps(payload).replace("</", "<\\/")
     html = template.replace(TITLE_MARKER, title_safe).replace(DATA_MARKER, data_json)
