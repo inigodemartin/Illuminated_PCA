@@ -14,6 +14,7 @@ from pathlib import Path
 import argparse
 import json
 
+import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
@@ -33,19 +34,20 @@ from general_umap_common import (
 
 def run_umap_on_relative_abundance(raw_df, total_prots, n_neighbors, min_dist, metric, random_state):
     """
-    Same rare-GO-term filter and relative-abundance conversion (count /
-    Total_prots) as interactive_go_tree.run_pca_on_relative_abundance,
-    StandardScaler, then UMAP instead of TruncatedSVD.
+    Same rare-GO-term filter and centered log-ratio (CLR) conversion as
+    interactive_go_tree.run_pca_on_relative_abundance, StandardScaler, then
+    UMAP instead of TruncatedSVD.
     """
     species = [s for s in raw_df.index if s in total_prots.index]
     raw_df = raw_df.loc[species]
 
     umap_input = raw_df.loc[:, raw_df.sum(axis=0) > 5]
-    total_prots_col = total_prots.loc[species].to_numpy(dtype="float64")[:, None]
-    relative_values = umap_input.to_numpy(dtype="float64") / total_prots_col
+    counts = umap_input.to_numpy(dtype="float64") + 1.0  # pseudo-count: log(0) is undefined
+    log_counts = np.log(counts)
+    clr_values = log_counts - log_counts.mean(axis=1, keepdims=True)
 
     scaler = StandardScaler()
-    normalized = pd.DataFrame(scaler.fit_transform(relative_values), index=species)
+    normalized = pd.DataFrame(scaler.fit_transform(clr_values), index=species)
 
     embedding = run_umap(
         normalized,

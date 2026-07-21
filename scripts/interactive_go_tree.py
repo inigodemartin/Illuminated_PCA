@@ -73,10 +73,17 @@ def load_species_stats(stats_file):
 
 def run_pca_on_relative_abundance(raw_df, total_prots):
     """
-    Drop rare GO columns, convert raw counts to relative abundance
-    (count / Total_prots per species), then PCA via StandardScaler +
-    TruncatedSVD. Computed once: the layout is identical for every GO node,
-    so unlike the PNG pipeline this never needs to be recomputed per node.
+    Drop rare GO columns, convert raw counts to a centered log-ratio (CLR)
+    per species, then PCA via StandardScaler + TruncatedSVD. Computed once:
+    the layout is identical for every GO node, so unlike the PNG pipeline
+    this never needs to be recomputed per node.
+
+    GO abundance is compositional (each species' counts are parts of a
+    fixed total), so plain relative-abundance values fed into a Euclidean
+    PCA produce spurious anticorrelations (Aitchison 1986). CLR maps each
+    species row into the log-ratio space where Euclidean PCA is valid.
+    CLR is scale-invariant (clr(x) == clr(c*x)), so total_prots is not
+    needed here -- only used by callers for reporting.
 
     Also returns the per-GO-term loadings (model.components_, transposed so
     rows are GO ids): how much each retained GO column contributes to PC1/
@@ -86,16 +93,12 @@ def run_pca_on_relative_abundance(raw_df, total_prots):
     raw_df = raw_df.loc[species]
 
     pca_input = raw_df.loc[:, raw_df.sum(axis=0) > 5]
-    # pca_input.div(total_prots, axis=0) dispatches one Python-level op per
-    # GO column (pandas' Series/DataFrame axis=0 broadcast is a per-column
-    # loop, not a single vectorized call) -- with tens of thousands of GO
-    # columns that dominates runtime. Dividing the underlying numpy arrays
-    # broadcasts over the whole matrix in one vectorized operation instead.
-    total_prots_col = total_prots.loc[species].to_numpy(dtype="float64")[:, None]
-    relative_values = pca_input.to_numpy(dtype="float64") / total_prots_col
+    counts = pca_input.to_numpy(dtype="float64") + 1.0  # pseudo-count: log(0) is undefined
+    log_counts = np.log(counts)
+    clr_values = log_counts - log_counts.mean(axis=1, keepdims=True)
 
     scaler = StandardScaler()
-    normalized = scaler.fit_transform(relative_values)
+    normalized = scaler.fit_transform(clr_values)
 
     model = TruncatedSVD(n_components=2)
     components = model.fit_transform(normalized)
