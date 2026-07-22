@@ -2,6 +2,7 @@ numpy>=2.0
 pandas>=2.0
 matplotlib>=3.8
 scikit-learn>=1.4
+scipy>=1.10
 Pillow>=10.0
 graphviz>=0.20
 # System dependency: apt install graphviz  /  brew install graphviz
