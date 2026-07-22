@@ -142,7 +142,22 @@ def run_stage_pca(matrix, species, taxon_dict):
     return pca_df, explained
 
 
-def add_taxon_ellipse(ax, x, y, color, n_std=2.0, fill_alpha=0.15, edge_alpha=0.55):
+def taxon_ellipse_params(pca_df, min_points=3):
+    """group -> (mean[2], cov[2x2]) for every taxon with enough points to estimate a covariance."""
+    params = {}
+    for group, sub in pca_df.groupby("Group"):
+        x = sub["PC1"].to_numpy()
+        y = sub["PC2"].to_numpy()
+        if len(x) < min_points:
+            continue
+        cov = np.cov(x, y)
+        if not np.all(np.isfinite(cov)) or cov[0, 0] <= 0 or cov[1, 1] <= 0:
+            continue
+        params[group] = (np.array([x.mean(), y.mean()]), cov)
+    return params
+
+
+def draw_taxon_ellipse(ax, mean, cov, color, n_std=2.0, fill_alpha=0.15, edge_alpha=0.55):
     """
     Shaded region for one taxon: a covariance ellipse centered on the
     group's own mean, sized by its own spread (n_std standard deviations
@@ -150,14 +165,8 @@ def add_taxon_ellipse(ax, x, y, color, n_std=2.0, fill_alpha=0.15, edge_alpha=0.
     deliberately NOT a convex hull -- a hull would stretch out to touch
     every last far-flung point; an ellipse derived from the covariance
     matrix is dominated by where most of the group's mass actually is, so
-    a handful of stragglers barely move it. Skipped for groups with too
-    few points to estimate a covariance (< 3).
+    a handful of stragglers barely move it.
     """
-    if len(x) < 3:
-        return
-    cov = np.cov(x, y)
-    if not np.all(np.isfinite(cov)) or cov[0, 0] <= 0 or cov[1, 1] <= 0:
-        return
     pearson = cov[0, 1] / np.sqrt(cov[0, 0] * cov[1, 1])
     pearson = np.clip(pearson, -0.999, 0.999)
     radius_x = np.sqrt(1 + pearson)
@@ -172,20 +181,76 @@ def add_taxon_ellipse(ax, x, y, color, n_std=2.0, fill_alpha=0.15, edge_alpha=0.
     transf = (mtransforms.Affine2D()
               .rotate_deg(45)
               .scale(scale_x, scale_y)
-              .translate(np.mean(x), np.mean(y)))
+              .translate(mean[0], mean[1]))
     ellipse.set_transform(transf + ax.transData)
     ax.add_patch(ellipse)
 
 
+def ellipse_separation_ratio(params, n_std, grid_n=400):
+    """
+    Fraction of the ellipses' combined (union) area covered by exactly ONE
+    taxon's ellipse -- 1.0 means no taxon's core region overlaps any
+    other's (fully separated), 0.0 means every covered point is shared by
+    2+ taxa (fully confounded).
+
+    Computed numerically on a grid rather than via analytic ellipse-ellipse
+    intersection (which is algebraically messy for arbitrarily rotated
+    ellipses): a grid point is "inside" a group's n_std ellipse iff its
+    squared Mahalanobis distance to that group's mean (under that group's
+    own covariance) is <= n_std^2 -- exactly the ellipse boundary
+    condition, exact regardless of rotation. Returns None if fewer than 2
+    taxa have an ellipse to compare.
+    """
+    if len(params) < 2:
+        return None
+
+    xmin = xmax = ymin = ymax = None
+    for mean, cov in params.values():
+        eigvals = np.linalg.eigvalsh(cov)
+        radius = n_std * np.sqrt(eigvals.max())
+        x0, y0 = mean
+        xmin = x0 - radius if xmin is None else min(xmin, x0 - radius)
+        xmax = x0 + radius if xmax is None else max(xmax, x0 + radius)
+        ymin = y0 - radius if ymin is None else min(ymin, y0 - radius)
+        ymax = y0 + radius if ymax is None else max(ymax, y0 + radius)
+
+    gx = np.linspace(xmin, xmax, grid_n)
+    gy = np.linspace(ymin, ymax, grid_n)
+    GX, GY = np.meshgrid(gx, gy)
+    coverage = np.zeros(GX.shape, dtype="int16")
+    for mean, cov in params.values():
+        inv_cov = np.linalg.inv(cov)
+        dx = GX - mean[0]
+        dy = GY - mean[1]
+        maha2 = (dx * (inv_cov[0, 0] * dx + inv_cov[0, 1] * dy)
+                 + dy * (inv_cov[1, 0] * dx + inv_cov[1, 1] * dy))
+        coverage += (maha2 <= n_std ** 2)
+
+    union = coverage >= 1
+    if not union.any():
+        return None
+    exclusive = coverage == 1
+    return float(exclusive.sum()) / float(union.sum())
+
+
 def scatter_panel(ax, pca_df, color_map, title, explained, ellipses=True, ellipse_std=2.0):
+    sep_ratio = None
     if ellipses:
-        for group, sub in pca_df.groupby("Group"):
-            add_taxon_ellipse(ax, sub["PC1"].to_numpy(), sub["PC2"].to_numpy(), color_map[group], n_std=ellipse_std)
+        params = taxon_ellipse_params(pca_df)
+        for group, (mean, cov) in params.items():
+            draw_taxon_ellipse(ax, mean, cov, color_map[group], n_std=ellipse_std)
+        sep_ratio = ellipse_separation_ratio(params, ellipse_std)
+
     for group, sub in pca_df.groupby("Group"):
         ax.scatter(sub["PC1"], sub["PC2"], s=8, alpha=0.7, color=color_map[group], edgecolor="none", zorder=2)
-    ax.set_title(f"{title}\nPC1={explained[0]:.1f}%  PC2={explained[1]:.1f}%")
+
+    title_line2 = f"PC1={explained[0]:.1f}%  PC2={explained[1]:.1f}%"
+    if sep_ratio is not None:
+        title_line2 += f"   |   separación elipses = {sep_ratio:.2f}"
+    ax.set_title(f"{title}\n{title_line2}")
     ax.set_xlabel("PC1")
     ax.set_ylabel("PC2")
+    return sep_ratio
 
 
 def main():
@@ -322,9 +387,19 @@ def main():
         "3. log(count+1)": "3. log(count+1), sin centrar por fila + StandardScaler",
         "4. CLR": "4. CLR (log + centrado por fila) + StandardScaler  [pipeline real]",
     }
+    separation_by_stage = {}
     for ax, (label, (pca_df, explained)) in zip(panel_axes, pca_results.items()):
-        scatter_panel(ax, pca_df, color_map, panel_titles[label], explained,
-                      ellipses=not args.no_ellipses, ellipse_std=args.ellipse_std)
+        sep_ratio = scatter_panel(ax, pca_df, color_map, panel_titles[label], explained,
+                                   ellipses=not args.no_ellipses, ellipse_std=args.ellipse_std)
+        separation_by_stage[label] = sep_ratio
+
+    if not args.no_ellipses:
+        print(f"\nRatio de separación de elipses por etapa (fracción del área cubierta por UNA sola "
+              f"elipse de taxón, a {args.ellipse_std} std; 1.0 = ningún taxón se solapa, 0.0 = todos "
+              f"solapados):")
+        for label, ratio in separation_by_stage.items():
+            ratio_str = f"{ratio:.2f}" if ratio is not None else "n/a (<2 taxones con elipse)"
+            print(f"  {label:<24s} {ratio_str}")
 
     groups_sorted = sorted(color_map.keys())
     legend_handles = [
