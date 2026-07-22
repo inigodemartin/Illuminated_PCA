@@ -99,6 +99,21 @@ def stage_stats(values, rng):
     return v, stats
 
 
+def scaled_stage_stats(matrix, rng):
+    """
+    Distribution stats (sample + skew/mean/sd) of `matrix` AFTER a
+    StandardScaler pass -- i.e. exactly what run_stage_pca hands to
+    TruncatedSVD, recomputed here standalone since run_stage_pca discards
+    its own internal scaled copy. The StandardScaler fit itself is cheap
+    (one mean/std pass), so recomputing it is negligible next to the SVD.
+    """
+    scaled = StandardScaler().fit_transform(matrix)
+    sample, stats = stage_stats(scaled.ravel(), rng)
+    del scaled
+    gc.collect()
+    return sample, stats
+
+
 def hist_panel(ax, sample, stats, title, color, log_x=False, mark_zero=False):
     v = sample
     if log_x:
@@ -263,20 +278,23 @@ def main():
 
     pca_results = {}  # label -> (pca_df, explained[PC1%, PC2%])
 
+    # Distribution diagnostics captured on the EXACT matrix each PCA panel
+    # fits, both right BEFORE and right AFTER run_stage_pca's own internal
+    # StandardScaler call -- the "after" version is recomputed here via a
+    # throwaway StandardScaler call (run_stage_pca's own copy is discarded
+    # internally), which costs a cheap mean/std pass, not the expensive SVD.
+    # Captured inline, stage by stage, rather than kept as separate named
+    # arrays, since some stages otherwise need multiple ~150MB float32
+    # copies alive in memory at once.
+    raw_sample, raw_stats = stage_stats(raw_counts.ravel(), rng)
+    raw_scaled_sample, raw_scaled_stats = scaled_stage_stats(raw_counts, rng)
     print("Fitting PCA (StandardScaler + TruncatedSVD) on: raw counts ...")
     pca_results["1. Raw counts"] = run_stage_pca(raw_counts, species, taxon_dict)
-
-    # distribution diagnostics captured on the EXACT matrix each PCA panel
-    # below fits -- i.e. right before run_stage_pca's own internal
-    # StandardScaler call standardizes it. This is deliberately captured
-    # inline, stage by stage, rather than kept as separate named arrays,
-    # since some stages otherwise need multiple ~150MB float32 copies alive
-    # in memory at once.
-    raw_sample, raw_stats = stage_stats(raw_counts.ravel(), rng)
 
     total_prots_col = total_prots.loc[species].to_numpy(dtype="float32")[:, None]
     relative_abundance = raw_counts / total_prots_col           # old normalization, count / Total_prots
     rel_sample, rel_stats = stage_stats(relative_abundance.ravel(), rng)
+    rel_scaled_sample, rel_scaled_stats = scaled_stage_stats(relative_abundance, rng)
     print("Fitting PCA (StandardScaler + TruncatedSVD) on: relative abundance (count / Total_prots) ...")
     pca_results["2. Relative abundance"] = run_stage_pca(relative_abundance, species, taxon_dict)
     del relative_abundance, total_prots_col
@@ -286,6 +304,7 @@ def main():
     del raw_counts
     gc.collect()
     log_sample, log_stats = stage_stats(log_counts.ravel(), rng)
+    log_scaled_sample, log_scaled_stats = scaled_stage_stats(log_counts, rng)
 
     print("Fitting PCA (StandardScaler + TruncatedSVD) on: log(count+1), no row-centering ...")
     pca_results["3. log(count+1)"] = run_stage_pca(log_counts, species, taxon_dict)
@@ -295,6 +314,7 @@ def main():
     del log_counts
     gc.collect()
     clr_sample, clr_stats = stage_stats(clr_values.ravel(), rng)
+    clr_scaled_sample, clr_scaled_stats = scaled_stage_stats(clr_values, rng)
 
     print("Fitting PCA (StandardScaler + TruncatedSVD) on: CLR (log + row-centered) ...")
     pca_results["4. CLR"] = run_stage_pca(clr_values, species, taxon_dict)
@@ -338,6 +358,41 @@ def main():
         png_path = out_path.with_suffix(".png")
         fig.savefig(png_path, bbox_inches="tight")
         print(f"Wrote {png_path}")
+
+    # --- figure 1b: distribution of the same 4 matrices, AFTER StandardScaler
+    # -- i.e. what TruncatedSVD actually receives in each pca_by_stage.png
+    # panel. Same 2x2 layout/order as figure 1, so the "before" and "after"
+    # figures read as a matched pair. ---
+    fig1b, axes1b = plt.subplots(2, 2, figsize=(12, 9))
+
+    hist_panel(axes1b[0, 0], raw_scaled_sample, raw_scaled_stats,
+               "1. Raw counts (después de StandardScaler)", BLUE, mark_zero=True)
+    axes1b[0, 0].set_xlabel("z-score")
+
+    hist_panel(axes1b[0, 1], rel_scaled_sample, rel_scaled_stats,
+               "2. Abundancia relativa (count/Total_prots)\n(después de StandardScaler)", BLUE, mark_zero=True)
+    axes1b[0, 1].set_xlabel("z-score")
+
+    hist_panel(axes1b[1, 0], log_scaled_sample, log_scaled_stats,
+               "3. log(count+1), sin centrar por fila\n(después de StandardScaler)", BLUE, mark_zero=True)
+    axes1b[1, 0].set_xlabel("z-score")
+
+    hist_panel(axes1b[1, 1], clr_scaled_sample, clr_scaled_stats,
+               "4. CLR (log + centrado por fila)\n(después de StandardScaler)  [pipeline real]", BLUE, mark_zero=True)
+    axes1b[1, 1].set_xlabel("z-score")
+
+    fig1b.suptitle("Distribución de cada matriz justo DESPUÉS de su StandardScaler\n"
+                   "(lo que realmente entra a TruncatedSVD en cada panel de pca_transform_steps_pca_by_stage.png)",
+                   fontsize=13)
+    fig1b.tight_layout(rect=[0, 0, 1, 0.93])
+
+    after_out = out_path.with_name(out_path.stem + "_after_scaler" + out_path.suffix)
+    fig1b.savefig(after_out, bbox_inches="tight")
+    print(f"Wrote {after_out}")
+    if after_out.suffix != ".png":
+        after_png = after_out.with_suffix(".png")
+        fig1b.savefig(after_png, bbox_inches="tight")
+        print(f"Wrote {after_png}")
 
     # --- figure 2: PCA scatter per stage, colored by taxon ---
     fig2, axes2 = plt.subplots(2, 2, figsize=(13, 11))
