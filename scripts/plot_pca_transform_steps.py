@@ -70,6 +70,13 @@ def stage_stats(values, rng):
     return v, stats
 
 
+def fit_pc_variance(matrix, n_components=2):
+    """Fit TruncatedSVD on `matrix` and return explained variance ratio (%) per PC."""
+    model = TruncatedSVD(n_components=n_components)
+    model.fit(matrix)
+    return model.explained_variance_ratio_ * 100
+
+
 def hist_panel(ax, sample, stats, title, color, log_x=False, mark_zero=False):
     v = sample
     if log_x:
@@ -119,6 +126,18 @@ def main():
     del pca_input
     gc.collect()
 
+    stage_variance = {}  # label -> [PC1%, PC2%], one PCA fit per pipeline stage
+
+    print("Fitting PCA on raw counts (no transform) ...")
+    stage_variance["1. Raw\ncounts"] = fit_pc_variance(raw_counts)
+
+    total_prots_col = total_prots.loc[species].to_numpy(dtype="float32")[:, None]
+    relative_abundance = raw_counts / total_prots_col           # old normalization, count / Total_prots
+    print("Fitting PCA on relative abundance (count / Total_prots) ...")
+    stage_variance["2. Rel.\nabundance"] = fit_pc_variance(relative_abundance)
+    del relative_abundance, total_prots_col
+    gc.collect()
+
     row_totals = raw_counts.sum(axis=1, dtype="float64")       # per-species scale (~ Total_prots effect)
     raw_sample, raw_stats = stage_stats(raw_counts.ravel(), rng)
     row_sample, row_stats = stage_stats(row_totals, rng)
@@ -126,10 +145,14 @@ def main():
     np.add(raw_counts, 1.0, out=raw_counts)                    # pseudo-count, in place
     np.log(raw_counts, out=raw_counts)                         # log transform, in place -- now log_counts
     log_sample, log_stats = stage_stats(raw_counts.ravel(), rng)
+    print("Fitting PCA on log(count + 1) ...")
+    stage_variance["3. Log\n(count+1)"] = fit_pc_variance(raw_counts)
 
     row_means = raw_counts.mean(axis=1, keepdims=True)
     raw_counts -= row_means                                    # CLR row-centering, in place -- now clr_values
     clr_sample, clr_stats = stage_stats(raw_counts.ravel(), rng)
+    print("Fitting PCA on CLR (log, row-centered) ...")
+    stage_variance["4. CLR"] = fit_pc_variance(raw_counts)
 
     scaler = StandardScaler(copy=False)
     scaled_values = scaler.fit_transform(raw_counts)            # column z-score, reuses the array (copy=False)
@@ -138,8 +161,13 @@ def main():
     model = TruncatedSVD(n_components=2)
     pc = model.fit_transform(scaled_values)                     # SVD projection
     explained = model.explained_variance_ratio_ * 100
+    stage_variance["5. CLR +\nStdScaler"] = explained            # = the production pipeline (interactive_go_tree.py)
     del scaled_values, raw_counts
     gc.collect()
+
+    print("\nPC1 / PC2 explained variance by pipeline stage:")
+    for label, ev in stage_variance.items():
+        print(f"  {label.replace(chr(10), ' '):<20s} PC1={ev[0]:5.1f}%  PC2={ev[1]:5.1f}%")
 
     # --- figure ---
     fig, axes = plt.subplots(2, 3, figsize=(16, 9))
@@ -177,6 +205,40 @@ def main():
         png_path = out_path.with_suffix(".png")
         fig.savefig(png_path, bbox_inches="tight")
         print(f"Wrote {png_path}")
+
+    # --- second figure: PC1/PC2 explained variance by pipeline stage ---
+    labels = list(stage_variance.keys())
+    pc1_vals = [stage_variance[l][0] for l in labels]
+    pc2_vals = [stage_variance[l][1] for l in labels]
+
+    fig2, ax2 = plt.subplots(figsize=(9, 5.5))
+    x = np.arange(len(labels))
+    width = 0.32
+    bars1 = ax2.bar(x - width / 2, pc1_vals, width, label="PC1", color=BLUE)
+    bars2 = ax2.bar(x + width / 2, pc2_vals, width, label="PC2", color=AMBER)
+    for bars in (bars1, bars2):
+        for b in bars:
+            h = b.get_height()
+            ax2.annotate(f"{h:.1f}%", (b.get_x() + b.get_width() / 2, h),
+                         xytext=(0, 3), textcoords="offset points",
+                         ha="center", va="bottom", fontsize=9)
+
+    ax2.set_xticks(x)
+    ax2.set_xticklabels(labels)
+    ax2.set_ylabel("% varianza explicada")
+    ax2.set_title("Varianza explicada por PC1/PC2 en cada etapa del pipeline")
+    ax2.spines["top"].set_visible(False)
+    ax2.spines["right"].set_visible(False)
+    ax2.legend(frameon=False)
+    fig2.tight_layout()
+
+    var_out = out_path.with_name(out_path.stem + "_variance_by_stage" + out_path.suffix)
+    fig2.savefig(var_out, bbox_inches="tight")
+    print(f"Wrote {var_out}")
+    if var_out.suffix != ".png":
+        var_png = var_out.with_suffix(".png")
+        fig2.savefig(var_png, bbox_inches="tight")
+        print(f"Wrote {var_png}")
 
 
 if __name__ == "__main__":
