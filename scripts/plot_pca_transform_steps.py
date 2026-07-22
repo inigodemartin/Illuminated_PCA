@@ -110,7 +110,7 @@ def hist_panel(ax, sample, stats, title, color, log_x=False, mark_zero=False):
         ax.hist(v, bins=80, color=color, edgecolor="none")
     if mark_zero:
         ax.axvline(0, color=GREY, linewidth=1, linestyle="--")
-    ax.set_title(f"{title}\nskew={stats['skew']:.2f}  mean={stats['mean']:.2f}  sd={stats['sd']:.2f}")
+    ax.set_title(f"{title}\nskew={stats['skew']:.2f}  mean={stats['mean']:.3g}  sd={stats['sd']:.3g}")
     ax.set_ylabel("frecuencia")
 
 
@@ -266,17 +266,21 @@ def main():
     print("Fitting PCA (StandardScaler + TruncatedSVD) on: raw counts ...")
     pca_results["1. Raw counts"] = run_stage_pca(raw_counts, species, taxon_dict)
 
+    # distribution diagnostics captured on the EXACT matrix each PCA panel
+    # below fits -- i.e. right before run_stage_pca's own internal
+    # StandardScaler call standardizes it. This is deliberately captured
+    # inline, stage by stage, rather than kept as separate named arrays,
+    # since some stages otherwise need multiple ~150MB float32 copies alive
+    # in memory at once.
+    raw_sample, raw_stats = stage_stats(raw_counts.ravel(), rng)
+
     total_prots_col = total_prots.loc[species].to_numpy(dtype="float32")[:, None]
     relative_abundance = raw_counts / total_prots_col           # old normalization, count / Total_prots
+    rel_sample, rel_stats = stage_stats(relative_abundance.ravel(), rng)
     print("Fitting PCA (StandardScaler + TruncatedSVD) on: relative abundance (count / Total_prots) ...")
     pca_results["2. Relative abundance"] = run_stage_pca(relative_abundance, species, taxon_dict)
     del relative_abundance, total_prots_col
     gc.collect()
-
-    # distribution diagnostics on the still-untouched raw counts / their row totals
-    row_totals = raw_counts.sum(axis=1, dtype="float64")        # per-species scale (~ Total_prots effect)
-    raw_sample, raw_stats = stage_stats(raw_counts.ravel(), rng)
-    row_sample, row_stats = stage_stats(row_totals, rng)
 
     log_counts = np.log1p(raw_counts)                            # new array; raw_counts left untouched above
     del raw_counts
@@ -294,53 +298,38 @@ def main():
 
     print("Fitting PCA (StandardScaler + TruncatedSVD) on: CLR (log + row-centered) ...")
     pca_results["4. CLR"] = run_stage_pca(clr_values, species, taxon_dict)
-
-    # histogram-only view of what StandardScaler does to the CLR values
-    # (this is the same array run_stage_pca just standardized internally
-    # for stage 4 -- redone here only to keep a sample for the histogram)
-    scaled_for_hist = StandardScaler().fit_transform(clr_values)
-    scaled_sample, scaled_stats = stage_stats(scaled_for_hist.ravel(), rng)
-    del scaled_for_hist, clr_values
+    del clr_values
     gc.collect()
 
     print("\nPC1 / PC2 explained variance by pipeline stage (StandardScaler + TruncatedSVD, same recipe every stage):")
     for label, (_, ev) in pca_results.items():
         print(f"  {label:<24s} PC1={ev[0]:5.1f}%  PC2={ev[1]:5.1f}%")
 
-    # --- figure 1: distributions at each step ---
-    fig, axes = plt.subplots(2, 3, figsize=(16, 9))
+    # --- figure 1: distribution of the exact matrix each pca_by_stage.png
+    # panel fits, captured right before that panel's own internal
+    # StandardScaler call -- a 1:1 companion to figure 2, same 2x2 layout,
+    # same stage order/titles, so the two figures can be read side by side. ---
+    fig, axes = plt.subplots(2, 2, figsize=(12, 9))
 
-    hist_panel(axes[0, 0], raw_sample, raw_stats, "1. Conteos crudos (raw counts, ceros excluidos de la vista log)", BLUE, log_x=True)
-    axes[0, 0].set_xlabel("count (escala log)")
+    hist_panel(axes[0, 0], raw_sample, raw_stats,
+               "1. Raw counts (antes de StandardScaler)", BLUE, log_x=True)
+    axes[0, 0].set_xlabel("count (escala log; ceros excluidos de la vista log)")
 
-    hist_panel(axes[0, 1], row_sample, row_stats, "2. Total de conteos por especie\n(efecto de escala / Total_prots)", AMBER)
-    axes[0, 1].set_xlabel("Σ counts por fila")
+    hist_panel(axes[0, 1], rel_sample, rel_stats,
+               "2. Abundancia relativa (count/Total_prots)\n(antes de StandardScaler)", BLUE, log_x=True)
+    axes[0, 1].set_xlabel("count / Total_prots (escala log; ceros excluidos de la vista log)")
 
-    hist_panel(axes[0, 2], log_sample, log_stats, "3. Tras pseudo-count (+1) y log", BLUE)
-    axes[0, 2].set_xlabel("log(count + 1)")
+    hist_panel(axes[1, 0], log_sample, log_stats,
+               "3. log(count+1), sin centrar por fila\n(antes de StandardScaler)", BLUE)
+    axes[1, 0].set_xlabel("log(count + 1)")
 
-    hist_panel(axes[1, 0], clr_sample, clr_stats, "4. Tras CLR (centrado por fila)", BLUE, mark_zero=True)
-    axes[1, 0].set_xlabel("log(count+1) - media_fila")
+    hist_panel(axes[1, 1], clr_sample, clr_stats,
+               "4. CLR (log + centrado por fila)\n(antes de StandardScaler)  [pipeline real]", BLUE, mark_zero=True)
+    axes[1, 1].set_xlabel("log(count+1) - media_fila")
 
-    hist_panel(axes[1, 1], scaled_sample, scaled_stats, "5. Tras StandardScaler\n(z-score por columna)", BLUE, mark_zero=True)
-    axes[1, 1].set_xlabel("z-score")
-
-    # skew trend across the same four stages, instead of a duplicate PCA
-    # scatter (that now lives in its own colored-by-taxon figure below)
-    skew_stages = ["Raw", "Log", "CLR", "CLR+\nScaler"]
-    skew_vals = [raw_stats["skew"], log_stats["skew"], clr_stats["skew"], scaled_stats["skew"]]
-    ax = axes[1, 2]
-    bars = ax.bar(skew_stages, skew_vals, color=BLUE)
-    for b in bars:
-        h = b.get_height()
-        ax.annotate(f"{h:.2f}", (b.get_x() + b.get_width() / 2, h),
-                    xytext=(0, 3), textcoords="offset points", ha="center", va="bottom", fontsize=9)
-    ax.set_title("6. Asimetría (skew) por etapa\n(cuanto más cerca de 0, más simétrica)")
-    ax.set_ylabel("skew")
-    ax.axhline(0, color=GREY, linewidth=1)
-
-    fig.suptitle("Transformaciones de los datos a lo largo del pipeline de PCA de abundancia", fontsize=14)
-    fig.tight_layout(rect=[0, 0, 1, 0.96])
+    fig.suptitle("Distribución de cada matriz justo ANTES de su StandardScaler\n"
+                 "(la entrada real de cada panel de pca_transform_steps_pca_by_stage.png)", fontsize=13)
+    fig.tight_layout(rect=[0, 0, 1, 0.93])
 
     out_path = Path(args.output)
     fig.savefig(out_path, bbox_inches="tight")
