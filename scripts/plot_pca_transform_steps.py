@@ -35,6 +35,9 @@ import gc
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.patches import Ellipse
+import matplotlib.colors as mcolors
+import matplotlib.transforms as mtransforms
 import numpy as np
 import pandas as pd
 from scipy.stats import skew
@@ -76,6 +79,12 @@ def parse_args():
                      help="If set, randomly subsample this many GO columns before running the "
                           "pipeline (speeds up iteration; full matrix is used by default)")
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--no-ellipses", action="store_true",
+                     help="Disable the shaded per-taxon confidence ellipses on the PCA scatter panels")
+    ap.add_argument("--ellipse-std", type=float, default=2.0,
+                     help="Ellipse radius in standard deviations from each taxon's centroid "
+                          "(default: 2.0 -- the ellipse follows the group's own spread, so a few "
+                          "far-flung points don't drag it out; smaller = tighter core cluster only)")
     return ap.parse_args()
 
 
@@ -133,9 +142,47 @@ def run_stage_pca(matrix, species, taxon_dict):
     return pca_df, explained
 
 
-def scatter_panel(ax, pca_df, color_map, title, explained):
+def add_taxon_ellipse(ax, x, y, color, n_std=2.0, fill_alpha=0.15, edge_alpha=0.55):
+    """
+    Shaded region for one taxon: a covariance ellipse centered on the
+    group's own mean, sized by its own spread (n_std standard deviations
+    along each principal axis of the group's point cloud). This is
+    deliberately NOT a convex hull -- a hull would stretch out to touch
+    every last far-flung point; an ellipse derived from the covariance
+    matrix is dominated by where most of the group's mass actually is, so
+    a handful of stragglers barely move it. Skipped for groups with too
+    few points to estimate a covariance (< 3).
+    """
+    if len(x) < 3:
+        return
+    cov = np.cov(x, y)
+    if not np.all(np.isfinite(cov)) or cov[0, 0] <= 0 or cov[1, 1] <= 0:
+        return
+    pearson = cov[0, 1] / np.sqrt(cov[0, 0] * cov[1, 1])
+    pearson = np.clip(pearson, -0.999, 0.999)
+    radius_x = np.sqrt(1 + pearson)
+    radius_y = np.sqrt(1 - pearson)
+
+    face = mcolors.to_rgba(color, alpha=fill_alpha)
+    edge = mcolors.to_rgba(color, alpha=edge_alpha)
+    ellipse = Ellipse((0, 0), width=radius_x * 2, height=radius_y * 2,
+                       facecolor=face, edgecolor=edge, linewidth=1.4, zorder=1)
+    scale_x = np.sqrt(cov[0, 0]) * n_std
+    scale_y = np.sqrt(cov[1, 1]) * n_std
+    transf = (mtransforms.Affine2D()
+              .rotate_deg(45)
+              .scale(scale_x, scale_y)
+              .translate(np.mean(x), np.mean(y)))
+    ellipse.set_transform(transf + ax.transData)
+    ax.add_patch(ellipse)
+
+
+def scatter_panel(ax, pca_df, color_map, title, explained, ellipses=True, ellipse_std=2.0):
+    if ellipses:
+        for group, sub in pca_df.groupby("Group"):
+            add_taxon_ellipse(ax, sub["PC1"].to_numpy(), sub["PC2"].to_numpy(), color_map[group], n_std=ellipse_std)
     for group, sub in pca_df.groupby("Group"):
-        ax.scatter(sub["PC1"], sub["PC2"], s=8, alpha=0.6, color=color_map[group], edgecolor="none")
+        ax.scatter(sub["PC1"], sub["PC2"], s=8, alpha=0.7, color=color_map[group], edgecolor="none", zorder=2)
     ax.set_title(f"{title}\nPC1={explained[0]:.1f}%  PC2={explained[1]:.1f}%")
     ax.set_xlabel("PC1")
     ax.set_ylabel("PC2")
@@ -276,7 +323,8 @@ def main():
         "4. CLR": "4. CLR (log + centrado por fila) + StandardScaler  [pipeline real]",
     }
     for ax, (label, (pca_df, explained)) in zip(panel_axes, pca_results.items()):
-        scatter_panel(ax, pca_df, color_map, panel_titles[label], explained)
+        scatter_panel(ax, pca_df, color_map, panel_titles[label], explained,
+                      ellipses=not args.no_ellipses, ellipse_std=args.ellipse_std)
 
     groups_sorted = sorted(color_map.keys())
     legend_handles = [
