@@ -43,6 +43,7 @@ import pandas as pd
 from scipy.stats import skew
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import TruncatedSVD
+from sklearn.metrics import silhouette_score
 
 from interactive_go_tree import load_species_stats
 from illuminate_PCA import load_taxonomy, build_global_color_map, remove_outliers
@@ -186,71 +187,42 @@ def draw_taxon_ellipse(ax, mean, cov, color, n_std=2.0, fill_alpha=0.15, edge_al
     ax.add_patch(ellipse)
 
 
-def ellipse_separation_ratio(params, n_std, grid_n=400):
+def taxon_silhouette(pca_df):
     """
-    Fraction of the ellipses' combined (union) area covered by exactly ONE
-    taxon's ellipse -- 1.0 means no taxon's core region overlaps any
-    other's (fully separated), 0.0 means every covered point is shared by
-    2+ taxa (fully confounded).
-
-    Computed numerically on a grid rather than via analytic ellipse-ellipse
-    intersection (which is algebraically messy for arbitrarily rotated
-    ellipses): a grid point is "inside" a group's n_std ellipse iff its
-    squared Mahalanobis distance to that group's mean (under that group's
-    own covariance) is <= n_std^2 -- exactly the ellipse boundary
-    condition, exact regardless of rotation. Returns None if fewer than 2
-    taxa have an ellipse to compare.
+    Mean silhouette score (sklearn) of the PC1/PC2 points, labeled by
+    taxon: for each species, how much closer it sits to its own taxon's
+    points than to the nearest other taxon's points, averaged over all
+    species. Range [-1, 1]; > 0 means taxa are, on average, better
+    separated than confounded. Unlike the ellipse-overlap idea, this
+    doesn't assume an elliptical/Gaussian cluster shape and has no
+    arbitrary size parameter (no equivalent of --ellipse-std) -- it's
+    computed directly from the actual point-to-point distances. Requires
+    >= 2 taxa with >= 2 points; returns None otherwise.
     """
-    if len(params) < 2:
+    counts = pca_df["Group"].value_counts()
+    usable = pca_df[pca_df["Group"].isin(counts[counts >= 2].index)]
+    if usable["Group"].nunique() < 2:
         return None
-
-    xmin = xmax = ymin = ymax = None
-    for mean, cov in params.values():
-        eigvals = np.linalg.eigvalsh(cov)
-        radius = n_std * np.sqrt(eigvals.max())
-        x0, y0 = mean
-        xmin = x0 - radius if xmin is None else min(xmin, x0 - radius)
-        xmax = x0 + radius if xmax is None else max(xmax, x0 + radius)
-        ymin = y0 - radius if ymin is None else min(ymin, y0 - radius)
-        ymax = y0 + radius if ymax is None else max(ymax, y0 + radius)
-
-    gx = np.linspace(xmin, xmax, grid_n)
-    gy = np.linspace(ymin, ymax, grid_n)
-    GX, GY = np.meshgrid(gx, gy)
-    coverage = np.zeros(GX.shape, dtype="int16")
-    for mean, cov in params.values():
-        inv_cov = np.linalg.inv(cov)
-        dx = GX - mean[0]
-        dy = GY - mean[1]
-        maha2 = (dx * (inv_cov[0, 0] * dx + inv_cov[0, 1] * dy)
-                 + dy * (inv_cov[1, 0] * dx + inv_cov[1, 1] * dy))
-        coverage += (maha2 <= n_std ** 2)
-
-    union = coverage >= 1
-    if not union.any():
-        return None
-    exclusive = coverage == 1
-    return float(exclusive.sum()) / float(union.sum())
+    return float(silhouette_score(usable[["PC1", "PC2"]].to_numpy(), usable["Group"].to_numpy()))
 
 
 def scatter_panel(ax, pca_df, color_map, title, explained, ellipses=True, ellipse_std=2.0):
-    sep_ratio = None
     if ellipses:
         params = taxon_ellipse_params(pca_df)
         for group, (mean, cov) in params.items():
             draw_taxon_ellipse(ax, mean, cov, color_map[group], n_std=ellipse_std)
-        sep_ratio = ellipse_separation_ratio(params, ellipse_std)
 
     for group, sub in pca_df.groupby("Group"):
         ax.scatter(sub["PC1"], sub["PC2"], s=8, alpha=0.7, color=color_map[group], edgecolor="none", zorder=2)
 
+    sil = taxon_silhouette(pca_df)
     title_line2 = f"PC1={explained[0]:.1f}%  PC2={explained[1]:.1f}%"
-    if sep_ratio is not None:
-        title_line2 += f"   |   separación elipses = {sep_ratio:.2f}"
+    if sil is not None:
+        title_line2 += f"   |   silhouette = {sil:.2f}"
     ax.set_title(f"{title}\n{title_line2}")
     ax.set_xlabel("PC1")
     ax.set_ylabel("PC2")
-    return sep_ratio
+    return sil
 
 
 def main():
@@ -387,19 +359,17 @@ def main():
         "3. log(count+1)": "3. log(count+1), sin centrar por fila + StandardScaler",
         "4. CLR": "4. CLR (log + centrado por fila) + StandardScaler  [pipeline real]",
     }
-    separation_by_stage = {}
+    silhouette_by_stage = {}
     for ax, (label, (pca_df, explained)) in zip(panel_axes, pca_results.items()):
-        sep_ratio = scatter_panel(ax, pca_df, color_map, panel_titles[label], explained,
-                                   ellipses=not args.no_ellipses, ellipse_std=args.ellipse_std)
-        separation_by_stage[label] = sep_ratio
+        sil = scatter_panel(ax, pca_df, color_map, panel_titles[label], explained,
+                             ellipses=not args.no_ellipses, ellipse_std=args.ellipse_std)
+        silhouette_by_stage[label] = sil
 
-    if not args.no_ellipses:
-        print(f"\nRatio de separación de elipses por etapa (fracción del área cubierta por UNA sola "
-              f"elipse de taxón, a {args.ellipse_std} std; 1.0 = ningún taxón se solapa, 0.0 = todos "
-              f"solapados):")
-        for label, ratio in separation_by_stage.items():
-            ratio_str = f"{ratio:.2f}" if ratio is not None else "n/a (<2 taxones con elipse)"
-            print(f"  {label:<24s} {ratio_str}")
+    print("\nSilhouette score (taxón) por etapa -- rango [-1, 1], > 0 = taxones mejor "
+          "separados que confundidos, calculado directamente sobre los puntos PC1/PC2:")
+    for label, sil in silhouette_by_stage.items():
+        sil_str = f"{sil:.3f}" if sil is not None else "n/a (<2 taxones con >=2 especies)"
+        print(f"  {label:<24s} {sil_str}")
 
     groups_sorted = sorted(color_map.keys())
     legend_handles = [
