@@ -223,6 +223,9 @@
     border-radius: 50%;
     display: inline-block;
   }
+  .legend .count {
+    color: #94a3b8;
+  }
   .loading-pc-label {
     font-size: 11px;
     font-weight: 600;
@@ -615,6 +618,12 @@
     return Object.keys(present).sort();
   })();
 
+  var GROUP_COUNTS = (function () {
+    var counts = {};
+    DATA.species.forEach(function (s) { counts[s.group] = (counts[s.group] || 0) + 1; });
+    return counts;
+  })();
+
   var xs = DATA.species.map(function (s) { return s.pc1; });
   var ys = DATA.species.map(function (s) { return s.pc2; });
   var xMin = Math.min.apply(null, xs), xMax = Math.max.apply(null, xs);
@@ -942,9 +951,13 @@
       var swatch = document.createElement("span");
       swatch.className = "swatch";
       swatch.style.background = DATA.groups[g] || "#999";
+      var count = document.createElement("span");
+      count.className = "count";
+      count.textContent = "(" + (GROUP_COUNTS[g] || 0) + ")";
       label.appendChild(cb);
       label.appendChild(swatch);
       label.appendChild(document.createTextNode(g));
+      label.appendChild(count);
       legend.appendChild(label);
     });
   }
