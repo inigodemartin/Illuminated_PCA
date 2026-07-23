@@ -52,6 +52,11 @@ def parse_args():
                          help="Number of GO terms to report per direction (positive/negative) per PC (default: 10)")
     parser.add_argument("--loadings-output", default=None,
                          help="Top-loadings TSV path (default: alongside --output, with _top_loadings.tsv)")
+    parser.add_argument("--outlier-percentile", type=float, nargs=2, default=[5, 95], metavar=("LOW", "HIGH"),
+                         help="Drop species whose PC1 or PC2 falls outside this percentile range before "
+                              "rendering (default: 5 95). Use '0 100' to disable -- with taxonomically "
+                              "diverse datasets the most divergent (and often most interesting) species "
+                              "are exactly the ones this would otherwise trim.")
     return parser.parse_args()
 
 
@@ -95,7 +100,12 @@ def main():
     # each species has any annotation for, for the tooltip -- reuses the
     # PCA's own rare-term filter instead of re-deriving it.
     richness = (raw_full[loadings.index] > 0).sum(axis=1)
-    pca_df = remove_outliers(pca_df, low=5, high=95)
+    outlier_low, outlier_high = args.outlier_percentile
+    n_before_outliers = pca_df.shape[0]
+    pca_df = remove_outliers(pca_df, low=outlier_low, high=outlier_high)
+    n_dropped = n_before_outliers - pca_df.shape[0]
+    if n_dropped:
+        print(f"Outlier trim (percentile {outlier_low}-{outlier_high}): dropped {n_dropped} / {n_before_outliers} species")
 
     pca_df = pca_df.copy()
     pca_df["Group"] = pca_df.index.map(taxon_dict)
