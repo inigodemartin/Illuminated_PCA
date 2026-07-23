@@ -76,6 +76,12 @@ def parse_args():
     ap.add_argument("--species-stats", default="merged_species_stats.tsv", help="TSV with a Species index and Total_prots column")
     ap.add_argument("--taxonomy", default="merged_taxons.tsv", help="TSV with Species and Group columns, used to color the PCA scatter plots")
     ap.add_argument("--output", default="pca_transform_steps.pdf", help="Output figure path (also controls the companion figures' names)")
+    ap.add_argument(
+        "-t", "--taxa",
+        type=lambda s: [item.strip() for item in s.split(",")],
+        default=None,
+        help="Comma-separated taxonomic groups to restrict to",
+    )
     ap.add_argument("--sample-cols", type=int, default=None,
                      help="If set, randomly subsample this many GO columns before running the "
                           "pipeline (speeds up iteration; full matrix is used by default)")
@@ -260,6 +266,16 @@ def main():
     total_prots = load_species_stats(args.species_stats)
     taxon_dict = load_taxonomy(args.taxonomy)
     color_map = build_global_color_map(taxon_dict)
+
+    # Restrict to the requested taxa *before* running the pipeline, not
+    # after: the whole point of -t/--taxa is to compute each stage's PCA
+    # only from variance among those species, not to compute it on everyone
+    # and crop the plot to a sub-region of the same global layout (same
+    # rationale as general_pca_abundance.py's -t/--taxa).
+    if args.taxa:
+        n_before = raw_df.shape[0]
+        raw_df = raw_df[raw_df.index.map(taxon_dict).isin(args.taxa)]
+        print(f"Taxa filter ({', '.join(args.taxa)}): kept {raw_df.shape[0]} / {n_before} species")
 
     if args.sample_cols is not None and args.sample_cols < raw_df.shape[1]:
         cols = rng.choice(raw_df.columns, size=args.sample_cols, replace=False)
