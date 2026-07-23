@@ -86,6 +86,9 @@ def parse_args():
                      help="Ellipse radius in standard deviations from each taxon's centroid "
                           "(default: 2.0 -- the ellipse follows the group's own spread, so a few "
                           "far-flung points don't drag it out; smaller = tighter core cluster only)")
+    ap.add_argument("--outlier-percentile", type=float, nargs=2, default=[0, 100], metavar=("LOW", "HIGH"),
+                     help="Drop species whose PC1 or PC2 falls outside this percentile range "
+                          "(default: 0 100, i.e. no trimming). Pass e.g. '5 95' to trim.")
     return ap.parse_args()
 
 
@@ -129,7 +132,7 @@ def hist_panel(ax, sample, stats, title, color, log_x=False, mark_zero=False):
     ax.set_ylabel("frecuencia")
 
 
-def run_stage_pca(matrix, species, taxon_dict):
+def run_stage_pca(matrix, species, taxon_dict, outlier_percentile=(0, 100)):
     """
     StandardScaler + TruncatedSVD(2) -- the same recipe as
     interactive_go_tree.run_pca_on_relative_abundance and
@@ -138,8 +141,9 @@ def run_stage_pca(matrix, species, taxon_dict):
     SVD output across stages is meaningless.
 
     Returns a plotting-ready DataFrame (species with a known taxon,
-    percentile outliers removed -- same filtering general_pca_abundance.py
-    applies) and the PC1/PC2 explained-variance percentages computed over
+    optionally percentile-trimmed via outlier_percentile -- same filtering
+    general_pca_abundance.py applies) and the PC1/PC2 explained-variance
+    percentages computed over
     ALL fitted species (not just the plotted subset), so the numbers match
     what the production scripts would report.
     """
@@ -154,7 +158,7 @@ def run_stage_pca(matrix, species, taxon_dict):
     pca_df = pd.DataFrame(pc, columns=["PC1", "PC2"], index=species)
     pca_df["Group"] = pca_df.index.map(taxon_dict)
     pca_df = pca_df.dropna(subset=["Group"])
-    pca_df = remove_outliers(pca_df, low=5, high=95)
+    pca_df = remove_outliers(pca_df, low=outlier_percentile[0], high=outlier_percentile[1])
     return pca_df, explained
 
 
@@ -289,14 +293,14 @@ def main():
     raw_sample, raw_stats = stage_stats(raw_counts.ravel(), rng)
     raw_scaled_sample, raw_scaled_stats = scaled_stage_stats(raw_counts, rng)
     print("Fitting PCA (StandardScaler + TruncatedSVD) on: raw counts ...")
-    pca_results["1. Raw counts"] = run_stage_pca(raw_counts, species, taxon_dict)
+    pca_results["1. Raw counts"] = run_stage_pca(raw_counts, species, taxon_dict, args.outlier_percentile)
 
     total_prots_col = total_prots.loc[species].to_numpy(dtype="float32")[:, None]
     relative_abundance = raw_counts / total_prots_col           # old normalization, count / Total_prots
     rel_sample, rel_stats = stage_stats(relative_abundance.ravel(), rng)
     rel_scaled_sample, rel_scaled_stats = scaled_stage_stats(relative_abundance, rng)
     print("Fitting PCA (StandardScaler + TruncatedSVD) on: relative abundance (count / Total_prots) ...")
-    pca_results["2. Relative abundance"] = run_stage_pca(relative_abundance, species, taxon_dict)
+    pca_results["2. Relative abundance"] = run_stage_pca(relative_abundance, species, taxon_dict, args.outlier_percentile)
     del relative_abundance, total_prots_col
     gc.collect()
 
@@ -307,7 +311,7 @@ def main():
     log_scaled_sample, log_scaled_stats = scaled_stage_stats(log_counts, rng)
 
     print("Fitting PCA (StandardScaler + TruncatedSVD) on: log(count+1), no row-centering ...")
-    pca_results["3. log(count+1)"] = run_stage_pca(log_counts, species, taxon_dict)
+    pca_results["3. log(count+1)"] = run_stage_pca(log_counts, species, taxon_dict, args.outlier_percentile)
 
     row_means = log_counts.mean(axis=1, keepdims=True)
     clr_values = log_counts - row_means                          # CLR row-centering -- new array
@@ -317,7 +321,7 @@ def main():
     clr_scaled_sample, clr_scaled_stats = scaled_stage_stats(clr_values, rng)
 
     print("Fitting PCA (StandardScaler + TruncatedSVD) on: CLR (log + row-centered) ...")
-    pca_results["4. CLR"] = run_stage_pca(clr_values, species, taxon_dict)
+    pca_results["4. CLR"] = run_stage_pca(clr_values, species, taxon_dict, args.outlier_percentile)
     del clr_values
     gc.collect()
 

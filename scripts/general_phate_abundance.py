@@ -90,6 +90,9 @@ def parse_args():
                          help="PHATE diffusion time t: 'auto' or an integer -- higher values emphasize more global structure (default: auto)")
     parser.add_argument("--metric", default="euclidean", help="PHATE knn distance metric (default: euclidean)")
     parser.add_argument("--random-state", type=int, default=42, help="PHATE random_state, for reproducible layouts (default: 42)")
+    parser.add_argument("--outlier-percentile", type=float, nargs=2, default=[0, 100], metavar=("LOW", "HIGH"),
+                         help="Drop species whose PHATE1 or PHATE2 falls outside this percentile range "
+                              "(default: 0 100, i.e. no trimming). Pass e.g. '5 95' to trim.")
     return parser.parse_args()
 
 
@@ -139,7 +142,12 @@ def main():
     # names -- rename around the call rather than reimplementing the same
     # percentile filter under a PHATE-specific name.
     phate_df = phate_df.rename(columns={"PHATE1": "PC1", "PHATE2": "PC2"})
-    phate_df = remove_outliers(phate_df, low=5, high=95)
+    outlier_low, outlier_high = args.outlier_percentile
+    n_before_outliers = phate_df.shape[0]
+    phate_df = remove_outliers(phate_df, low=outlier_low, high=outlier_high)
+    n_dropped = n_before_outliers - phate_df.shape[0]
+    if n_dropped:
+        print(f"Outlier trim (percentile {outlier_low}-{outlier_high}): dropped {n_dropped} / {n_before_outliers} species")
     phate_df = phate_df.rename(columns={"PC1": "PHATE1", "PC2": "PHATE2"})
 
     phate_df = phate_df.copy()

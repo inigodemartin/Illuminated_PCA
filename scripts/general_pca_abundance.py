@@ -52,11 +52,11 @@ def parse_args():
                          help="Number of GO terms to report per direction (positive/negative) per PC (default: 10)")
     parser.add_argument("--loadings-output", default=None,
                          help="Top-loadings TSV path (default: alongside --output, with _top_loadings.tsv)")
-    parser.add_argument("--outlier-percentile", type=float, nargs=2, default=[5, 95], metavar=("LOW", "HIGH"),
+    parser.add_argument("--outlier-percentile", type=float, nargs=2, default=[0, 100], metavar=("LOW", "HIGH"),
                          help="Drop species whose PC1 or PC2 falls outside this percentile range before "
-                              "rendering (default: 5 95). Use '0 100' to disable -- with taxonomically "
-                              "diverse datasets the most divergent (and often most interesting) species "
-                              "are exactly the ones this would otherwise trim.")
+                              "rendering (default: 0 100, i.e. no trimming). Pass e.g. '5 95' to trim -- "
+                              "with taxonomically diverse datasets the most divergent species are often "
+                              "the most interesting ones, so trimming is opt-in, not the default.")
     return parser.parse_args()
 
 

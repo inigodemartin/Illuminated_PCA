@@ -75,6 +75,9 @@ def parse_args():
     parser.add_argument("--min-dist", type=float, default=0.1, help="UMAP min_dist (default: 0.1)")
     parser.add_argument("--metric", default="euclidean", help="UMAP distance metric (default: euclidean)")
     parser.add_argument("--random-state", type=int, default=42, help="UMAP random_state, for reproducible layouts (default: 42)")
+    parser.add_argument("--outlier-percentile", type=float, nargs=2, default=[0, 100], metavar=("LOW", "HIGH"),
+                         help="Drop species whose UMAP1 or UMAP2 falls outside this percentile range "
+                              "(default: 0 100, i.e. no trimming). Pass e.g. '5 95' to trim.")
     return parser.parse_args()
 
 
@@ -98,7 +101,12 @@ def main():
     # names -- rename around the call rather than reimplementing the same
     # percentile filter under a UMAP-specific name.
     umap_df = umap_df.rename(columns={"UMAP1": "PC1", "UMAP2": "PC2"})
-    umap_df = remove_outliers(umap_df, low=5, high=95)
+    outlier_low, outlier_high = args.outlier_percentile
+    n_before_outliers = umap_df.shape[0]
+    umap_df = remove_outliers(umap_df, low=outlier_low, high=outlier_high)
+    n_dropped = n_before_outliers - umap_df.shape[0]
+    if n_dropped:
+        print(f"Outlier trim (percentile {outlier_low}-{outlier_high}): dropped {n_dropped} / {n_before_outliers} species")
     umap_df = umap_df.rename(columns={"PC1": "UMAP1", "PC2": "UMAP2"})
 
     umap_df = umap_df.copy()

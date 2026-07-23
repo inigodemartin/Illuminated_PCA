@@ -195,7 +195,7 @@ def plot_pca(pca_df, taxon_dict, explained_variance, selected_taxa=None):
     plt.tight_layout()
     plt.show()
 
-def run_illuminated_PCA(input_matrix, go_counts, taxon_dict,go, go_desc, taxa=None, no_outliers=None):
+def run_illuminated_PCA(input_matrix, go_counts, taxon_dict,go, go_desc, taxa=None, no_outliers=None, outlier_percentile=(0, 100)):
     """
     PCA where point opacity and size are controlled by GO abundance.
 
@@ -220,7 +220,7 @@ def run_illuminated_PCA(input_matrix, go_counts, taxon_dict,go, go_desc, taxa=No
         pca_df, explained_variance = run_pca(input_matrix)
 
         # Remove outliers
-        pca_df = remove_outliers(pca_df, low=5, high=95)
+        pca_df = remove_outliers(pca_df, low=outlier_percentile[0], high=outlier_percentile[1])
 
         # Add taxonomy
         pca_df = pca_df.copy()
@@ -372,9 +372,9 @@ def run_illuminated_PCA(input_matrix, go_counts, taxon_dict,go, go_desc, taxa=No
         bbox_inches='tight'
         )
 
-def run_normal_PCA(input_matrix, taxon_dict, taxa):
+def run_normal_PCA(input_matrix, taxon_dict, taxa, outlier_percentile=(0, 100)):
     pca_df, explained_variance = run_pca(input_matrix)
-    pca_df = remove_outliers(pca_df, low=5, high=95)
+    pca_df = remove_outliers(pca_df, low=outlier_percentile[0], high=outlier_percentile[1])
     plot_pca(pca_df, taxon_dict, explained_variance, selected_taxa=taxa)
 
 
@@ -418,7 +418,10 @@ def parse_args():
     parser.add_argument("--go", "-g", type=lambda s: [item.strip() for item in s.split(",")], help="Comma-separated GO IDs for illuminating PCA", default=None)    
     parser.add_argument("-t", "--taxa", nargs="*", default=None, help="Taxonomic groups to plot. If not provided, all taxa are used.")
     parser.add_argument("-o", "--no_outliers", action="store_true", default=None, help="Apply robust scaling to reduce the visual dominance of extreme outliers in the PCA representation.")
-    parser.add_argument("-d", "--count_descendants", action="store_true", default=None, help="Include GO terms that are descendants of the query GO term.")    
+    parser.add_argument("-d", "--count_descendants", action="store_true", default=None, help="Include GO terms that are descendants of the query GO term.")
+    parser.add_argument("--outlier-percentile", type=float, nargs=2, default=[0, 100], metavar=("LOW", "HIGH"),
+                         help="Drop species whose PC1 or PC2 falls outside this percentile range "
+                              "(default: 0 100, i.e. no trimming). Pass e.g. '5 95' to trim.")
     args = parser.parse_args()
     return args
 
@@ -447,14 +450,14 @@ def main():
             if count_descendant:
                 desc = get_descendant_gos(go, children_map)
                 go_counts = count_descendant_gos(matrix, desc)
-                run_illuminated_PCA(matrix, go_counts, taxon_dict,go, go_desc, taxa, no_outliers)
+                run_illuminated_PCA(matrix, go_counts, taxon_dict,go, go_desc, taxa, no_outliers, args.outlier_percentile)
             else:
                 go_counts = count_descendant_gos(matrix, [go])
-                run_illuminated_PCA(matrix, go_counts, taxon_dict,go, go_desc, taxa, no_outliers)
+                run_illuminated_PCA(matrix, go_counts, taxon_dict,go, go_desc, taxa, no_outliers, args.outlier_percentile)
 
-    
+
     else:
-        run_normal_PCA(matrix, taxon_dict, taxa)
+        run_normal_PCA(matrix, taxon_dict, taxa, args.outlier_percentile)
 
 
 

@@ -75,6 +75,9 @@ def parse_args():
     parser.add_argument("--ic-file", default=str(DEFAULT_IC_PATH), help="GO id -> IC TSV (default: bundled data/All_GOs_ic.tsv)")
     parser.add_argument("--ic-threshold", type=float, default=None,
                         help="Minimum IC to include a GO term in the PCA; GOs below this value are dropped from the matrix before fitting")
+    parser.add_argument("--outlier-percentile", type=float, nargs=2, default=[0, 100], metavar=("LOW", "HIGH"),
+                         help="Drop species whose PC1, PC2 or PC3 falls outside this percentile range "
+                              "(default: 0 100, i.e. no trimming). Pass e.g. '5 95' to trim.")
     return parser.parse_args()
 
 
@@ -95,7 +98,12 @@ def main():
         print(f"IC filter (≥ {args.ic_threshold}): kept {raw_full.shape[1]} / {n_before} GO terms")
 
     pca_df, explained_variance = run_pca_3d(raw_full, total_prots)
-    pca_df = remove_outliers_3d(pca_df, low=5, high=95)
+    outlier_low, outlier_high = args.outlier_percentile
+    n_before_outliers = pca_df.shape[0]
+    pca_df = remove_outliers_3d(pca_df, low=outlier_low, high=outlier_high)
+    n_dropped = n_before_outliers - pca_df.shape[0]
+    if n_dropped:
+        print(f"Outlier trim (percentile {outlier_low}-{outlier_high}): dropped {n_dropped} / {n_before_outliers} species")
 
     pca_df = pca_df.copy()
     pca_df["Group"] = pca_df.index.map(taxon_dict)

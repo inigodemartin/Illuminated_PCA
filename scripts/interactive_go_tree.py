@@ -305,6 +305,9 @@ def parse_args():
                          help="Number of most-influential GO terms to report per PC (default: 20)")
     parser.add_argument("--loadings-output", default=None,
                          help="Top-loadings TSV path (default: alongside --output, with _top_loadings.tsv)")
+    parser.add_argument("--outlier-percentile", type=float, nargs=2, default=[0, 100], metavar=("LOW", "HIGH"),
+                         help="Drop species whose PC1 or PC2 falls outside this percentile range "
+                              "(default: 0 100, i.e. no trimming). Pass e.g. '5 95' to trim.")
     return parser.parse_args()
 
 
@@ -332,7 +335,12 @@ def main():
         t = _log(t, f"IC filter (>= {args.ic_threshold}): kept {raw_for_pca.shape[1]} / {n_before} GO terms")
 
     pca_df, explained_variance, loadings, normalized_df = run_pca_on_relative_abundance(raw_for_pca, total_prots)
-    pca_df = remove_outliers(pca_df, low=5, high=95)
+    outlier_low, outlier_high = args.outlier_percentile
+    n_before_outliers = pca_df.shape[0]
+    pca_df = remove_outliers(pca_df, low=outlier_low, high=outlier_high)
+    n_dropped = n_before_outliers - pca_df.shape[0]
+    if n_dropped:
+        print(f"Outlier trim (percentile {outlier_low}-{outlier_high}): dropped {n_dropped} / {n_before_outliers} species", file=sys.stderr)
     t = _log(t, "ran PCA on relative abundance")
 
     pca_df = pca_df.copy()
