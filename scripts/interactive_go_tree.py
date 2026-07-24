@@ -103,7 +103,8 @@ def run_pca_on_relative_abundance(raw_df, total_prots):
     rows are GO ids): how much each retained GO column contributes to PC1/
     PC2, for the "most influential GO terms per component" report.
     """
-    raw_df = filter_species_by_stats(raw_df, total_prots)
+    # total_prots not used to filter species here (see docstring above) --
+    # a species missing Total_prots still gets a CLR row and gets plotted.
     species = list(raw_df.index)
 
     pca_input = raw_df.loc[:, raw_df.sum(axis=0) > 5]

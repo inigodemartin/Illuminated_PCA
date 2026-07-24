@@ -18,7 +18,7 @@ from sklearn.decomposition import TruncatedSVD
 from sklearn.preprocessing import StandardScaler
 
 from illuminate_PCA import load_taxonomy, build_global_color_map, assign_taxonomy_group
-from interactive_go_tree import load_species_stats, filter_species_by_stats
+from interactive_go_tree import load_species_stats
 from general_pca_common import DEFAULT_IC_PATH, load_go_ic, rgb_to_hex
 
 TEMPLATE_PATH = Path(__file__).parent / "templates" / "general_pca_3d_template.html"
@@ -32,7 +32,8 @@ def run_pca_3d(raw_df, total_prots):
     interactive_go_tree.run_pca_on_relative_abundance, StandardScaler, then
     TruncatedSVD with 3 components instead of 2.
     """
-    raw_df = filter_species_by_stats(raw_df, total_prots)
+    # total_prots not needed for CLR (scale-invariant) -- a species missing
+    # Total_prots still gets a row here and gets plotted.
     species = list(raw_df.index)
 
     pca_input = raw_df.loc[:, raw_df.sum(axis=0) > 5]

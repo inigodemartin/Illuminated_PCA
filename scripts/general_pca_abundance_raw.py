@@ -15,7 +15,7 @@ from sklearn.decomposition import TruncatedSVD
 from sklearn.preprocessing import StandardScaler
 
 from illuminate_PCA import load_taxonomy, build_global_color_map, remove_outliers, assign_taxonomy_group
-from interactive_go_tree import load_species_stats, filter_species_by_stats
+from interactive_go_tree import load_species_stats
 from general_pca_common import (
     TEMPLATE_PATH,
     DEFAULT_IC_PATH,
@@ -36,7 +36,8 @@ def run_pca_on_raw_counts(raw_df, total_prots):
     but no CLR / total_prots normalization: StandardScaler applied directly
     to the raw counts, then TruncatedSVD.
     """
-    raw_df = filter_species_by_stats(raw_df, total_prots)
+    # no CLR / total_prots normalization here at all -- a species missing
+    # Total_prots still gets a row and gets plotted.
     species = list(raw_df.index)
 
     pca_input = raw_df.loc[:, raw_df.sum(axis=0) > 5]

@@ -20,7 +20,7 @@ import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
 from illuminate_PCA import load_taxonomy, build_global_color_map, remove_outliers, assign_taxonomy_group
-from interactive_go_tree import load_species_stats, filter_species_by_stats
+from interactive_go_tree import load_species_stats
 from general_phate_common import (
     TEMPLATE_PATH,
     DEFAULT_IC_PATH,
@@ -45,7 +45,8 @@ def run_phate_on_relative_abundance(raw_df, total_prots, knn, decay, t, metric, 
     interactive_go_tree.run_pca_on_relative_abundance, StandardScaler, then
     PHATE instead of UMAP/TruncatedSVD.
     """
-    raw_df = filter_species_by_stats(raw_df, total_prots)
+    # total_prots not needed for CLR (scale-invariant) -- a species missing
+    # Total_prots still gets a row here and gets plotted.
     species = list(raw_df.index)
 
     phate_input = raw_df.loc[:, raw_df.sum(axis=0) > 5]
