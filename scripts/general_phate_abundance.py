@@ -19,8 +19,8 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
-from illuminate_PCA import load_taxonomy, build_global_color_map, remove_outliers
-from interactive_go_tree import load_species_stats
+from illuminate_PCA import load_taxonomy, build_global_color_map, remove_outliers, assign_taxonomy_group
+from interactive_go_tree import load_species_stats, filter_species_by_stats
 from general_phate_common import (
     TEMPLATE_PATH,
     DEFAULT_IC_PATH,
@@ -45,8 +45,8 @@ def run_phate_on_relative_abundance(raw_df, total_prots, knn, decay, t, metric, 
     interactive_go_tree.run_pca_on_relative_abundance, StandardScaler, then
     PHATE instead of UMAP/TruncatedSVD.
     """
-    species = [s for s in raw_df.index if s in total_prots.index]
-    raw_df = raw_df.loc[species]
+    raw_df = filter_species_by_stats(raw_df, total_prots)
+    species = list(raw_df.index)
 
     phate_input = raw_df.loc[:, raw_df.sum(axis=0) > 5]
     counts = phate_input.to_numpy(dtype="float64") + 1.0  # pseudo-count: log(0) is undefined
@@ -150,9 +150,7 @@ def main():
         print(f"Outlier trim (percentile {outlier_low}-{outlier_high}): dropped {n_dropped} / {n_before_outliers} species")
     phate_df = phate_df.rename(columns={"PC1": "PHATE1", "PC2": "PHATE2"})
 
-    phate_df = phate_df.copy()
-    phate_df["Group"] = phate_df.index.map(taxon_dict)
-    phate_df = phate_df.dropna(subset=["Group"])
+    phate_df = assign_taxonomy_group(phate_df, taxon_dict)
 
     species = list(phate_df.index)
     color_map = build_global_color_map(taxon_dict)

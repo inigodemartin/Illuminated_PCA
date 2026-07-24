@@ -18,7 +18,7 @@ import json
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
-from illuminate_PCA import load_taxonomy, build_global_color_map, remove_outliers
+from illuminate_PCA import load_taxonomy, build_global_color_map, remove_outliers, assign_taxonomy_group
 from general_umap_common import (
     TEMPLATE_PATH,
     DEFAULT_IC_PATH,
@@ -109,9 +109,7 @@ def main():
         print(f"Outlier trim (percentile {outlier_low}-{outlier_high}): dropped {n_dropped} / {n_before_outliers} species")
     umap_df = umap_df.rename(columns={"PC1": "UMAP1", "PC2": "UMAP2"})
 
-    umap_df = umap_df.copy()
-    umap_df["Group"] = umap_df.index.map(taxon_dict)
-    umap_df = umap_df.dropna(subset=["Group"])
+    umap_df = assign_taxonomy_group(umap_df, taxon_dict)
 
     species = list(umap_df.index)
     color_map = build_global_color_map(taxon_dict)

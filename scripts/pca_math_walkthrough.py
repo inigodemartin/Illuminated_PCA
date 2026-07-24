@@ -29,7 +29,7 @@ import pandas as pd
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import TruncatedSVD
 
-from interactive_go_tree import load_species_stats
+from interactive_go_tree import load_species_stats, filter_species_by_stats
 from general_pca_common import DEFAULT_IC_PATH, load_go_descriptions
 
 matplotlib.rcParams.update({
@@ -112,8 +112,8 @@ def main():
     total_prots = load_species_stats(args.species_stats)
     go_desc = load_go_descriptions(args.ic_file)
 
-    species = [s for s in raw_df.index if s in total_prots.index]
-    raw_df = raw_df.loc[species]
+    raw_df = filter_species_by_stats(raw_df, total_prots)
+    species = list(raw_df.index)
     pca_input = raw_df.loc[:, raw_df.sum(axis=0) > 5]
     go_columns = list(pca_input.columns)
     print(f"Matrix: {raw_df.shape[0]} species x {raw_df.shape[1]} GO columns "

@@ -19,6 +19,20 @@ def load_taxonomy(taxon_file):
     tax = pd.read_csv(taxon_file, sep="\t")
     return dict(zip(tax["Species"], tax["Group"]))
 
+def assign_taxonomy_group(df, taxon_dict):
+    """
+    Map df's index (species) to a "Group" column via taxon_dict and drop rows
+    with no match, warning how many were dropped -- species present in the
+    matrix/PCA but missing from the taxonomy file used to silently disappear
+    from the plot with no indication why.
+    """
+    df = df.copy()
+    df["Group"] = df.index.map(taxon_dict)
+    missing = df["Group"].isna()
+    if missing.any():
+        print(f"Warning: {int(missing.sum())} species have no Group in the taxonomy file — excluded from output")
+    return df.dropna(subset=["Group"])
+
 def load_go_obo(obo_file):
     """
     Parse GO OBO file and build:
@@ -146,12 +160,8 @@ def plot_pca(pca_df, taxon_dict, explained_variance, selected_taxa=None):
     Plot PCA colored by taxonomic group.
     """
 
-    # Add taxonomy
-    pca_df = pca_df.copy()
-    pca_df["Group"] = pca_df.index.map(taxon_dict)
-
-    # Remove unknowns
-    pca_df = pca_df.dropna(subset=["Group"])
+    # Add taxonomy, dropping species with no match
+    pca_df = assign_taxonomy_group(pca_df, taxon_dict)
 
     # Build stable global color map
     color_map = build_global_color_map(taxon_dict)
@@ -222,12 +232,8 @@ def run_illuminated_PCA(input_matrix, go_counts, taxon_dict,go, go_desc, taxa=No
         # Remove outliers
         pca_df = remove_outliers(pca_df, low=outlier_percentile[0], high=outlier_percentile[1])
 
-        # Add taxonomy
-        pca_df = pca_df.copy()
-        pca_df["Group"] = pca_df.index.map(taxon_dict)
-
-        # Remove unknown taxonomy
-        pca_df = pca_df.dropna(subset=["Group"])
+        # Add taxonomy, dropping species with no match
+        pca_df = assign_taxonomy_group(pca_df, taxon_dict)
 
         # Filter taxa if requested
         if taxa:

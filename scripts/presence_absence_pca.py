@@ -17,7 +17,7 @@ import pandas as pd
 from sklearn.decomposition import TruncatedSVD
 from sklearn.preprocessing import StandardScaler
 
-from illuminate_PCA import load_taxonomy, build_global_color_map, remove_outliers
+from illuminate_PCA import load_taxonomy, build_global_color_map, remove_outliers, assign_taxonomy_group
 from general_pca_common import (
     TEMPLATE_PATH,
     DEFAULT_IC_PATH,
@@ -104,9 +104,7 @@ def main():
     if n_dropped:
         print(f"Outlier trim (percentile {outlier_low}-{outlier_high}): dropped {n_dropped} / {n_before_outliers} species")
 
-    pca_df = pca_df.copy()
-    pca_df["Group"] = pca_df.index.map(taxon_dict)
-    pca_df = pca_df.dropna(subset=["Group"])
+    pca_df = assign_taxonomy_group(pca_df, taxon_dict)
 
     species = list(pca_df.index)
     color_map = build_global_color_map(taxon_dict)

@@ -14,8 +14,8 @@ import pandas as pd
 from sklearn.decomposition import TruncatedSVD
 from sklearn.preprocessing import StandardScaler
 
-from illuminate_PCA import load_taxonomy, build_global_color_map, remove_outliers
-from interactive_go_tree import load_species_stats
+from illuminate_PCA import load_taxonomy, build_global_color_map, remove_outliers, assign_taxonomy_group
+from interactive_go_tree import load_species_stats, filter_species_by_stats
 from general_pca_common import (
     TEMPLATE_PATH,
     DEFAULT_IC_PATH,
@@ -36,8 +36,8 @@ def run_pca_on_raw_counts(raw_df, total_prots):
     but no CLR / total_prots normalization: StandardScaler applied directly
     to the raw counts, then TruncatedSVD.
     """
-    species = [s for s in raw_df.index if s in total_prots.index]
-    raw_df = raw_df.loc[species]
+    raw_df = filter_species_by_stats(raw_df, total_prots)
+    species = list(raw_df.index)
 
     pca_input = raw_df.loc[:, raw_df.sum(axis=0) > 5]
     raw_values = pca_input.to_numpy(dtype="float64")
@@ -116,9 +116,7 @@ def main():
     if n_dropped:
         print(f"Outlier trim (percentile {outlier_low}-{outlier_high}): dropped {n_dropped} / {n_before_outliers} species")
 
-    pca_df = pca_df.copy()
-    pca_df["Group"] = pca_df.index.map(taxon_dict)
-    pca_df = pca_df.dropna(subset=["Group"])
+    pca_df = assign_taxonomy_group(pca_df, taxon_dict)
 
     species = list(pca_df.index)
     color_map = build_global_color_map(taxon_dict)

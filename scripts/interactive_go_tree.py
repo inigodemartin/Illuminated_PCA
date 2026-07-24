@@ -22,7 +22,7 @@ import pandas as pd
 from sklearn.decomposition import TruncatedSVD
 from sklearn.preprocessing import StandardScaler
 
-from illuminate_PCA import load_taxonomy, build_global_color_map, remove_outliers
+from illuminate_PCA import load_taxonomy, build_global_color_map, remove_outliers, assign_taxonomy_group
 from go_tree_illuminated_pca import get_go_relations
 from general_pca_common import (
     DEFAULT_IC_PATH,
@@ -71,6 +71,20 @@ def load_species_stats(stats_file):
     return total_prots[~total_prots.index.duplicated(keep="first")]
 
 
+def filter_species_by_stats(raw_df, total_prots):
+    """
+    Restrict raw_df to species that have a valid Total_prots value, warning
+    how many were dropped -- species present in the matrix but missing (or
+    with a non-numeric placeholder) in --species-stats used to silently
+    disappear from the PCA with no indication why.
+    """
+    species = [s for s in raw_df.index if s in total_prots.index]
+    n_missing = raw_df.shape[0] - len(species)
+    if n_missing:
+        print(f"Warning: {n_missing} species in matrix have no Total_prots in species-stats — excluded from PCA")
+    return raw_df.loc[species]
+
+
 def run_pca_on_relative_abundance(raw_df, total_prots):
     """
     Drop rare GO columns, convert raw counts to a centered log-ratio (CLR)
@@ -89,8 +103,8 @@ def run_pca_on_relative_abundance(raw_df, total_prots):
     rows are GO ids): how much each retained GO column contributes to PC1/
     PC2, for the "most influential GO terms per component" report.
     """
-    species = [s for s in raw_df.index if s in total_prots.index]
-    raw_df = raw_df.loc[species]
+    raw_df = filter_species_by_stats(raw_df, total_prots)
+    species = list(raw_df.index)
 
     pca_input = raw_df.loc[:, raw_df.sum(axis=0) > 5]
     counts = pca_input.to_numpy(dtype="float64") + 1.0  # pseudo-count: log(0) is undefined
@@ -343,9 +357,7 @@ def main():
         print(f"Outlier trim (percentile {outlier_low}-{outlier_high}): dropped {n_dropped} / {n_before_outliers} species", file=sys.stderr)
     t = _log(t, "ran PCA on relative abundance")
 
-    pca_df = pca_df.copy()
-    pca_df["Group"] = pca_df.index.map(taxon_dict)
-    pca_df = pca_df.dropna(subset=["Group"])
+    pca_df = assign_taxonomy_group(pca_df, taxon_dict)
     if args.taxa:
         pca_df = pca_df[pca_df["Group"].isin(args.taxa)]
 

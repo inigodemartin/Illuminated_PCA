@@ -21,7 +21,7 @@ import json
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
-from illuminate_PCA import load_taxonomy, build_global_color_map, remove_outliers
+from illuminate_PCA import load_taxonomy, build_global_color_map, remove_outliers, assign_taxonomy_group
 from general_phate_common import (
     TEMPLATE_PATH,
     DEFAULT_IC_PATH,
@@ -122,9 +122,7 @@ def main():
         print(f"Outlier trim (percentile {outlier_low}-{outlier_high}): dropped {n_dropped} / {n_before_outliers} species")
     phate_df = phate_df.rename(columns={"PC1": "PHATE1", "PC2": "PHATE2"})
 
-    phate_df = phate_df.copy()
-    phate_df["Group"] = phate_df.index.map(taxon_dict)
-    phate_df = phate_df.dropna(subset=["Group"])
+    phate_df = assign_taxonomy_group(phate_df, taxon_dict)
 
     species = list(phate_df.index)
     color_map = build_global_color_map(taxon_dict)

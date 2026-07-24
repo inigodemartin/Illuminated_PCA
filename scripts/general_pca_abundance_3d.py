@@ -17,8 +17,8 @@ import pandas as pd
 from sklearn.decomposition import TruncatedSVD
 from sklearn.preprocessing import StandardScaler
 
-from illuminate_PCA import load_taxonomy, build_global_color_map
-from interactive_go_tree import load_species_stats
+from illuminate_PCA import load_taxonomy, build_global_color_map, assign_taxonomy_group
+from interactive_go_tree import load_species_stats, filter_species_by_stats
 from general_pca_common import DEFAULT_IC_PATH, load_go_ic, rgb_to_hex
 
 TEMPLATE_PATH = Path(__file__).parent / "templates" / "general_pca_3d_template.html"
@@ -32,8 +32,8 @@ def run_pca_3d(raw_df, total_prots):
     interactive_go_tree.run_pca_on_relative_abundance, StandardScaler, then
     TruncatedSVD with 3 components instead of 2.
     """
-    species = [s for s in raw_df.index if s in total_prots.index]
-    raw_df = raw_df.loc[species]
+    raw_df = filter_species_by_stats(raw_df, total_prots)
+    species = list(raw_df.index)
 
     pca_input = raw_df.loc[:, raw_df.sum(axis=0) > 5]
     counts = pca_input.to_numpy(dtype="float64") + 1.0  # pseudo-count: log(0) is undefined
@@ -105,9 +105,7 @@ def main():
     if n_dropped:
         print(f"Outlier trim (percentile {outlier_low}-{outlier_high}): dropped {n_dropped} / {n_before_outliers} species")
 
-    pca_df = pca_df.copy()
-    pca_df["Group"] = pca_df.index.map(taxon_dict)
-    pca_df = pca_df.dropna(subset=["Group"])
+    pca_df = assign_taxonomy_group(pca_df, taxon_dict)
 
     species = list(pca_df.index)
     color_map = build_global_color_map(taxon_dict)

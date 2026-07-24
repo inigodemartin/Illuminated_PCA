@@ -45,8 +45,8 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import TruncatedSVD
 from sklearn.metrics import silhouette_score
 
-from interactive_go_tree import load_species_stats
-from illuminate_PCA import load_taxonomy, build_global_color_map, remove_outliers
+from interactive_go_tree import load_species_stats, filter_species_by_stats
+from illuminate_PCA import load_taxonomy, build_global_color_map, remove_outliers, assign_taxonomy_group
 
 # Real matrix is ~1542 species x ~23700 GO columns; keeping several float64
 # copies alive at once (one per pipeline stage) does not fit in a small
@@ -162,8 +162,7 @@ def run_stage_pca(matrix, species, taxon_dict, outlier_percentile=(0, 100)):
     gc.collect()
 
     pca_df = pd.DataFrame(pc, columns=["PC1", "PC2"], index=species)
-    pca_df["Group"] = pca_df.index.map(taxon_dict)
-    pca_df = pca_df.dropna(subset=["Group"])
+    pca_df = assign_taxonomy_group(pca_df, taxon_dict)
     pca_df = remove_outliers(pca_df, low=outlier_percentile[0], high=outlier_percentile[1])
     return pca_df, explained
 
@@ -283,8 +282,8 @@ def main():
         print(f"Subsampled to {args.sample_cols} GO columns for speed")
 
     # --- replicate interactive_go_tree.run_pca_on_relative_abundance step by step ---
-    species = [s for s in raw_df.index if s in total_prots.index]
-    raw_df = raw_df.loc[species]
+    raw_df = filter_species_by_stats(raw_df, total_prots)
+    species = list(raw_df.index)
 
     pca_input = raw_df.loc[:, raw_df.sum(axis=0) > 5]
     print(f"Matrix: {raw_df.shape[0]} species x {raw_df.shape[1]} GO columns "

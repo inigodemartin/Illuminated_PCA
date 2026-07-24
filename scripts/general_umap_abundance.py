@@ -18,8 +18,8 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
-from illuminate_PCA import load_taxonomy, build_global_color_map, remove_outliers
-from interactive_go_tree import load_species_stats
+from illuminate_PCA import load_taxonomy, build_global_color_map, remove_outliers, assign_taxonomy_group
+from interactive_go_tree import load_species_stats, filter_species_by_stats
 from general_umap_common import (
     TEMPLATE_PATH,
     DEFAULT_IC_PATH,
@@ -38,8 +38,8 @@ def run_umap_on_relative_abundance(raw_df, total_prots, n_neighbors, min_dist, m
     interactive_go_tree.run_pca_on_relative_abundance, StandardScaler, then
     UMAP instead of TruncatedSVD.
     """
-    species = [s for s in raw_df.index if s in total_prots.index]
-    raw_df = raw_df.loc[species]
+    raw_df = filter_species_by_stats(raw_df, total_prots)
+    species = list(raw_df.index)
 
     umap_input = raw_df.loc[:, raw_df.sum(axis=0) > 5]
     counts = umap_input.to_numpy(dtype="float64") + 1.0  # pseudo-count: log(0) is undefined
@@ -140,9 +140,7 @@ def main():
         print(f"Outlier trim (percentile {outlier_low}-{outlier_high}): dropped {n_dropped} / {n_before_outliers} species")
     umap_df = umap_df.rename(columns={"PC1": "UMAP1", "PC2": "UMAP2"})
 
-    umap_df = umap_df.copy()
-    umap_df["Group"] = umap_df.index.map(taxon_dict)
-    umap_df = umap_df.dropna(subset=["Group"])
+    umap_df = assign_taxonomy_group(umap_df, taxon_dict)
 
     species = list(umap_df.index)
     color_map = build_global_color_map(taxon_dict)
