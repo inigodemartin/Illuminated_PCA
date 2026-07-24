@@ -4,8 +4,10 @@ Read-only monitoring script -- does not write to any of the input files.
 
 Scans a non_viridiplantae_species base dir and a viridiplantae_species base
 dir (same per-species layout as fungi_structure.txt:
-{Species}/04_FunctionalAnnotation/FANTASIA_2025_*/*_GOs_merged.tsv and
-Homology_annot_*/*.proteins.funct_ahrd.tsv), and optionally a third source
+{Species}/04_FunctionalAnnotation/FANTASIA_2025[_assembly]/*_GOs_merged.tsv
+(the assembly-accession suffix is present for non_viridiplantae but not for
+viridiplantae) and Homology_annot_*/*.proteins.funct_ahrd.tsv), and
+optionally a third source
 for species someone else already ran (--belen-dir, layout as in
 belen_species_tree.txt: flat topgo_tables_{asgard,metazoa,protists}/ dirs,
 one file per species code, no homology step at all -- species identity is
@@ -72,7 +74,7 @@ def discover_species(base_dir: Path, label: str) -> list:
     for sp_dir in sorted(p for p in base_dir.iterdir() if p.is_dir()):
         species = sp_dir.name
         fa_dir = sp_dir / "04_FunctionalAnnotation"
-        fantasia_matches = sorted(fa_dir.glob("FANTASIA_2025_*/*_GOs_merged.tsv")) if fa_dir.is_dir() else []
+        fantasia_matches = sorted(fa_dir.glob("FANTASIA_2025*/*_GOs_merged.tsv")) if fa_dir.is_dir() else []
         ahrd_matches = sorted(fa_dir.glob("Homology_annot_*/*.proteins.funct_ahrd.tsv")) if fa_dir.is_dir() else []
         ran_ok = any(p.stat().st_size > 0 for p in fantasia_matches)
         has_homology = any(p.stat().st_size > 0 for p in ahrd_matches)

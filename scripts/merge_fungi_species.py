@@ -142,7 +142,7 @@ def discover_fungi(base_dir: Path):
     for sp_dir in sorted(p for p in base_dir.iterdir() if p.is_dir()):
         species = sp_dir.name
         fa_dir = sp_dir / "04_FunctionalAnnotation"
-        fantasia_matches = sorted(fa_dir.glob("FANTASIA_2025_*/*_GOs_merged.tsv"))
+        fantasia_matches = sorted(fa_dir.glob("FANTASIA_2025*/*_GOs_merged.tsv"))
         if not fantasia_matches:
             _log(f"  [WARN] fungi: {species} sin *_GOs_merged.tsv en {fa_dir}, se omite")
             continue

@@ -286,14 +286,16 @@ def process_species(species: str, source: str, fan_parsed: dict, hom_parsed) -> 
 # --------------------------------------------------------- species discovery
 def discover_dir_species(base_dir: Path, source: str) -> list:
     """Same layout as fungi_structure.txt: {Species}/04_FunctionalAnnotation/
-    FANTASIA_2025_*/*_GOs_merged.tsv (+ optional Homology_annot_*/
-    *.proteins.funct_ahrd.tsv)."""
+    FANTASIA_2025[_assembly]/*_GOs_merged.tsv (+ optional Homology_annot_*/
+    *.proteins.funct_ahrd.tsv). The FANTASIA output dir is suffixed with the
+    assembly accession for non_viridiplantae but not for viridiplantae, so
+    the glob below matches both "FANTASIA_2025" and "FANTASIA_2025_xxx"."""
     entries = []
     for sp_dir in sorted(p for p in base_dir.iterdir() if p.is_dir()):
         fa_dir = sp_dir / "04_FunctionalAnnotation"
         if not fa_dir.is_dir():
             continue
-        fantasia_matches = sorted(fa_dir.glob("FANTASIA_2025_*/*_GOs_merged.tsv"))
+        fantasia_matches = sorted(fa_dir.glob("FANTASIA_2025*/*_GOs_merged.tsv"))
         if not fantasia_matches:
             continue
         if len(fantasia_matches) > 1:
