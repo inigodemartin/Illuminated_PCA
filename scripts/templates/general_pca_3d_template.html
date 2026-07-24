@@ -86,10 +86,28 @@
     margin: 3px 0;
   }
   #legend .swatch {
-    width: 10px;
-    height: 10px;
+    width: 14px;
+    height: 14px;
     border-radius: 50%;
     flex: 0 0 auto;
+    cursor: pointer;
+    border: 1px solid rgba(0, 0, 0, 0.25);
+    padding: 0;
+    appearance: none;
+    -webkit-appearance: none;
+    background: none;
+  }
+  #legend .swatch::-webkit-color-swatch-wrapper {
+    padding: 0;
+    border-radius: 50%;
+  }
+  #legend .swatch::-webkit-color-swatch {
+    border: none;
+    border-radius: 50%;
+  }
+  #legend .swatch::-moz-color-swatch {
+    border: none;
+    border-radius: 50%;
   }
   #hint {
     position: absolute;
@@ -145,11 +163,30 @@
     ev.map(function (v, i) { return "PC" + (i + 1) + ": " + (v * 100).toFixed(1) + "%"; }).join("<br>");
 
   var legendEl = document.getElementById("legend");
-  var legendHtml = "<div class=\"legend-title\">Groups</div>";
+  var legendTitle = document.createElement("div");
+  legendTitle.className = "legend-title";
+  legendTitle.textContent = "Groups";
+  legendEl.appendChild(legendTitle);
   Object.keys(groups).sort().forEach(function (g) {
-    legendHtml += "<div class=\"legend-row\"><span class=\"swatch\" style=\"background:" + groups[g] + "\"></span>" + g + "</div>";
+    var row = document.createElement("div");
+    row.className = "legend-row";
+    var swatch = document.createElement("input");
+    swatch.type = "color";
+    swatch.className = "swatch";
+    swatch.value = groups[g] || "#888888";
+    swatch.title = "Click to change the color for " + g;
+    // points is assigned below (function-scope var, hoisted) and render()
+    // is a hoisted function declaration, so both are safe to reference here
+    // even though this listener only runs later, after a user pick.
+    swatch.addEventListener("input", function () {
+      groups[g] = swatch.value;
+      points.forEach(function (p) { if (p.group === g) p.color = swatch.value; });
+      render();
+    });
+    row.appendChild(swatch);
+    row.appendChild(document.createTextNode(g));
+    legendEl.appendChild(row);
   });
-  legendEl.innerHTML = legendHtml;
 
   var canvas = document.getElementById("scene");
   var ctx = canvas.getContext("2d");

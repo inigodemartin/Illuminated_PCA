@@ -397,10 +397,28 @@
     cursor: pointer;
   }
   .legend .swatch {
-    width: 10px;
-    height: 10px;
+    width: 14px;
+    height: 14px;
     border-radius: 50%;
     display: inline-block;
+    cursor: pointer;
+    border: 1px solid rgba(0, 0, 0, 0.25);
+    padding: 0;
+    appearance: none;
+    -webkit-appearance: none;
+    background: none;
+  }
+  .legend .swatch::-webkit-color-swatch-wrapper {
+    padding: 0;
+    border-radius: 50%;
+  }
+  .legend .swatch::-webkit-color-swatch {
+    border: none;
+    border-radius: 50%;
+  }
+  .legend .swatch::-moz-color-swatch {
+    border: none;
+    border-radius: 50%;
   }
   .legend .count {
     color: #94a3b8;
@@ -1037,6 +1055,17 @@
     refreshAllPanels();
   }
 
+  // Mutates DATA.groups in place, so both the next SVG export
+  // (appendLegendRows) and any panel opened afterwards pick up the new
+  // color automatically. Queries the whole document (not one panel's SVG)
+  // since every open GO-node panel has its own circles for the same group.
+  function updateGroupColor(g, hex) {
+    DATA.groups[g] = hex;
+    document.querySelectorAll('circle[data-group]').forEach(function (c) {
+      if (c.getAttribute("data-group") === g) c.setAttribute("fill", hex);
+    });
+  }
+
   // Built once: every panel shares the same taxon legend/select-all-none,
   // so it lives in the sidebar instead of being rebuilt (and toggled
   // identically) in every single open PCA.
@@ -1057,9 +1086,12 @@
         hiddenGroups[g] = !cb.checked;
         refreshAllPanels();
       };
-      var swatch = document.createElement("span");
+      var swatch = document.createElement("input");
+      swatch.type = "color";
       swatch.className = "swatch";
-      swatch.style.background = DATA.groups[g] || "#999";
+      swatch.value = DATA.groups[g] || "#999999";
+      swatch.title = "Click to change the color for " + g;
+      swatch.addEventListener("input", function () { updateGroupColor(g, swatch.value); });
       var count = document.createElement("span");
       count.className = "count";
       count.textContent = "(" + (GROUP_COUNTS[g] || 0) + ")";
