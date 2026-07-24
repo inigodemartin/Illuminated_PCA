@@ -363,6 +363,9 @@ def main():
     n_new_species = 0
     n_new_go = 0
     n_skipped_existing = 0
+    n_dup_matrix = 0
+    n_dup_stats = 0
+    n_dup_taxons = 0
     if not args.skip_merge:
         _banner("Módulo 2 — Fusión con la matriz/stats/taxons actuales" if has_existing_data
                  else "Módulo 2 — Construcción de tablas nuevas (sin datos previos)")
@@ -380,47 +383,82 @@ def main():
             current_matrix.index.name = "Species"
             current_taxons = pd.DataFrame(columns=["Group", "Species"])
             current_stats = pd.DataFrame(columns=["Species"] + STATS_COLUMNS)
-        known_species = set(current_matrix.index) | set(current_taxons["Species"])
 
         long_df = pd.read_csv(workdir / "fungi_long.tsv.gz", sep="\t")
         stats_df = pd.read_csv(workdir / "fungi_stats.tsv", sep="\t")
         taxon_df = pd.read_csv(workdir / "fungi_taxons.tsv", sep="\t")
 
-        new_species_mask = ~stats_df["Species"].isin(known_species)
-        n_skipped_existing = int((~new_species_mask).sum())
+        # Each table is checked independently against its own "already
+        # present" set. A species can be in current_taxons (e.g. seeded from
+        # a broader roster, or left over from a prior partial run) without
+        # having a row in current_matrix yet -- treating "known" as the union
+        # of matrix+taxons (as this used to do) would then skip it from the
+        # matrix forever, even though it still needs to be merged there.
+        matrix_new_mask = ~stats_df["Species"].isin(set(current_matrix.index))
+        stats_new_mask = ~stats_df["Species"].isin(set(current_stats["Species"]))
+        taxons_new_mask = ~taxon_df["Species"].isin(set(current_taxons["Species"]))
+
+        matrix_new_species = set(stats_df.loc[matrix_new_mask, "Species"])
+        n_skipped_existing = int((~matrix_new_mask).sum())
         if n_skipped_existing:
-            _log(f"  {n_skipped_existing} especies ya presentes en la matriz/taxonomía actual — se omiten")
-        new_species = set(stats_df.loc[new_species_mask, "Species"])
-        long_df = long_df[long_df["Species"].isin(new_species)]
-        stats_df = stats_df[new_species_mask]
-        taxon_df = taxon_df[taxon_df["Species"].isin(new_species)]
+            _log(f"  {n_skipped_existing} especies ya presentes en la matriz — se omiten de la matriz")
+        n_stats_skipped = int((~stats_new_mask).sum())
+        if n_stats_skipped:
+            _log(f"  {n_stats_skipped} especies ya presentes en stats — se omiten de stats")
+        n_taxons_skipped = int((~taxons_new_mask).sum())
+        if n_taxons_skipped:
+            _log(f"  {n_taxons_skipped} especies ya presentes en taxonomía — se omiten de taxonomía")
 
-        _log(f"  {len(new_species)} especies nuevas a añadir")
-        n_new_species = len(new_species)
+        long_df = long_df[long_df["Species"].isin(matrix_new_species)]
+        stats_new_df = stats_df[stats_new_mask]
+        taxon_new_df = taxon_df[taxons_new_mask]
 
-        if n_new_species == 0:
+        _log(f"  {len(matrix_new_species)} especies nuevas a añadir a la matriz "
+             f"({len(stats_new_df)} a stats, {len(taxon_new_df)} a taxonomía)")
+        n_new_species = len(matrix_new_species)
+
+        if len(matrix_new_species) == 0 and len(stats_new_df) == 0 and len(taxon_new_df) == 0:
             _log("  Nada nuevo que fusionar.")
         else:
-            _log("  Pivotando conteos a formato ancho ...")
-            new_wide = long_df.pivot_table(index="Species", columns="GO", values="Count", fill_value=0, aggfunc="sum")
-            new_wide = new_wide.astype("int32")
-            del long_df
-            gc.collect()
+            if len(matrix_new_species) > 0:
+                _log("  Pivotando conteos a formato ancho ...")
+                new_wide = long_df.pivot_table(index="Species", columns="GO", values="Count", fill_value=0, aggfunc="sum")
+                new_wide = new_wide.astype("int32")
+                del long_df
+                gc.collect()
 
-            new_wide.to_csv(results / f"mod01_new_species_counts_{prefix}.tsv", sep="\t")
+                new_wide.to_csv(results / f"mod01_new_species_counts_{prefix}.tsv", sep="\t")
 
-            all_go = current_matrix.columns.union(new_wide.columns)
-            n_new_go = len(all_go) - len(current_matrix.columns)
-            _log(f"  {n_new_go} GO terms nuevos no presentes en la matriz actual")
+                all_go = current_matrix.columns.union(new_wide.columns)
+                n_new_go = len(all_go) - len(current_matrix.columns)
+                _log(f"  {n_new_go} GO terms nuevos no presentes en la matriz actual")
 
-            current_matrix = current_matrix.reindex(columns=all_go, fill_value=0)
-            new_wide = new_wide.reindex(columns=all_go, fill_value=0)
-            merged_matrix = pd.concat([current_matrix, new_wide], axis=0).astype("int32")
-            del current_matrix, new_wide
-            gc.collect()
+                current_matrix = current_matrix.reindex(columns=all_go, fill_value=0)
+                new_wide = new_wide.reindex(columns=all_go, fill_value=0)
+                merged_matrix = pd.concat([current_matrix, new_wide], axis=0).astype("int32")
+                del current_matrix, new_wide
+                gc.collect()
+            else:
+                _log("  Sin especies nuevas para la matriz — se mantiene igual.")
+                merged_matrix = current_matrix
 
-            merged_stats = pd.concat([current_stats, stats_df[["Species"] + STATS_COLUMNS]], ignore_index=True)
-            merged_taxons = pd.concat([current_taxons, taxon_df[["Group", "Species"]]], ignore_index=True)
+            merged_stats = pd.concat([current_stats, stats_new_df[["Species"] + STATS_COLUMNS]], ignore_index=True)
+            merged_taxons = pd.concat([current_taxons, taxon_new_df[["Group", "Species"]]], ignore_index=True)
+
+            n_dup_matrix = int(merged_matrix.index.duplicated().sum())
+            if n_dup_matrix:
+                _log(f"  {n_dup_matrix} filas duplicadas en la matriz — eliminando (se conserva la primera aparición)")
+                merged_matrix = merged_matrix[~merged_matrix.index.duplicated(keep="first")]
+
+            n_dup_stats = int(merged_stats["Species"].duplicated().sum())
+            if n_dup_stats:
+                _log(f"  {n_dup_stats} filas duplicadas en stats — eliminando (se conserva la primera aparición)")
+                merged_stats = merged_stats.drop_duplicates(subset="Species", keep="first").reset_index(drop=True)
+
+            n_dup_taxons = int(merged_taxons["Species"].duplicated().sum())
+            if n_dup_taxons:
+                _log(f"  {n_dup_taxons} filas duplicadas en taxonomía — eliminando (se conserva la primera aparición)")
+                merged_taxons = merged_taxons.drop_duplicates(subset="Species", keep="first").reset_index(drop=True)
 
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
             for live_path in (matrix_out, stats_out, taxons_out):
@@ -455,6 +493,11 @@ def main():
         "n_new_species": int(n_new_species),
         "n_new_go_terms": int(n_new_go),
         "n_skipped_already_present": int(n_skipped_existing),
+        "n_duplicates_removed": {
+            "matrix": int(n_dup_matrix),
+            "stats": int(n_dup_stats),
+            "taxons": int(n_dup_taxons),
+        },
         "parameters": {
             "matrix_out": str(matrix_out),
             "stats_out": str(stats_out),
@@ -475,6 +518,8 @@ def main():
     _log(f"  Especies nuevas añadidas : {n_new_species}")
     _log(f"  GO terms nuevos          : {n_new_go}")
     _log(f"  Especies omitidas (ya existían) : {n_skipped_existing}")
+    if n_dup_matrix or n_dup_stats or n_dup_taxons:
+        _log(f"  Duplicados eliminados    : matriz={n_dup_matrix}, stats={n_dup_stats}, taxons={n_dup_taxons}")
     _log(f"  Tiempo total             : {elapsed_s:.1f}s")
 
     if _LOG_FH is not None:
