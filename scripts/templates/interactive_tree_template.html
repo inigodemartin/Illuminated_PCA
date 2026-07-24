@@ -383,18 +383,49 @@
   .scatter.panning {
     cursor: grabbing;
   }
+  .legend-hint {
+    font-size: 10.5px;
+    color: #94a3b8;
+    margin: -2px 0 8px;
+  }
   .legend {
     display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
+    flex-direction: column;
+    gap: 1px;
     font-size: 12px;
     margin-bottom: 6px;
+  }
+  .legend-row {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px 2px;
+    border-radius: 4px;
+  }
+  .legend-row:hover {
+    background: #eef2f7;
+  }
+  .legend-row.dragging {
+    opacity: 0.4;
+  }
+  .legend-drag-handle {
+    cursor: grab;
+    color: #94a3b8;
+    font-size: 12px;
+    line-height: 1;
+    padding: 0 2px;
+    user-select: none;
+  }
+  .legend-drag-handle:active {
+    cursor: grabbing;
   }
   .legend label {
     display: flex;
     align-items: center;
     gap: 4px;
     cursor: pointer;
+    flex: 1;
+    min-width: 0;
   }
   .legend .swatch {
     width: 14px;
@@ -620,6 +651,7 @@
       <button id="sidebar-select-all" class="legend-action">Select all</button>
       <button id="sidebar-select-none" class="legend-action">Select none</button>
     </div>
+    <p class="legend-hint">Drag &#x22EE;&#x22EE; to reorder — top group draws in front</p>
     <div id="sidebar-legend" class="legend"></div>
   </div>
   <div class="sidebar-section">
@@ -677,6 +709,12 @@
     DATA.species.forEach(function (s) { present[s.group] = true; });
     return Object.keys(present).sort();
   })();
+
+  // Legend display order, top-to-bottom; also the plot z-order, front-to-back
+  // (drag rows in the sidebar to change which taxon group's points sit on
+  // top when they overlap -- same idea as reordering layers in a photo/video
+  // editor). Every open GO-node panel shares this one order.
+  var GROUP_ORDER = ALL_GROUPS.slice();
 
   var GROUP_COUNTS = (function () {
     var counts = {};
@@ -1066,6 +1104,35 @@
     });
   }
 
+  // Re-appends every circle of svgEl in GROUP_ORDER order, back-to-front
+  // (last group in the list gets appended first) so the first group in
+  // GROUP_ORDER ends up last in paint order -- i.e. drawn in front. SVG has
+  // no z-index; sibling order IS paint order. Works on a panel's <svg>
+  // whether or not it's attached to the document yet.
+  function reorderCirclesInSvg(svgEl) {
+    for (var i = GROUP_ORDER.length - 1; i >= 0; i--) {
+      var sel = 'circle[data-group="' + cssEscape(GROUP_ORDER[i]) + '"]';
+      Array.prototype.forEach.call(svgEl.querySelectorAll(sel), function (c) {
+        svgEl.appendChild(c);
+      });
+    }
+  }
+
+  // Every currently-open GO-node panel has its own <svg>, so a legend
+  // reorder has to restyle all of them, not just one.
+  function reorderAllCirclesByGroupOrder() {
+    document.querySelectorAll("svg.scatter").forEach(reorderCirclesInSvg);
+  }
+
+  function syncGroupOrderFromDom(legend) {
+    GROUP_ORDER = Array.prototype.map.call(
+      legend.querySelectorAll("[data-legend-group]"),
+      function (row) { return row.getAttribute("data-legend-group"); }
+    );
+  }
+
+  var draggedLegendRow = null;
+
   // Built once: every panel shares the same taxon legend/select-all-none,
   // so it lives in the sidebar instead of being rebuilt (and toggled
   // identically) in every single open PCA.
@@ -1076,7 +1143,43 @@
     selectNoneBtn.onclick = function () { setAllGroupsHidden(true); };
 
     var legend = document.getElementById("sidebar-legend");
-    ALL_GROUPS.forEach(function (g) {
+    GROUP_ORDER.forEach(function (g) {
+      var row = document.createElement("div");
+      row.className = "legend-row";
+      row.setAttribute("data-legend-group", g);
+
+      // Only the handle is draggable, not the whole row -- so clicking the
+      // checkbox, swatch, or label text never gets misread as a drag.
+      var handle = document.createElement("span");
+      handle.className = "legend-drag-handle";
+      handle.title = "Drag to reorder -- top of the list draws in front";
+      handle.textContent = "⋮⋮";
+      handle.draggable = true;
+      handle.addEventListener("dragstart", function (evt) {
+        draggedLegendRow = row;
+        row.classList.add("dragging");
+        evt.dataTransfer.effectAllowed = "move";
+        evt.dataTransfer.setData("text/plain", g);
+      });
+      handle.addEventListener("dragend", function () {
+        row.classList.remove("dragging");
+        draggedLegendRow = null;
+        syncGroupOrderFromDom(legend);
+        reorderAllCirclesByGroupOrder();
+      });
+      row.appendChild(handle);
+
+      // Live-reorders the DOM as the drag passes over other rows (rather
+      // than only on drop), same as most "sortable layer list" UIs.
+      row.addEventListener("dragover", function (evt) {
+        if (!draggedLegendRow || draggedLegendRow === row) return;
+        evt.preventDefault();
+        var rect = row.getBoundingClientRect();
+        var before = (evt.clientY - rect.top) < rect.height / 2;
+        legend.insertBefore(draggedLegendRow, before ? row : row.nextSibling);
+      });
+      row.addEventListener("drop", function (evt) { evt.preventDefault(); });
+
       var label = document.createElement("label");
       var cb = document.createElement("input");
       cb.type = "checkbox";
@@ -1099,7 +1202,9 @@
       label.appendChild(swatch);
       label.appendChild(document.createTextNode(g));
       label.appendChild(count);
-      legend.appendChild(label);
+      row.appendChild(label);
+
+      legend.appendChild(row);
     });
   }
 
@@ -1531,7 +1636,7 @@
     };
 
     downloadBtn.onclick = function () {
-      var built = buildExportSvg(node, svg, ALL_GROUPS);
+      var built = buildExportSvg(node, svg, GROUP_ORDER);
       downloadSvgAsPng(built.svg, built.width, built.height, "illuminated_pca_" + node.go_id.replace(":", "_"));
     };
 
@@ -1625,6 +1730,7 @@
       // too, not just the ones already open at the time.
       if (speciesHighlightIdx === i) restyleHighlightCircle(c, true);
     });
+    reorderCirclesInSvg(svg);
 
     var plotRow = document.createElement("div");
     plotRow.className = "plot-row";
@@ -1930,7 +2036,7 @@
     var treeW = container.scrollWidth;
     var treeH = container.scrollHeight;
 
-    var legendRows = packLegendRows(ALL_GROUPS, treeW);
+    var legendRows = packLegendRows(GROUP_ORDER, treeW);
     var legendH = ALL_GROUPS.length ? legendRows.length * LEGEND_ROW_H + 10 : 0;
 
     var masterW = treeW + MARGIN * 2;
