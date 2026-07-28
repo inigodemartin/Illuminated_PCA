@@ -704,6 +704,12 @@
   var xPad = (xMax - xMin) * 0.08 || 1, yPad = (yMax - yMin) * 0.08 || 1;
   xMin -= xPad; xMax += xPad; yMin -= yPad; yMax += yPad;
 
+  // Raw (unpadded) PC3 range, used only as the 3D-mode PC3 axis guide's
+  // length -- there's no dedicated screen dimension for it, so it's sized
+  // the same way the PC1/PC2 axis guides are sized off their own data range.
+  var zs = DATA.species.map(function (s) { return s.pc3 || 0; });
+  var zMin = Math.min.apply(null, zs), zMax = Math.max.apply(null, zs);
+
   var PLOT_W = 900, PLOT_H = 540;
   var BASE_RADIUS = 3.5;
   var BASE_STROKE_WIDTH = 0.5;
@@ -1172,13 +1178,16 @@
   window.addEventListener("mousemove", function (evt) {
     if (!isPanning) return;
     panMoved = true;
-    if (is3D) {
+    if (is3D && !evt.shiftKey) {
       var rotLimit = Math.PI / 2 - 0.05;
       td3Yaw = panStart.yaw + (evt.clientX - panStart.x) * ROTATE_SPEED;
       td3Pitch = Math.max(-rotLimit, Math.min(rotLimit, panStart.pitch + (evt.clientY - panStart.y) * ROTATE_SPEED));
       applyRotation3D();
       return;
     }
+    // Plain pan: always in 2D mode, or in 3D mode while holding Shift --
+    // moves the view (viewBox) without touching td3Yaw/td3Pitch, so the
+    // cloud's rotation stays exactly as-is while you reposition it.
     var rect = svg.getBoundingClientRect();
     var dx = (evt.clientX - panStart.x) / rect.width * viewBox.w;
     var dy = (evt.clientY - panStart.y) / rect.height * viewBox.h;
@@ -1198,17 +1207,26 @@
     line.setAttribute("stroke-width", "1");
   }
 
-  var axisX = document.createElementNS(svgNS, "line");
-  axisX.setAttribute("x1", 0); axisX.setAttribute("x2", PLOT_W);
-  axisX.setAttribute("y1", scaleY(0)); axisX.setAttribute("y2", scaleY(0));
-  styleAxisLine(axisX);
-  svg.appendChild(axisX);
-
-  var axisY = document.createElementNS(svgNS, "line");
-  axisY.setAttribute("y1", 0); axisY.setAttribute("y2", PLOT_H);
-  axisY.setAttribute("x1", scaleX(0)); axisY.setAttribute("x2", scaleX(0));
-  styleAxisLine(axisY);
-  svg.appendChild(axisY);
+  // Each guide spans its own PC's data range through the origin, in raw PC
+  // space (not screen space) -- so rotating them in 3D mode (applyRotation3D,
+  // set up further below) moves them exactly like the points themselves,
+  // instead of staying fixed while everything else rotates. Ignoring each
+  // point's 3rd coordinate here for the initial (x, y) is deliberate, not
+  // an oversight: at rest that's exactly what a flat projection is, and it's
+  // why the PC3 guide (p1 and p2 both project to the same (0,0)) is
+  // invisible until rotated -- same as a real 3D axis gizmo viewed edge-on.
+  var axisLines = [
+    { p1: [xMin, 0, 0], p2: [xMax, 0, 0] },
+    { p1: [0, yMin, 0], p2: [0, yMax, 0] },
+    { p1: [0, 0, zMin], p2: [0, 0, zMax] },
+  ];
+  axisLines.forEach(function (axis) {
+    axis.el = document.createElementNS(svgNS, "line");
+    styleAxisLine(axis.el);
+    axis.el.setAttribute("x1", scaleX(axis.p1[0])); axis.el.setAttribute("y1", scaleY(axis.p1[1]));
+    axis.el.setAttribute("x2", scaleX(axis.p2[0])); axis.el.setAttribute("y2", scaleY(axis.p2[1]));
+    svg.appendChild(axis.el);
+  });
 
   DATA.species.forEach(function (s, i) {
     var c = document.createElementNS(svgNS, "circle");
@@ -1915,6 +1933,12 @@
       c.setAttribute("cx", scaleX(r.x));
       c.setAttribute("cy", scaleY(r.y));
     });
+    axisLines.forEach(function (axis) {
+      var r1 = rotate3D(axis.p1[0], axis.p1[1], axis.p1[2], td3Yaw, td3Pitch);
+      var r2 = rotate3D(axis.p2[0], axis.p2[1], axis.p2[2], td3Yaw, td3Pitch);
+      axis.el.setAttribute("x1", scaleX(r1.x)); axis.el.setAttribute("y1", scaleY(r1.y));
+      axis.el.setAttribute("x2", scaleX(r2.x)); axis.el.setAttribute("y2", scaleY(r2.y));
+    });
   }
 
   function setMode3D(active) {
@@ -1922,7 +1946,7 @@
     view3dBtn.textContent = active ? "Back to 2D" : "View in 3D";
     reset3dBtn.style.display = active ? "" : "none";
     document.querySelector(".plot-hint").textContent = active
-      ? "Drag to rotate, scroll to zoom."
+      ? "Drag to rotate, Shift+drag to pan, scroll to zoom."
       : "Scroll to zoom, drag to pan.";
     info3d.style.display = active ? "" : "none";
     if (active && !info3dReady) {
