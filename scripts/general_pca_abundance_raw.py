@@ -26,7 +26,6 @@ from general_pca_common import (
     top_loadings_by_pc,
     write_top_loadings_tsv,
     build_go_search_payload,
-    compute_species_contributions,
 )
 
 
@@ -108,6 +107,7 @@ def main():
         print(f"IC filter (≥ {args.ic_threshold}): kept {raw_full.shape[1]} / {n_before} GO terms")
 
     pca_df, explained_variance, loadings, normalized_df = run_pca_on_raw_counts(raw_full, total_prots)
+    del normalized_df  # only fed the now-removed per-species contributions modal
     n_go_used = loadings.shape[0]
     richness = (raw_full[loadings.index] > 0).sum(axis=1)
     outlier_low, outlier_high = args.outlier_percentile
@@ -122,13 +122,6 @@ def main():
     species = list(pca_df.index)
     color_map = build_global_color_map(taxon_dict)
 
-    contributions = compute_species_contributions(
-        normalized_df.loc[[s for s in species if s in normalized_df.index]],
-        loadings,
-        n=args.top_loadings_n,
-    )
-    del normalized_df
-
     species_records = [
         {
             "name": name,
@@ -136,7 +129,6 @@ def main():
             "pc2": float(pca_df.loc[name, "PC2"]),
             "group": pca_df.loc[name, "Group"],
             "go_terms_present": int(richness.get(name, 0)),
-            "contributions": contributions.get(name, {}),
         }
         for name in species
     ]

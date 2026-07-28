@@ -27,7 +27,6 @@ from general_pca_common import (
     top_loadings_by_pc,
     write_top_loadings_tsv,
     build_go_search_payload,
-    compute_species_contributions,
 )
 
 
@@ -98,12 +97,15 @@ def main():
     # view -- PC1/PC2 themselves are unaffected (see run_pca_on_relative_abundance's
     # docstring: this relies on algorithm="arpack" being an exact, nested
     # solver), so the default 2D page is the same PCA as before. loadings/
-    # top-loadings/contributions below are deliberately sliced back to
-    # PC1/PC2 only, so the sidebar and species modal don't gain an
-    # unrequested PC3 section.
+    # top-loadings below are deliberately sliced back to PC1/PC2 only, so
+    # the sidebar doesn't gain an unrequested PC3 section.
+    # normalized_df isn't used here (it only fed the now-removed per-species
+    # contributions modal) -- discarded immediately, it's the single biggest
+    # in-memory array in this pipeline (n_species x n_go floats).
     pca_df, explained_variance, loadings_3d, normalized_df = run_pca_on_relative_abundance(
         raw_full, total_prots, n_components=3
     )
+    del normalized_df
     loadings = loadings_3d[["PC1", "PC2"]]
     n_go_used = loadings.shape[0]
     # How many of the same GO columns the PCA was fit on (loadings.index)
@@ -122,13 +124,6 @@ def main():
     species = list(pca_df.index)
     color_map = build_global_color_map(taxon_dict)
 
-    contributions = compute_species_contributions(
-        normalized_df.loc[[s for s in species if s in normalized_df.index]],
-        loadings,
-        n=args.top_loadings_n,
-    )
-    del normalized_df
-
     species_records = [
         {
             "name": name,
@@ -137,7 +132,6 @@ def main():
             "pc3": float(pca_df.loc[name, "PC3"]),
             "group": pca_df.loc[name, "Group"],
             "go_terms_present": int(richness.get(name, 0)),
-            "contributions": contributions.get(name, {}),
         }
         for name in species
     ]
