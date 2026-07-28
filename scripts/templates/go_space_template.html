@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>__GO_SPACE_TITLE__</title>
+<style>
+  :root { color-scheme: light; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    margin: 0;
+    background: #f5f6f8;
+    color: #1a1a1a;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    flex: 0 0 auto;
+    box-sizing: border-box;
+    padding: 16px 24px;
+    margin-right: 280px;
+    background: #2c3e50;
+    color: #fff;
+  }
+  header h1 { margin: 0 0 4px; font-size: 18px; }
+  header p { margin: 0; font-size: 13px; color: #cbd5e1; }
+  #toolbar {
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+  }
+  #go-search-wrap {
+    position: relative;
+    flex: 1 1 320px;
+    max-width: 460px;
+  }
+  #go-search-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 5px 8px;
+    border-radius: 4px;
+    border: 1px solid rgba(255,255,255,0.4);
+    background: rgba(255,255,255,0.92);
+    color: #1a1a1a;
+    font-size: 12px;
+  }
+  #go-search-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 2px;
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    max-height: 280px;
+    overflow-y: auto;
+    z-index: 700;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.18);
+  }
+  #go-search-suggestions.hidden { display: none; }
+  .go-suggestion {
+    padding: 5px 8px;
+    font-size: 12px;
+    color: #1a1a1a;
+    cursor: pointer;
+    border-bottom: 1px solid #eef1f5;
+  }
+  .go-suggestion:last-child { border-bottom: none; }
+  .go-suggestion:hover { background: #eef2ff; }
+  .go-suggestion-id { font-weight: 600; margin-right: 6px; }
+  .go-suggestion-desc { color: #64748b; }
+  .go-suggestion-cat {
+    float: right;
+    color: #94a3b8;
+    font-size: 10px;
+    text-transform: uppercase;
+  }
+  #go-search-status {
+    margin: 6px 0 0;
+    font-size: 12px;
+    color: #cbd5e1;
+    min-height: 14px;
+  }
+  #go-search-status.error { color: #fca5a5; font-weight: 600; }
+  .toolbar-btn {
+    cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.4);
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+    border-radius: 4px;
+    font-size: 12px;
+    padding: 4px 10px;
+  }
+  .toolbar-btn:hover { background: rgba(255,255,255,0.22); }
+  #go-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .go-chip {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.4);
+    border-radius: 8px;
+    padding: 4px 8px;
+    font-size: 11px;
+    color: #fff;
+  }
+  .go-chip-top { display: flex; align-items: center; gap: 6px; }
+  .go-chip-swatch {
+    width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto;
+  }
+  .go-chip-id { font-weight: 600; }
+  .go-chip-remove {
+    background: none; border: none; color: #fff; cursor: pointer;
+    font-size: 12px; line-height: 1; padding: 0 2px; opacity: 0.75; margin-left: auto;
+  }
+  .go-chip-remove:hover { opacity: 1; }
+  .go-chip-desc-label {
+    display: flex; align-items: center; gap: 5px; cursor: pointer; color: #e2e8f0;
+  }
+  .go-chip-desc-label input { margin: 0; }
+  .go-chip-status { color: #94a3b8; font-size: 10px; }
+  #sidebar {
+    position: fixed;
+    top: 0; right: 0;
+    width: 280px;
+    height: 100vh;
+    overflow-y: auto;
+    background: #f8fafc;
+    border-left: 1px solid #cbd5e1;
+    box-shadow: -2px 0 8px rgba(0,0,0,0.06);
+    padding: 16px;
+    box-sizing: border-box;
+    z-index: 600;
+  }
+  .sidebar-section { margin-bottom: 22px; }
+  .sidebar-section h4 {
+    margin: 0 0 8px;
+    font-size: 12px;
+    color: #334155;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+  .legend-actions { display: flex; gap: 8px; margin-bottom: 6px; }
+  .legend-action {
+    cursor: pointer;
+    border: 1px solid #cbd5e1;
+    background: #f8fafc;
+    border-radius: 4px;
+    font-size: 11px;
+    padding: 2px 8px;
+    color: #334155;
+  }
+  .legend-action:hover { background: #e2e8f0; }
+  .legend { display: flex; flex-direction: column; gap: 1px; font-size: 12px; margin-bottom: 6px; }
+  .legend-row { display: flex; align-items: center; gap: 4px; padding: 3px 2px; border-radius: 4px; }
+  .legend-row:hover { background: #eef2f7; }
+  .legend label { display: flex; align-items: center; gap: 5px; cursor: pointer; flex: 1; min-width: 0; }
+  .legend .swatch {
+    width: 13px; height: 13px; border-radius: 50%; display: inline-block;
+    cursor: pointer; border: 1px solid rgba(0,0,0,0.25); padding: 0;
+    appearance: none; -webkit-appearance: none; background: none;
+  }
+  .legend .swatch::-webkit-color-swatch-wrapper { padding: 0; border-radius: 50%; }
+  .legend .swatch::-webkit-color-swatch { border: none; border-radius: 50%; }
+  .legend .count { color: #94a3b8; }
+  .about-text { font-size: 11.5px; color: #475569; line-height: 1.5; }
+  .about-text b { color: #1e293b; }
+  #plot-container {
+    flex: 1 1 auto;
+    min-height: 0;
+    margin-right: 280px;
+    padding: 20px 24px;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+  }
+  .plot-card {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    background: #fff;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 16px 20px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+  }
+  .plot-row { flex: 1 1 auto; min-height: 0; display: flex; align-items: stretch; gap: 4px; }
+  .threshold-rail {
+    flex: 0 0 36px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 0;
+    user-select: none;
+  }
+  .threshold-rail.inactive {
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .threshold-rail-input {
+    width: 32px;
+    font-size: 10px;
+    text-align: center;
+    border: 1px solid #cbd5e1;
+    border-radius: 3px;
+    padding: 1px 2px;
+    background: #f8fafc;
+    color: #1a1a1a;
+  }
+  .threshold-rail-input:hover,
+  .threshold-rail-input:focus {
+    border-color: #6366f1;
+    outline: none;
+  }
+  .threshold-rail-input::-webkit-inner-spin-button,
+  .threshold-rail-input::-webkit-outer-spin-button {
+    display: none;
+  }
+  .threshold-rail-track {
+    flex: 1 1 auto;
+    width: 6px;
+    background: #e2e8f0;
+    border-radius: 3px;
+    position: relative;
+    cursor: pointer;
+  }
+  .threshold-rail-fill {
+    position: absolute;
+    left: 0; right: 0;
+    background: #6366f1;
+    border-radius: 3px;
+  }
+  .threshold-rail-handle {
+    position: absolute;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #fff;
+    border: 2px solid #6366f1;
+    cursor: ns-resize;
+    box-sizing: border-box;
+  }
+  .threshold-rail-handle:hover {
+    background: #eef2ff;
+  }
+  .threshold-rail-handle:active {
+    background: #c7d2fe;
+  }
+  .axis-label-y { flex: 0 0 auto; width: 16px; display: flex; align-items: center; justify-content: center; }
+  .axis-label-y span { display: inline-block; transform: rotate(-90deg); white-space: nowrap; font-size: 12px; color: #555; }
+  .axis-label-x { flex: 0 0 auto; text-align: center; font-size: 12px; color: #555; margin-top: 4px; }
+  .plot-hint { flex: 0 0 auto; text-align: center; font-size: 11px; color: #94a3b8; margin-top: 6px; }
+  .scatter { flex: 1 1 auto; min-width: 0; width: 100%; height: 100%; display: block; cursor: grab; touch-action: none; }
+  .scatter.panning { cursor: grabbing; }
+  #tooltip {
+    position: fixed;
+    pointer-events: none;
+    background: rgba(15, 23, 42, 0.94);
+    color: #fff;
+    padding: 7px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    line-height: 1.5;
+    z-index: 1000;
+    max-width: 280px;
+  }
+  #tooltip.hidden { display: none; }
+  #tooltip b { font-size: 12.5px; }
+  #tooltip .tt-desc { color: #cbd5e1; }
+</style>
+</head>
+<body>
+<header>
+  <h1 id="page-title"></h1>
+  <p id="page-subtitle"></p>
+  <div id="toolbar">
+    <div id="go-search-wrap">
+      <input id="go-search-input" type="text" autocomplete="off" placeholder="Buscar un GO id o descripcion...">
+      <div id="go-search-suggestions" class="hidden"></div>
+    </div>
+    <button id="go-clear-btn" class="toolbar-btn">Limpiar seleccion</button>
+    <button id="reset-zoom-btn" class="toolbar-btn">Reset zoom</button>
+  </div>
+  <div id="go-chips"></div>
+  <p id="go-search-status"></p>
+</header>
+<div id="sidebar">
+  <div class="sidebar-section">
+    <h4>Categoria GO</h4>
+    <div class="legend-actions">
+      <button id="sidebar-select-all" class="legend-action">Mostrar todas</button>
+      <button id="sidebar-select-none" class="legend-action">Ocultar todas</button>
+    </div>
+    <div id="sidebar-legend" class="legend"></div>
+  </div>
+  <div class="sidebar-section">
+    <h4>Como leer este mapa</h4>
+    <p class="about-text" id="about-text"></p>
+  </div>
+</div>
+<div id="plot-container">
+  <div class="plot-card">
+    <div class="plot-row">
+      <div class="axis-label-y"><span id="y-axis-label"></span></div>
+      <canvas id="scatter" class="scatter"></canvas>
+      <div id="ic-rail" class="threshold-rail inactive" title="Arrastra para filtrar por Information Content"></div>
+    </div>
+    <div class="axis-label-x" id="x-axis-label"></div>
+    <div class="plot-hint">Scroll para zoom, arrastra para mover. Click en un punto abre su ficha en AmiGO.</div>
+  </div>
+</div>
+<div id="tooltip" class="hidden"></div>
+
+<script id="go-space-data" type="application/json">__GO_SPACE_DATA__</script>
+<script>
+(function () {
+  "use strict";
+
+  var DATA = JSON.parse(document.getElementById("go-space-data").textContent);
+  var N = DATA.ids.length;
+  var tooltip = document.getElementById("tooltip");
+
+  document.getElementById("page-title").textContent = DATA.meta.title;
+  document.getElementById("page-subtitle").textContent =
+    N + " GO terms x " + DATA.meta.n_species + " especies (metodo: " + DATA.meta.method.toUpperCase() + ")";
+
+  document.getElementById("about-text").innerHTML =
+    "Cada punto es un GO term, no una especie. Su posicion viene de una matriz " +
+    "GO x especie con CLR (por especie) y doble z-score (por especie y por GO term), " +
+    "para que la cercania refleje <b>forma del patron</b> entre especies, no magnitud " +
+    "de conteo. Con datos muy dominados por un gradiente taxonomico fuerte, el mapa " +
+    "puede mostrar un arco/anillo global (esperado) con micro-clusters funcionales " +
+    "reales dentro de el.";
+
+  var CAT_ORDER = ["biological_process", "molecular_function", "cellular_component", "unknown"];
+  var CATS_PRESENT = CAT_ORDER.filter(function (c) { return (DATA.category_counts[c] || 0) > 0; });
+  var catColors = {};
+  CATS_PRESENT.forEach(function (c) { catColors[c] = DATA.category_colors[c] || "#999999"; });
+
+  var idIndex = {};
+  DATA.ids.forEach(function (id, i) { idIndex[id] = i; });
+
+  // Typed arrays: this scatter can hold ~30k points, redrawn continuously
+  // during pan/zoom -- plain arrays + per-point DOM nodes is what made the
+  // original SVG version heavy. A single <canvas>, batched fill() calls
+  // (grouped by category so most of the plot is 3-4 fill() calls instead
+  // of tens of thousands), and typed arrays for the hot loops (hit-testing
+  // on every mousemove) keep this fluid regardless of point count.
+  var xs = Float64Array.from(DATA.xs), ys = Float64Array.from(DATA.ys);
+  var xMin = Math.min.apply(null, DATA.xs), xMax = Math.max.apply(null, DATA.xs);
+  var yMin = Math.min.apply(null, DATA.ys), yMax = Math.max.apply(null, DATA.ys);
+  var xPad = (xMax - xMin) * 0.06 || 1, yPad = (yMax - yMin) * 0.06 || 1;
+  xMin -= xPad; xMax += xPad; yMin -= yPad; yMax += yPad;
+
+  var BASE_RADIUS = 2.2;
+  var HI_RADIUS = 5.5;
+  var MIN_VIEW_FRACTION = 1 / 8000;
+  var HIT_RADIUS_PX = 6;
+  var TWO_PI = Math.PI * 2;
+
+  // Numeric category codes instead of string keys, so the per-mousemove
+  // hit-test loop over all N points never does an object/string lookup.
+  var CAT_CODE = {};
+  CATS_PRESENT.forEach(function (c, i) { CAT_CODE[c] = i; });
+  var catCode = new Uint8Array(N);
+  for (var ci = 0; ci < N; ci++) catCode[ci] = CAT_CODE[DATA.cats[ci]] || 0;
+  var catHiddenFlag = new Uint8Array(CATS_PRESENT.length);
+
+  // ---- Information Content threshold rail ----
+  // Every point already carries its own IC (no search/pin needed to activate
+  // it, unlike general_pca_all's GO-count rail which only lights up once a
+  // GO term is illuminated) -- so the rail is built from the full IC range
+  // and live from the start. Points with no IC (go_id absent from the IC
+  // table) are never hidden by the filter, since there's no value to compare.
+  var ICS = DATA.ics;
+  var icValid = [];
+  for (var ici = 0; ici < N; ici++) {
+    if (ICS[ici] !== null && ICS[ici] !== undefined) icValid.push(ICS[ici]);
+  }
+  var icRailFloor = icValid.length ? Math.min.apply(null, icValid) : 0;
+  var icRailCeil = icValid.length ? Math.max.apply(null, icValid) : 0;
+  var icFilterMin = icRailFloor;
+  var icFilterMax = icRailCeil;
+  function icHiddenAt(i) {
+    var v = ICS[i];
+    if (v === null || v === undefined) return false;
+    return v < icFilterMin || v > icFilterMax;
+  }
+
+  var icRailEl = document.getElementById("ic-rail");
+  var icRailMaxInput, icRailMinInput, icRailFill, icRailMinHandle, icRailMaxHandle, icRailTrackEl;
+
+  function positionIcRailHandles() {
+    var span = icRailCeil - icRailFloor;
+    var minPct = span > 0 ? ((icFilterMin - icRailFloor) / span) * 100 : 0;
+    var maxPct = span > 0 ? ((icFilterMax - icRailFloor) / span) * 100 : 100;
+    icRailMinHandle.style.top = (100 - minPct) + "%";
+    icRailMaxHandle.style.top = (100 - maxPct) + "%";
+    icRailFill.style.top = (100 - maxPct) + "%";
+    icRailFill.style.height = (maxPct - minPct) + "%";
+  }
+
+  function setIcRailMin(v) {
+    if (isNaN(v)) return;
+    v = Math.min(icRailCeil, Math.max(icRailFloor, v));
+    if (v > icFilterMax) v = icFilterMax;
+    icFilterMin = v;
+    icRailMinInput.value = v.toFixed(2);
+    positionIcRailHandles();
+    draw();
+  }
+
+  function setIcRailMax(v) {
+    if (isNaN(v)) return;
+    v = Math.min(icRailCeil, Math.max(icRailFloor, v));
+    if (v < icFilterMin) v = icFilterMin;
+    icFilterMax = v;
+    icRailMaxInput.value = v.toFixed(2);
+    positionIcRailHandles();
+    draw();
+  }
+
+  var pointsByCategory = {};
+  CATS_PRESENT.forEach(function (c) { pointsByCategory[c] = []; });
+  for (var pi = 0; pi < N; pi++) pointsByCategory[DATA.cats[pi]].push(pi);
+
+  document.getElementById("x-axis-label").textContent = DATA.meta.x_label;
+  document.getElementById("y-axis-label").textContent = DATA.meta.y_label;
+
+  function escapeHtml(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  // ---- ontology BFS: all descendants of a GO id, via is_a/part_of edges ----
+  var CHILDREN = DATA.ontology_children;
+  function findDescendants(rootId) {
+    var visited = {};
+    var queue = [rootId];
+    var all = [];
+    while (queue.length) {
+      var node = queue.shift();
+      var kids = CHILDREN[node];
+      if (!kids) continue;
+      for (var i = 0; i < kids.length; i++) {
+        var k = kids[i];
+        if (visited[k]) continue;
+        visited[k] = true;
+        all.push(k);
+        queue.push(k);
+      }
+    }
+    return all;
+  }
+
+  // ---- pins (chips): each is a searched GO term, optionally + descendants ----
+  var PIN_COLORS = ["#F5A623", "#4C9BE8", "#E8604C", "#10b981", "#a855f7", "#f43f5e", "#0ea5e9"];
+  var pins = []; // { go_id, idx, color, showDescendants, descendantIdxs, descendantTotal }
+
+  function setSearchStatus(text, isError) {
+    var el = document.getElementById("go-search-status");
+    el.textContent = text;
+    el.classList.toggle("error", !!isError);
+  }
+
+  function addPin(goId) {
+    var idx = idIndex[goId];
+    if (idx === undefined) {
+      setSearchStatus("GO no encontrado entre los " + N + " terminos representados " +
+        "(puede haber sido excluido por el filtro de columnas raras).", true);
+      return;
+    }
+    if (pins.some(function (p) { return p.go_id === goId; })) {
+      setSearchStatus(goId + " ya esta seleccionado.", false);
+      return;
+    }
+    pins.push({
+      go_id: goId, idx: idx, color: PIN_COLORS[pins.length % PIN_COLORS.length],
+      showDescendants: false, descendantIdxs: null, descendantTotal: 0,
+    });
+    setSearchStatus("", false);
+    renderChips();
+    recomputeHighlights();
+    draw();
+  }
+
+  function removePin(goId) {
+    pins = pins.filter(function (p) { return p.go_id !== goId; });
+    renderChips();
+    recomputeHighlights();
+    draw();
+  }
+
+  function toggleDescendants(goId, checked) {
+    var pin = pins.filter(function (p) { return p.go_id === goId; })[0];
+    if (!pin) return;
+    pin.showDescendants = checked;
+    if (checked && pin.descendantIdxs === null) {
+      var descIds = findDescendants(pin.go_id);
+      pin.descendantTotal = descIds.length;
+      pin.descendantIdxs = descIds.map(function (id) { return idIndex[id]; })
+        .filter(function (i) { return i !== undefined; });
+    }
+    renderChips();
+    recomputeHighlights();
+    draw();
+  }
+
+  function renderChips() {
+    var container = document.getElementById("go-chips");
+    container.innerHTML = "";
+    pins.forEach(function (p) {
+      var chip = document.createElement("div");
+      chip.className = "go-chip";
+
+      var top = document.createElement("div");
+      top.className = "go-chip-top";
+      var swatch = document.createElement("span");
+      swatch.className = "go-chip-swatch";
+      swatch.style.background = p.color;
+      var idLabel = document.createElement("span");
+      idLabel.className = "go-chip-id";
+      idLabel.textContent = p.go_id;
+      idLabel.title = DATA.descs[p.idx];
+      var removeBtn = document.createElement("button");
+      removeBtn.className = "go-chip-remove";
+      removeBtn.textContent = "✕";
+      removeBtn.title = "Quitar " + p.go_id;
+      removeBtn.onclick = function () { removePin(p.go_id); };
+      top.appendChild(swatch);
+      top.appendChild(idLabel);
+      top.appendChild(removeBtn);
+      chip.appendChild(top);
+
+      var descLabel = document.createElement("label");
+      descLabel.className = "go-chip-desc-label";
+      var cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = p.showDescendants;
+      cb.onchange = function () { toggleDescendants(p.go_id, cb.checked); };
+      descLabel.appendChild(cb);
+      descLabel.appendChild(document.createTextNode("+ descendientes"));
+      chip.appendChild(descLabel);
+
+      if (p.showDescendants) {
+        var status = document.createElement("div");
+        status.className = "go-chip-status";
+        var plotted = p.descendantIdxs ? p.descendantIdxs.length : 0;
+        status.textContent = p.descendantTotal + " descendientes en la ontologia, " +
+          plotted + " representados en el mapa";
+        chip.appendChild(status);
+      }
+
+      container.appendChild(chip);
+    });
+  }
+
+  // ---- search box ----
+  var SEARCH_ENTRIES = DATA.ids.map(function (id, i) {
+    return { id: id, desc: DATA.descs[i], cat: DATA.cats[i], key: (id + " " + DATA.descs[i]).toLowerCase() };
+  });
+  var MAX_SUGGESTIONS = 20;
+  var searchInput = document.getElementById("go-search-input");
+  var suggestionsEl = document.getElementById("go-search-suggestions");
+
+  function findMatches(query) {
+    var q = query.trim().toLowerCase();
+    if (!q) return [];
+    var matches = [];
+    for (var i = 0; i < SEARCH_ENTRIES.length && matches.length < MAX_SUGGESTIONS; i++) {
+      if (SEARCH_ENTRIES[i].key.indexOf(q) !== -1) matches.push(SEARCH_ENTRIES[i]);
+    }
+    return matches;
+  }
+
+  function renderSuggestions(matches) {
+    suggestionsEl.innerHTML = "";
+    if (!matches.length) { suggestionsEl.classList.add("hidden"); return; }
+    matches.forEach(function (m) {
+      var item = document.createElement("div");
+      item.className = "go-suggestion";
+      item.innerHTML =
+        '<span class="go-suggestion-cat">' + escapeHtml(m.cat.replace("_", " ")) + "</span>" +
+        '<span class="go-suggestion-id">' + escapeHtml(m.id) + "</span>" +
+        '<span class="go-suggestion-desc">' + escapeHtml(m.desc) + "</span>";
+      item.addEventListener("mousedown", function (evt) {
+        evt.preventDefault();
+        searchInput.value = "";
+        suggestionsEl.classList.add("hidden");
+        addPin(m.id);
+      });
+      suggestionsEl.appendChild(item);
+    });
+    suggestionsEl.classList.remove("hidden");
+  }
+
+  searchInput.addEventListener("input", function () {
+    renderSuggestions(findMatches(searchInput.value));
+  });
+  searchInput.addEventListener("keydown", function (evt) {
+    if (evt.key === "Escape") { suggestionsEl.classList.add("hidden"); return; }
+    if (evt.key !== "Enter") return;
+    evt.preventDefault();
+    var query = searchInput.value.trim();
+    if (!query) return;
+    var exact = idIndex[query] !== undefined ? query
+      : (idIndex[query.toUpperCase()] !== undefined ? query.toUpperCase() : null);
+    var target = exact;
+    if (!target) {
+      var matches = findMatches(query);
+      if (matches.length) target = matches[0].id;
+    }
+    suggestionsEl.classList.add("hidden");
+    if (target) { searchInput.value = ""; addPin(target); }
+    else setSearchStatus("GO no encontrado: " + query, true);
+  });
+  document.addEventListener("click", function (evt) {
+    if (!document.getElementById("go-search-wrap").contains(evt.target)) {
+      suggestionsEl.classList.add("hidden");
+    }
+  });
+  document.getElementById("go-clear-btn").onclick = function () {
+    pins = [];
+    searchInput.value = "";
+    renderSuggestions([]);
+    renderChips();
+    recomputeHighlights();
+    draw();
+  };
+
+  // ---- legend ----
+  function buildLegend() {
+    var legend = document.getElementById("sidebar-legend");
+    document.getElementById("sidebar-select-all").onclick = function () {
+      CATS_PRESENT.forEach(function (c) { catHiddenFlag[CAT_CODE[c]] = 0; });
+      syncLegendCheckboxes();
+      draw();
+    };
+    document.getElementById("sidebar-select-none").onclick = function () {
+      CATS_PRESENT.forEach(function (c) { catHiddenFlag[CAT_CODE[c]] = 1; });
+      syncLegendCheckboxes();
+      draw();
+    };
+    CATS_PRESENT.forEach(function (c) {
+      var row = document.createElement("div");
+      row.className = "legend-row";
+      var label = document.createElement("label");
+      var cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = true;
+      cb.setAttribute("data-cat-checkbox", c);
+      cb.onchange = function () { catHiddenFlag[CAT_CODE[c]] = cb.checked ? 0 : 1; draw(); };
+      var swatch = document.createElement("input");
+      swatch.type = "color";
+      swatch.className = "swatch";
+      swatch.value = catColors[c];
+      swatch.addEventListener("input", function () { catColors[c] = swatch.value; draw(); });
+      var count = document.createElement("span");
+      count.className = "count";
+      count.textContent = "(" + DATA.category_counts[c] + ")";
+      label.appendChild(cb);
+      label.appendChild(swatch);
+      label.appendChild(document.createTextNode(c.replace("_", " ")));
+      label.appendChild(count);
+      row.appendChild(label);
+      legend.appendChild(row);
+    });
+  }
+
+  function syncLegendCheckboxes() {
+    document.querySelectorAll("input[data-cat-checkbox]").forEach(function (cb) {
+      cb.checked = !catHiddenFlag[CAT_CODE[cb.getAttribute("data-cat-checkbox")]];
+    });
+  }
+
+  // ---- tooltip ----
+  function showTooltip(evt, i) {
+    var html = "<b>" + escapeHtml(DATA.ids[i]) + "</b><br>" +
+      '<span class="tt-desc">' + escapeHtml(DATA.descs[i]) + "</span><br>" +
+      "Categoria: " + escapeHtml(DATA.cats[i].replace("_", " "));
+    if (DATA.ics[i] !== null && DATA.ics[i] !== undefined) html += "<br>IC: " + DATA.ics[i];
+    html += "<br>(" + xs[i].toFixed(2) + ", " + ys[i].toFixed(2) + ")";
+    tooltip.innerHTML = html;
+    tooltip.classList.remove("hidden");
+    moveTooltip(evt);
+  }
+  function moveTooltip(evt) {
+    tooltip.style.left = (evt.clientX + 14) + "px";
+    tooltip.style.top = (evt.clientY + 14) + "px";
+  }
+  function hideTooltip() { tooltip.classList.add("hidden"); }
+
+  // ---- canvas scatter: one raster surface instead of N DOM nodes ----
+  // A ~30k-point SVG scatter (one <circle> + several listeners each) is
+  // what made this heavy: that's tens of thousands of DOM nodes, style
+  // recalcs and hit-testable elements. A single <canvas>, redrawn with a
+  // handful of batched fill() calls (grouped by category) and manual
+  // hit-testing on mousemove, renders and pans/zooms at a small fraction
+  // of the cost regardless of point count.
+  var canvas = document.getElementById("scatter");
+  var ctx = canvas.getContext("2d");
+  var cssWidth = 0, cssHeight = 0;
+
+  var fullView = { x0: xMin, x1: xMax, y0: yMin, y1: yMax };
+  var view = { x0: xMin, x1: xMax, y0: yMin, y1: yMax };
+
+  function resizeCanvas() {
+    var rect = canvas.getBoundingClientRect();
+    var dpr = window.devicePixelRatio || 1;
+    cssWidth = rect.width;
+    cssHeight = rect.height;
+    canvas.width = Math.max(1, Math.round(cssWidth * dpr));
+    canvas.height = Math.max(1, Math.round(cssHeight * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
+  }
+
+  function toScreenX(v) { return ((v - view.x0) / (view.x1 - view.x0)) * cssWidth; }
+  function toScreenY(v) { return cssHeight - ((v - view.y0) / (view.y1 - view.y0)) * cssHeight; }
+
+  // ---- pin highlighting: recomputed only when pins change, not per frame ----
+  var highlightColorArr = new Array(N).fill(null);
+  var highlightIdxs = [];
+  function recomputeHighlights() {
+    highlightIdxs.forEach(function (i) { highlightColorArr[i] = null; });
+    var next = [];
+    pins.forEach(function (p) {
+      if (highlightColorArr[p.idx] === null) next.push(p.idx);
+      highlightColorArr[p.idx] = p.color;
+      if (p.showDescendants && p.descendantIdxs) {
+        p.descendantIdxs.forEach(function (idx) {
+          if (highlightColorArr[idx] === null) next.push(idx);
+          highlightColorArr[idx] = p.color;
+        });
+      }
+    });
+    highlightIdxs = next;
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, cssWidth, cssHeight);
+
+    // axes
+    ctx.strokeStyle = "#9ca3af";
+    ctx.setLineDash([4, 3]);
+    ctx.lineWidth = 1;
+    var ax = toScreenX(0), ay = toScreenY(0);
+    ctx.beginPath(); ctx.moveTo(0, ay); ctx.lineTo(cssWidth, ay); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(ax, 0); ctx.lineTo(ax, cssHeight); ctx.stroke();
+    ctx.setLineDash([]);
+
+    var spotlight = pins.some(function (p) { return p.showDescendants; });
+
+    // non-highlighted points, batched per category: a handful of fill()
+    // calls covering thousands of points each, instead of one call per point.
+    CATS_PRESENT.forEach(function (c) {
+      if (catHiddenFlag[CAT_CODE[c]]) return;
+      var idxs = pointsByCategory[c];
+      ctx.beginPath();
+      for (var k = 0; k < idxs.length; k++) {
+        var i = idxs[k];
+        if (highlightColorArr[i]) continue;
+        if (icHiddenAt(i)) continue;
+        var sx = toScreenX(xs[i]), sy = toScreenY(ys[i]);
+        ctx.moveTo(sx + BASE_RADIUS, sy);
+        ctx.arc(sx, sy, BASE_RADIUS, 0, TWO_PI);
+      }
+      ctx.fillStyle = catColors[c] || "#999999";
+      ctx.globalAlpha = spotlight ? 0.05 : 0.55;
+      ctx.fill();
+    });
+
+    // highlighted points on top, each with a ring so they pop against the cloud
+    ctx.globalAlpha = 0.95;
+    ctx.lineWidth = 1.1;
+    ctx.strokeStyle = "#1a1a1a";
+    highlightIdxs.forEach(function (i) {
+      if (catHiddenFlag[catCode[i]]) return;
+      if (icHiddenAt(i)) return;
+      var sx = toScreenX(xs[i]), sy = toScreenY(ys[i]);
+      ctx.beginPath();
+      ctx.arc(sx, sy, HI_RADIUS, 0, TWO_PI);
+      ctx.fillStyle = highlightColorArr[i];
+      ctx.fill();
+      ctx.stroke();
+    });
+    ctx.globalAlpha = 1;
+  }
+
+  // ---- hit-testing: linear scan is fine here (typed arrays, ~30k points,
+  // a few cheap ops each) -- no spatial index needed for this to stay fast ----
+  function hitTest(clientX, clientY) {
+    var rect = canvas.getBoundingClientRect();
+    var mx = clientX - rect.left, my = clientY - rect.top;
+    var best = -1, bestD2 = HIT_RADIUS_PX * HIT_RADIUS_PX;
+    for (var i = 0; i < N; i++) {
+      if (catHiddenFlag[catCode[i]]) continue;
+      if (icHiddenAt(i)) continue;
+      var sx = toScreenX(xs[i]), sy = toScreenY(ys[i]);
+      var dx = sx - mx, dy = sy - my;
+      var d2 = dx * dx + dy * dy;
+      if (d2 < bestD2) { bestD2 = d2; best = i; }
+    }
+    return best;
+  }
+
+  document.getElementById("reset-zoom-btn").onclick = function () {
+    view.x0 = fullView.x0; view.x1 = fullView.x1;
+    view.y0 = fullView.y0; view.y1 = fullView.y1;
+    draw();
+  };
+
+  var minW = (fullView.x1 - fullView.x0) * MIN_VIEW_FRACTION;
+  var minH = (fullView.y1 - fullView.y0) * MIN_VIEW_FRACTION;
+  canvas.addEventListener("wheel", function (evt) {
+    evt.preventDefault();
+    var rect = canvas.getBoundingClientRect();
+    var mx = (evt.clientX - rect.left) / rect.width;
+    var my = (evt.clientY - rect.top) / rect.height;
+    var pointX = view.x0 + mx * (view.x1 - view.x0);
+    var pointY = view.y0 + (1 - my) * (view.y1 - view.y0);
+    var factor = evt.deltaY > 0 ? 1.15 : (1 / 1.15);
+    var newW = Math.min(fullView.x1 - fullView.x0, Math.max(minW, (view.x1 - view.x0) * factor));
+    var newH = Math.min(fullView.y1 - fullView.y0, Math.max(minH, (view.y1 - view.y0) * factor));
+    view.x0 = pointX - mx * newW; view.x1 = view.x0 + newW;
+    view.y0 = pointY - (1 - my) * newH; view.y1 = view.y0 + newH;
+    draw();
+  }, { passive: false });
+
+  var isPanning = false, panMoved = false, lastX = 0, lastY = 0;
+  canvas.addEventListener("mousedown", function (evt) {
+    isPanning = true;
+    panMoved = false;
+    lastX = evt.clientX; lastY = evt.clientY;
+    canvas.classList.add("panning");
+    hideTooltip();
+    evt.preventDefault();
+  });
+  window.addEventListener("mousemove", function (evt) {
+    if (!isPanning) return;
+    panMoved = true;
+    var dxData = (evt.clientX - lastX) / cssWidth * (view.x1 - view.x0);
+    var dyData = (evt.clientY - lastY) / cssHeight * (view.y1 - view.y0);
+    view.x0 -= dxData; view.x1 -= dxData;
+    view.y0 += dyData; view.y1 += dyData;
+    lastX = evt.clientX; lastY = evt.clientY;
+    draw();
+  });
+  window.addEventListener("mouseup", function () {
+    isPanning = false;
+    canvas.classList.remove("panning");
+  });
+
+  canvas.addEventListener("mousemove", function (evt) {
+    if (isPanning) return;
+    var hit = hitTest(evt.clientX, evt.clientY);
+    if (hit === -1) { hideTooltip(); return; }
+    showTooltip(evt, hit);
+  });
+  canvas.addEventListener("mouseleave", hideTooltip);
+  canvas.addEventListener("mouseup", function () {
+    if (panMoved) return;
+    var hit = hitTest(lastX, lastY);
+    if (hit !== -1) window.open("https://amigo.geneontology.org/amigo/term/" + DATA.ids[hit], "_blank");
+  });
+
+  window.addEventListener("resize", resizeCanvas);
+
+  // Build the IC threshold rail DOM once, mirroring general_pca_all's
+  // GO-count rail (same drag-handle mechanics, different bound value).
+  (function () {
+    if (!icValid.length || icRailCeil <= icRailFloor) return; // nothing to filter on
+
+    icRailMaxInput = document.createElement("input");
+    icRailMaxInput.type = "number";
+    icRailMaxInput.step = "0.01";
+    icRailMaxInput.className = "threshold-rail-input";
+    icRailEl.appendChild(icRailMaxInput);
+
+    icRailTrackEl = document.createElement("div");
+    icRailTrackEl.className = "threshold-rail-track";
+    icRailFill = document.createElement("div");
+    icRailFill.className = "threshold-rail-fill";
+    icRailMinHandle = document.createElement("div");
+    icRailMinHandle.className = "threshold-rail-handle";
+    icRailMaxHandle = document.createElement("div");
+    icRailMaxHandle.className = "threshold-rail-handle";
+    icRailTrackEl.appendChild(icRailFill);
+    icRailTrackEl.appendChild(icRailMinHandle);
+    icRailTrackEl.appendChild(icRailMaxHandle);
+    icRailEl.appendChild(icRailTrackEl);
+
+    icRailMinInput = document.createElement("input");
+    icRailMinInput.type = "number";
+    icRailMinInput.step = "0.01";
+    icRailMinInput.className = "threshold-rail-input";
+    icRailEl.appendChild(icRailMinInput);
+
+    icRailMinInput.value = icFilterMin.toFixed(2);
+    icRailMaxInput.value = icFilterMax.toFixed(2);
+    icRailMinInput.oninput = function () { setIcRailMin(parseFloat(icRailMinInput.value)); };
+    icRailMaxInput.oninput = function () { setIcRailMax(parseFloat(icRailMaxInput.value)); };
+
+    function valueFromClientY(clientY) {
+      var rect = icRailTrackEl.getBoundingClientRect();
+      var frac = Math.min(1, Math.max(0, (rect.bottom - clientY) / rect.height));
+      return icRailFloor + frac * (icRailCeil - icRailFloor);
+    }
+
+    function startDrag(setter) {
+      return function (evt) {
+        evt.preventDefault();
+        setter(valueFromClientY(evt.clientY));
+        function onMove(e) { setter(valueFromClientY(e.clientY)); }
+        function onUp() {
+          window.removeEventListener("mousemove", onMove);
+          window.removeEventListener("mouseup", onUp);
+        }
+        window.addEventListener("mousemove", onMove);
+        window.addEventListener("mouseup", onUp);
+      };
+    }
+
+    icRailMinHandle.addEventListener("mousedown", startDrag(setIcRailMin));
+    icRailMaxHandle.addEventListener("mousedown", startDrag(setIcRailMax));
+    icRailTrackEl.addEventListener("mousedown", function (evt) {
+      if (evt.target === icRailMinHandle || evt.target === icRailMaxHandle) return;
+      var v = valueFromClientY(evt.clientY);
+      (Math.abs(v - icFilterMin) <= Math.abs(v - icFilterMax) ? setIcRailMin : setIcRailMax)(v);
+    });
+
+    positionIcRailHandles();
+    icRailEl.classList.remove("inactive");
+  })();
+
+  buildLegend();
+  resizeCanvas();
+})();
+</script>
+</body>
+</html>
