@@ -405,6 +405,27 @@ def main():
     for spine in ("top", "right"):
         ax_rate.spines[spine].set_visible(False)
 
+    # --- caveat: this only corrects for how many species were SAMPLED, not for how
+    # thoroughly each one was ANNOTATED. Checked directly against
+    # merged_species_stats_belen.tsv: Metazoa species average GO/Prot_fan ~9.5 vs
+    # ~4.5-5.6 for every other group (roughly double), with LOWER mean IC_fan than
+    # everyone else (~10.6 vs ~12.2-13.1) -- i.e. more GO terms per protein but on
+    # average less specific ones. Consistent with FANTASIA's embedding-similarity
+    # transfer favoring Metazoa proteins because its experimentally-characterized
+    # reference set (Swiss-Prot) is itself dominated by well-studied model animals
+    # -- so Metazoa's outsized rate here may be substantially an annotation-density
+    # artifact of the prediction method, not (only) real evolutionary innovation. ---
+    if "Metazoa" in nodes_with_counts:
+        idx = nodes_with_counts.index("Metazoa")
+        ax_rate.annotate(
+            "Aviso: Metazoa tiene ~2x GO/proteina que el resto de grupos\n"
+            "(sesgo de anotacion FANTASIA hacia especies modelo bien\n"
+            "caracterizadas, no necesariamente mas innovacion real)",
+            xy=(idx, rates[idx]), xycoords="data",
+            xytext=(0.55, 0.88), textcoords="axes fraction",
+            fontsize=7.5, color="#555555", ha="left", va="top",
+            arrowprops=dict(arrowstyle="->", color="#888888", lw=0.9))
+
     # --- plot 3: category composition per node, normalized to 100% -- decouples
     # "how much" (plot 2) from "what kind" (this plot); a linear stack of raw counts
     # would hide composition shifts in every node dwarfed by Root/Eukaryota/Metazoa ---
