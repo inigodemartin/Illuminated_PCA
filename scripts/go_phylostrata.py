@@ -148,6 +148,26 @@ def mrca(present_groups, ancestors, depth):
     return max(common, key=lambda n: depth[n])
 
 
+def subtree_species_counts(children, group_sizes):
+    """Species count backing each node: its own size if a leaf, otherwise the sum
+    across every leaf descendant. Needed to normalize origination counts -- Fungi
+    (849 species) and Metazoa (954) will rack up more raw originations than
+    Glaucophyta (3) or pteridophyte (2) purely from sampling more species, not
+    necessarily from being more evolutionarily innovative."""
+    totals = {}
+
+    def recurse(n):
+        ch = children.get(n, [])
+        if not ch:
+            totals[n] = group_sizes.get(n, 0)
+            return totals[n]
+        totals[n] = sum(recurse(c) for c in ch)
+        return totals[n]
+
+    recurse("Root")
+    return totals
+
+
 def layout_y(node, children):
     """Post-order layout: leaves get sequential y; internal nodes sit at the
     mean of their children's y, the standard dendrogram placement."""
@@ -271,17 +291,26 @@ def main():
         node_counts[node] += 1
         node_category_counts[node][category_by_id.get(go_id, "unknown")] += 1
 
+    # --- normalize by sampling effort: a clade with more species surveyed racks up
+    # more raw originations for free (more chances to clear the presence threshold),
+    # regardless of how evolutionarily innovative it actually is -- Fungi (849
+    # species) vs Glaucophyta (3) isn't a fair comparison on raw counts alone ---
+    node_species = subtree_species_counts(children, group_sizes)
+    node_rate = {n: node_counts[n] / node_species[n] for n in node_counts if node_species.get(n, 0) > 0}
+
     # --- TSV report ---
     with open(args.report, "w", newline="") as fh:
         writer = csv.writer(fh, delimiter="\t")
-        writer.writerow(["GO_id", "description", "category", "IC", "origin_node", "present_groups", "n_groups_present"])
+        writer.writerow(["GO_id", "description", "category", "IC", "origin_node", "present_groups",
+                          "n_groups_present", "origin_node_n_species", "origin_node_rate_per_species"])
         for go_id in go_ids:
             if go_id not in origin_by_go:
                 continue
             node, present = origin_by_go[go_id]
             writer.writerow([go_id, go_desc.get(go_id, "unknown"), category_by_id.get(go_id, "unknown"),
                               round(go_ic[go_id], 2) if go_id in go_ic else "", node,
-                              ",".join(present), len(present)])
+                              ",".join(present), len(present), node_species.get(node, ""),
+                              round(node_rate.get(node, 0), 4)])
     print(f"Wrote {args.report}")
 
     # --- plot 1: node-link tree, marker size/color by origination count ---
@@ -289,23 +318,32 @@ def main():
     ypos = {n: y * Y_SCALE for n, y in layout_y("Root", children).items()}
     xpos = depth
 
-    fig = plt.figure(figsize=(13, 17))
-    gs = fig.add_gridspec(3, 1, height_ratios=[3.4, 1.1, 1.1], hspace=0.55)
+    fig = plt.figure(figsize=(13, 21))
+    gs = fig.add_gridspec(4, 1, height_ratios=[3.4, 1.1, 1.1, 1.1], hspace=0.6)
     ax_tree = fig.add_subplot(gs[0])
     ax_total = fig.add_subplot(gs[1])
-    ax_frac = fig.add_subplot(gs[2])
+    ax_rate = fig.add_subplot(gs[2])
+    ax_frac = fig.add_subplot(gs[3])
 
     for p, c in TREE_EDGES:
         ax_tree.plot([xpos[p], xpos[c]], [ypos[p], ypos[c]], color="#BBBBBB", lw=1.2, zorder=1)
 
+    # scatter's `s` is marker AREA (points^2) -- area must scale LINEARLY with count
+    # for circle size to be an honest encoding of magnitude (area doubles iff count
+    # doubles). A previous version applied an extra sqrt on top of this ratio, which
+    # collapsed the effective encoding to radius ~ count**0.25: e.g. Root (7,828) and
+    # Metazoa (6,086), a 30% difference in count, differed by only ~6% in radius --
+    # real differences were nearly invisible. Color intensity can still use a mild
+    # compressive (sqrt) scale for legibility since color has no such area convention.
     max_count = max(node_counts.values()) if node_counts else 1
+    S_MIN, S_MAX = 30, 1400
     cmap = plt.cm.Blues
     # leaves alternate their label above/below the marker (by y-rank parity) so two
     # leaves that land close together in y never stack their text on top of each other
     leaf_rank = {n: i for i, n in enumerate(sorted(LEAF_GROUPS, key=lambda n: ypos[n]))}
     for node in order:
         count = node_counts.get(node, 0)
-        size = 80 + 700 * (count / max_count) ** 0.5
+        size = S_MIN + (S_MAX - S_MIN) * (count / max_count)
         color = cmap(0.25 + 0.65 * (count / max_count) ** 0.5) if count else "#EEEEEE"
         ax_tree.scatter([xpos[node]], [ypos[node]], s=size, color=color,
                          edgecolors="#4C4C4C", linewidths=0.8, zorder=2)
@@ -317,6 +355,18 @@ def main():
         ax_tree.annotate(f"{node} ({count:,})", (xpos[node], ypos[node]),
                           textcoords="offset points", xytext=xytext,
                           ha="center" if node in LEAF_GROUPS else "right", va=va, fontsize=8.5)
+
+    # --- size legend: reference bubbles at round counts, so absolute magnitude can
+    # be read off the plot instead of guessed by comparing circles to each other ---
+    legend_counts = sorted({v for v in (50, 500, 5000, max_count) if v <= max_count})
+    legend_handles = [
+        Line2D([0], [0], marker="o", linestyle="none", markerfacecolor=cmap(0.25 + 0.65 * (v / max_count) ** 0.5),
+               markeredgecolor="#4C4C4C", markersize=(S_MIN + (S_MAX - S_MIN) * (v / max_count)) ** 0.5 * 0.9,
+               label=f"{v:,}")
+        for v in legend_counts
+    ]
+    ax_tree.legend(handles=legend_handles, title="GO terms originados", loc="lower right",
+                   fontsize=8.5, title_fontsize=9, labelspacing=1.6, borderpad=1.2, frameon=False)
 
     ax_tree.set_xlabel("Distancia evolutiva desde la raiz (nº de nodos)")
     ax_tree.set_yticks([])
@@ -336,9 +386,24 @@ def main():
     ax_total.set_xticks(range(len(nodes_with_counts)))
     ax_total.set_xticklabels(nodes_with_counts, rotation=45, ha="right", fontsize=8.5)
     ax_total.set_ylabel("GO terms originados (escala log)")
-    ax_total.set_title("Magnitud de innovacion funcional por nodo")
+    ax_total.set_title("Magnitud de innovacion funcional por nodo (recuento bruto)")
     for spine in ("top", "right"):
         ax_total.spines[spine].set_visible(False)
+
+    # --- plot 3: same counts, normalized by the number of species backing each node
+    # (its own species if a leaf, or the sum across every descendant leaf if an
+    # internal node) -- corrects the sampling-effort bias in plot 2, where Fungi/
+    # Metazoa (hundreds of species) mechanically rack up more raw originations than
+    # Glaucophyta/pteridophyte (a handful of species) regardless of true innovation ---
+    rates = np.array([node_rate[n] for n in nodes_with_counts])
+    ax_rate.bar(range(len(nodes_with_counts)), rates, width=0.65,
+                color="#F5A623", edgecolor="white", linewidth=0.5)
+    ax_rate.set_xticks(range(len(nodes_with_counts)))
+    ax_rate.set_xticklabels(nodes_with_counts, rotation=45, ha="right", fontsize=8.5)
+    ax_rate.set_ylabel("GO terms originados / especie")
+    ax_rate.set_title("Magnitud de innovacion funcional por nodo (normalizada por nº de especies)")
+    for spine in ("top", "right"):
+        ax_rate.spines[spine].set_visible(False)
 
     # --- plot 3: category composition per node, normalized to 100% -- decouples
     # "how much" (plot 2) from "what kind" (this plot); a linear stack of raw counts
