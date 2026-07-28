@@ -1154,41 +1154,65 @@
     svg.appendChild(axis.labelEl);
   });
 
-  // ---- group ellipses (toggleable) ----
-  // A ~95% covariance ellipse per taxon group, in the *same* rotating PC
-  // space as everything else: computed from each group's full 3D (pc1,
-  // pc2, pc3) covariance, then re-projected to 2D on every rotation the
-  // same way a point would be -- by applying the current rotation to the
-  // covariance matrix (Cov' = P * Cov * P^T, P = the rotation's first two
-  // rows) and reading off eigenvalues/eigenvector angle of the resulting
-  // 2x2 block, rather than a static PC1/PC2-only ellipse that would
-  // visually detach from the cloud as soon as it's rotated. Boundary points
-  // are computed in data space and passed through scaleX/scaleY
-  // individually (not via a single SVG transform), matching how axisLines
-  // are built -- necessary because scaleX/scaleY scale x and y by
-  // different factors, which would distort a tilted ellipse if scaled as
-  // a rigid shape instead of point-by-point.
-  var ELLIPSE_SCALE = 2.4477; // chi-square(2 df, 95%) radius multiplier, sqrt(5.991)
+  // ---- group ellipsoids (toggleable) ----
+  // A real 3D ~95% covariance ellipsoid per taxon group -- drawn as 3
+  // "great ellipse" wireframe loops (one per pair of principal axes, like
+  // the equator + two meridians of a globe), each sampled as actual 3D
+  // points and pushed through the SAME rotate3D + scaleX/scaleY pipeline
+  // as the data points themselves. This is deliberately NOT a flat 2D
+  // silhouette of the ellipsoid (a first version did that, projecting the
+  // covariance itself): a silhouette only ever shows one tilting outline
+  // and never conveys volume. Three great-ellipses rotating together, each
+  // foreshortening differently as you drag, is what actually reads as a
+  // solid "veil" wrapped around the group instead of a flat shape leaning.
+  var ELLIPSOID_SCALE = 2.795; // sqrt(chi-square(3 df, 95%)) = sqrt(7.815)
   var ELLIPSE_STEPS = 48;
 
-  function quadForm(u, v, cov) {
-    var cv = [
-      cov.xx * v[0] + cov.xy * v[1] + cov.xz * v[2],
-      cov.xy * v[0] + cov.yy * v[1] + cov.yz * v[2],
-      cov.xz * v[0] + cov.yz * v[1] + cov.zz * v[2],
+  // Cyclic Jacobi eigensolver for a symmetric 3x3 matrix -- simple and
+  // numerically robust for this size (a handful of rotations converges),
+  // unlike a closed-form cubic solution which has awkward edge cases.
+  // Verified against numpy.linalg.eigh (values and vectors match, up to
+  // eigenvectors' inherent sign ambiguity, which doesn't matter here since
+  // the ellipse sampling below covers both +v and -v around the loop).
+  function jacobiEigen3x3(cov) {
+    var A = [
+      [cov.xx, cov.xy, cov.xz],
+      [cov.xy, cov.yy, cov.yz],
+      [cov.xz, cov.yz, cov.zz],
     ];
-    return u[0] * cv[0] + u[1] * cv[1] + u[2] * cv[2];
-  }
-
-  function rotationProjectionRows(yaw, pitch) {
-    var cosY = Math.cos(yaw), sinY = Math.sin(yaw);
-    var cosX = Math.cos(pitch), sinX = Math.sin(pitch);
-    // First two rows of the same 3x3 rotation matrix rotate3D applies
-    // (Rx(pitch) * Ry(yaw)) -- i.e. exactly the (x, y) a point at (1,0,0)/
-    // (0,1,0)/(0,0,1) would land on, generalized to project any vector.
+    var V = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+    for (var iter = 0; iter < 100; iter++) {
+      var p = 0, q = 1, off = Math.abs(A[0][1]);
+      if (Math.abs(A[0][2]) > off) { off = Math.abs(A[0][2]); p = 0; q = 2; }
+      if (Math.abs(A[1][2]) > off) { off = Math.abs(A[1][2]); p = 1; q = 2; }
+      if (off < 1e-12) break;
+      var theta = (A[q][q] - A[p][p]) / (2 * A[p][q]);
+      var t = (theta >= 0 ? 1 : -1) / (Math.abs(theta) + Math.sqrt(theta * theta + 1));
+      var c = 1 / Math.sqrt(t * t + 1), s = t * c;
+      var App = A[p][p], Aqq = A[q][q], Apq = A[p][q];
+      A[p][p] = c * c * App - 2 * s * c * Apq + s * s * Aqq;
+      A[q][q] = s * s * App + 2 * s * c * Apq + c * c * Aqq;
+      A[p][q] = A[q][p] = 0;
+      for (var k = 0; k < 3; k++) {
+        if (k !== p && k !== q) {
+          var Akp = A[k][p], Akq = A[k][q];
+          A[k][p] = A[p][k] = c * Akp - s * Akq;
+          A[k][q] = A[q][k] = s * Akp + c * Akq;
+        }
+      }
+      for (k = 0; k < 3; k++) {
+        var Vkp = V[k][p], Vkq = V[k][q];
+        V[k][p] = c * Vkp - s * Vkq;
+        V[k][q] = s * Vkp + c * Vkq;
+      }
+    }
     return {
-      p1: [cosY, 0, sinY],
-      p2: [sinX * sinY, cosX, -sinX * cosY],
+      values: [A[0][0], A[1][1], A[2][2]],
+      vectors: [
+        [V[0][0], V[1][0], V[2][0]],
+        [V[0][1], V[1][1], V[2][1]],
+        [V[0][2], V[1][2], V[2][2]],
+      ],
     };
   }
 
@@ -1204,53 +1228,46 @@
     var stats = {};
     Object.keys(sums).forEach(function (g) {
       var a = sums[g];
-      if (a.n < 3) return; // not enough points for a meaningful covariance
+      if (a.n < 4) return; // not enough points for a meaningful 3D covariance
       var mx = a.sx / a.n, my = a.sy / a.n, mz = a.sz / a.n;
       var denom = a.n - 1;
-      stats[g] = {
-        mean: [mx, my, mz],
-        cov: {
-          xx: (a.sxx - a.n * mx * mx) / denom,
-          xy: (a.sxy - a.n * mx * my) / denom,
-          xz: (a.sxz - a.n * mx * mz) / denom,
-          yy: (a.syy - a.n * my * my) / denom,
-          yz: (a.syz - a.n * my * mz) / denom,
-          zz: (a.szz - a.n * mz * mz) / denom,
-        },
+      var cov = {
+        xx: (a.sxx - a.n * mx * mx) / denom,
+        xy: (a.sxy - a.n * mx * my) / denom,
+        xz: (a.sxz - a.n * mx * mz) / denom,
+        yy: (a.syy - a.n * my * my) / denom,
+        yz: (a.syz - a.n * my * mz) / denom,
+        zz: (a.szz - a.n * mz * mz) / denom,
       };
+      stats[g] = { mean: [mx, my, mz], eigen: jacobiEigen3x3(cov) };
     });
     return stats;
   })();
 
-  function ellipsePathFor(g, yaw, pitch) {
+  var ELLIPSOID_AXIS_PAIRS = [[0, 1], [0, 2], [1, 2]];
+
+  function ellipsoidPathFor(g, yaw, pitch) {
     var stat = groupStats[g];
     if (!stat) return null;
-    var rows = rotationProjectionRows(yaw, pitch);
-    var p1 = rows.p1, p2 = rows.p2, mean = stat.mean;
-    var rmx = p1[0] * mean[0] + p1[1] * mean[1] + p1[2] * mean[2];
-    var rmy = p2[0] * mean[0] + p2[1] * mean[1] + p2[2] * mean[2];
-
-    var cxx = quadForm(p1, p1, stat.cov);
-    var cxy = quadForm(p1, p2, stat.cov);
-    var cyy = quadForm(p2, p2, stat.cov);
-
-    var trace = cxx + cyy, det = cxx * cyy - cxy * cxy;
-    var disc = Math.max(0, (trace * trace) / 4 - det);
-    var sqrtDisc = Math.sqrt(disc);
-    var r1 = ELLIPSE_SCALE * Math.sqrt(Math.max(0, trace / 2 + sqrtDisc));
-    var r2 = ELLIPSE_SCALE * Math.sqrt(Math.max(0, trace / 2 - sqrtDisc));
-    var angle = (cxy === 0 && cxx >= cyy) ? 0 : 0.5 * Math.atan2(2 * cxy, cxx - cyy);
-    var cosA = Math.cos(angle), sinA = Math.sin(angle);
-
+    var mean = stat.mean, eigen = stat.eigen;
     var d = "";
-    for (var k = 0; k <= ELLIPSE_STEPS; k++) {
-      var t = (k / ELLIPSE_STEPS) * Math.PI * 2;
-      var ex = r1 * Math.cos(t), ey = r2 * Math.sin(t);
-      var ox = ex * cosA - ey * sinA, oy = ex * sinA + ey * cosA;
-      var px = scaleX(rmx + ox), py = scaleY(rmy + oy);
-      d += (k === 0 ? "M" : "L") + px.toFixed(2) + "," + py.toFixed(2) + " ";
-    }
-    return d + "Z";
+    ELLIPSOID_AXIS_PAIRS.forEach(function (pair) {
+      var va = eigen.vectors[pair[0]], vb = eigen.vectors[pair[1]];
+      var ra = ELLIPSOID_SCALE * Math.sqrt(Math.max(0, eigen.values[pair[0]]));
+      var rb = ELLIPSOID_SCALE * Math.sqrt(Math.max(0, eigen.values[pair[1]]));
+      for (var k = 0; k <= ELLIPSE_STEPS; k++) {
+        var t = (k / ELLIPSE_STEPS) * Math.PI * 2;
+        var ox = ra * Math.cos(t), oy = rb * Math.sin(t);
+        var x = mean[0] + ox * va[0] + oy * vb[0];
+        var y = mean[1] + ox * va[1] + oy * vb[1];
+        var z = mean[2] + ox * va[2] + oy * vb[2];
+        var r = rotate3D(x, y, z, yaw, pitch);
+        var px = scaleX(r.x), py = scaleY(r.y);
+        d += (k === 0 ? "M" : "L") + px.toFixed(2) + "," + py.toFixed(2) + " ";
+      }
+      d += "Z ";
+    });
+    return d;
   }
 
   var showEllipses = false;
@@ -1261,7 +1278,7 @@
     path.setAttribute("class", "group-ellipse");
     path.setAttribute("fill", DATA.groups[g] || "#999999");
     path.setAttribute("stroke", DATA.groups[g] || "#999999");
-    path.setAttribute("d", ellipsePathFor(g, 0, 0));
+    path.setAttribute("d", ellipsoidPathFor(g, 0, 0));
     path.style.display = "none";
     svg.appendChild(path);
     ellipseEls[g] = path;
@@ -1269,7 +1286,7 @@
 
   function updateEllipses(yaw, pitch) {
     Object.keys(ellipseEls).forEach(function (g) {
-      var d = ellipsePathFor(g, yaw, pitch);
+      var d = ellipsoidPathFor(g, yaw, pitch);
       if (d) ellipseEls[g].setAttribute("d", d);
     });
   }
