@@ -475,6 +475,21 @@
     pointer-events: none;
     user-select: none;
   }
+  .group-ellipse {
+    fill-opacity: 0.12;
+    stroke-opacity: 0.35;
+    stroke-width: 1;
+    pointer-events: none;
+  }
+  .ellipse-toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11.5px;
+    color: #334155;
+    cursor: pointer;
+    margin-bottom: 8px;
+  }
   #tooltip {
     position: fixed;
     pointer-events: none;
@@ -524,6 +539,9 @@
       <button id="sidebar-select-all" class="legend-action">Select all</button>
       <button id="sidebar-select-none" class="legend-action">Select none</button>
     </div>
+    <label class="ellipse-toggle-label">
+      <input type="checkbox" id="ellipse-toggle"> Show group ellipses
+    </label>
     <p class="legend-hint">Drag &#x22EE;&#x22EE; to reorder — top group draws in front</p>
     <div id="sidebar-legend" class="legend"></div>
   </div>
@@ -889,6 +907,7 @@
       }
       c.style.display = suppressed ? "none" : "";
     });
+    updateEllipseVisibility();
   }
 
   function syncLegendCheckboxes() {
@@ -910,6 +929,10 @@
     document.querySelectorAll('circle[data-group]').forEach(function (c) {
       if (c.getAttribute("data-group") === g) c.setAttribute("fill", hex);
     });
+    if (ellipseEls[g]) {
+      ellipseEls[g].setAttribute("fill", hex);
+      ellipseEls[g].setAttribute("stroke", hex);
+    }
   }
 
   // Re-appends every circle in GROUP_ORDER order, back-to-front (last group
@@ -1130,6 +1153,137 @@
     axis.labelEl.setAttribute("y", scaleY(axis.p2[1]) - 4);
     svg.appendChild(axis.labelEl);
   });
+
+  // ---- group ellipses (toggleable) ----
+  // A ~95% covariance ellipse per taxon group, in the *same* rotating PC
+  // space as everything else: computed from each group's full 3D (pc1,
+  // pc2, pc3) covariance, then re-projected to 2D on every rotation the
+  // same way a point would be -- by applying the current rotation to the
+  // covariance matrix (Cov' = P * Cov * P^T, P = the rotation's first two
+  // rows) and reading off eigenvalues/eigenvector angle of the resulting
+  // 2x2 block, rather than a static PC1/PC2-only ellipse that would
+  // visually detach from the cloud as soon as it's rotated. Boundary points
+  // are computed in data space and passed through scaleX/scaleY
+  // individually (not via a single SVG transform), matching how axisLines
+  // are built -- necessary because scaleX/scaleY scale x and y by
+  // different factors, which would distort a tilted ellipse if scaled as
+  // a rigid shape instead of point-by-point.
+  var ELLIPSE_SCALE = 2.4477; // chi-square(2 df, 95%) radius multiplier, sqrt(5.991)
+  var ELLIPSE_STEPS = 48;
+
+  function quadForm(u, v, cov) {
+    var cv = [
+      cov.xx * v[0] + cov.xy * v[1] + cov.xz * v[2],
+      cov.xy * v[0] + cov.yy * v[1] + cov.yz * v[2],
+      cov.xz * v[0] + cov.yz * v[1] + cov.zz * v[2],
+    ];
+    return u[0] * cv[0] + u[1] * cv[1] + u[2] * cv[2];
+  }
+
+  function rotationProjectionRows(yaw, pitch) {
+    var cosY = Math.cos(yaw), sinY = Math.sin(yaw);
+    var cosX = Math.cos(pitch), sinX = Math.sin(pitch);
+    // First two rows of the same 3x3 rotation matrix rotate3D applies
+    // (Rx(pitch) * Ry(yaw)) -- i.e. exactly the (x, y) a point at (1,0,0)/
+    // (0,1,0)/(0,0,1) would land on, generalized to project any vector.
+    return {
+      p1: [cosY, 0, sinY],
+      p2: [sinX * sinY, cosX, -sinX * cosY],
+    };
+  }
+
+  var groupStats = (function () {
+    var sums = {};
+    DATA.species.forEach(function (s) {
+      var g = s.group, z = s.pc3 || 0;
+      var a = sums[g] || (sums[g] = { n: 0, sx: 0, sy: 0, sz: 0, sxx: 0, sxy: 0, sxz: 0, syy: 0, syz: 0, szz: 0 });
+      a.n++; a.sx += s.pc1; a.sy += s.pc2; a.sz += z;
+      a.sxx += s.pc1 * s.pc1; a.sxy += s.pc1 * s.pc2; a.sxz += s.pc1 * z;
+      a.syy += s.pc2 * s.pc2; a.syz += s.pc2 * z; a.szz += z * z;
+    });
+    var stats = {};
+    Object.keys(sums).forEach(function (g) {
+      var a = sums[g];
+      if (a.n < 3) return; // not enough points for a meaningful covariance
+      var mx = a.sx / a.n, my = a.sy / a.n, mz = a.sz / a.n;
+      var denom = a.n - 1;
+      stats[g] = {
+        mean: [mx, my, mz],
+        cov: {
+          xx: (a.sxx - a.n * mx * mx) / denom,
+          xy: (a.sxy - a.n * mx * my) / denom,
+          xz: (a.sxz - a.n * mx * mz) / denom,
+          yy: (a.syy - a.n * my * my) / denom,
+          yz: (a.syz - a.n * my * mz) / denom,
+          zz: (a.szz - a.n * mz * mz) / denom,
+        },
+      };
+    });
+    return stats;
+  })();
+
+  function ellipsePathFor(g, yaw, pitch) {
+    var stat = groupStats[g];
+    if (!stat) return null;
+    var rows = rotationProjectionRows(yaw, pitch);
+    var p1 = rows.p1, p2 = rows.p2, mean = stat.mean;
+    var rmx = p1[0] * mean[0] + p1[1] * mean[1] + p1[2] * mean[2];
+    var rmy = p2[0] * mean[0] + p2[1] * mean[1] + p2[2] * mean[2];
+
+    var cxx = quadForm(p1, p1, stat.cov);
+    var cxy = quadForm(p1, p2, stat.cov);
+    var cyy = quadForm(p2, p2, stat.cov);
+
+    var trace = cxx + cyy, det = cxx * cyy - cxy * cxy;
+    var disc = Math.max(0, (trace * trace) / 4 - det);
+    var sqrtDisc = Math.sqrt(disc);
+    var r1 = ELLIPSE_SCALE * Math.sqrt(Math.max(0, trace / 2 + sqrtDisc));
+    var r2 = ELLIPSE_SCALE * Math.sqrt(Math.max(0, trace / 2 - sqrtDisc));
+    var angle = (cxy === 0 && cxx >= cyy) ? 0 : 0.5 * Math.atan2(2 * cxy, cxx - cyy);
+    var cosA = Math.cos(angle), sinA = Math.sin(angle);
+
+    var d = "";
+    for (var k = 0; k <= ELLIPSE_STEPS; k++) {
+      var t = (k / ELLIPSE_STEPS) * Math.PI * 2;
+      var ex = r1 * Math.cos(t), ey = r2 * Math.sin(t);
+      var ox = ex * cosA - ey * sinA, oy = ex * sinA + ey * cosA;
+      var px = scaleX(rmx + ox), py = scaleY(rmy + oy);
+      d += (k === 0 ? "M" : "L") + px.toFixed(2) + "," + py.toFixed(2) + " ";
+    }
+    return d + "Z";
+  }
+
+  var showEllipses = false;
+  var ellipseEls = {};
+  ALL_GROUPS.forEach(function (g) {
+    if (!groupStats[g]) return;
+    var path = document.createElementNS(svgNS, "path");
+    path.setAttribute("class", "group-ellipse");
+    path.setAttribute("fill", DATA.groups[g] || "#999999");
+    path.setAttribute("stroke", DATA.groups[g] || "#999999");
+    path.setAttribute("d", ellipsePathFor(g, 0, 0));
+    path.style.display = "none";
+    svg.appendChild(path);
+    ellipseEls[g] = path;
+  });
+
+  function updateEllipses(yaw, pitch) {
+    Object.keys(ellipseEls).forEach(function (g) {
+      var d = ellipsePathFor(g, yaw, pitch);
+      if (d) ellipseEls[g].setAttribute("d", d);
+    });
+  }
+
+  function updateEllipseVisibility() {
+    Object.keys(ellipseEls).forEach(function (g) {
+      ellipseEls[g].style.display = (showEllipses && !hiddenGroups[g]) ? "" : "none";
+    });
+  }
+
+  document.getElementById("ellipse-toggle").onchange = function (evt) {
+    showEllipses = evt.target.checked;
+    updateEllipseVisibility();
+  };
 
   DATA.species.forEach(function (s, i) {
     var c = document.createElementNS(svgNS, "circle");
@@ -1772,6 +1926,7 @@
       axis.labelEl.setAttribute("x", scaleX(r2.x) + 4);
       axis.labelEl.setAttribute("y", scaleY(r2.y) - 4);
     });
+    updateEllipses(td3Yaw, td3Pitch);
 
     // The explained-variance box only appears once actually rotated away
     // from the flat (yaw=pitch=0) layout -- hidden again if rotation is
