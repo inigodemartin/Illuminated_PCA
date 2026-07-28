@@ -94,7 +94,17 @@ def main():
         raw_full = raw_full[[c for c in raw_full.columns if go_ic.get(c, 0.0) >= args.ic_threshold]]
         print(f"IC filter (≥ {args.ic_threshold}): kept {raw_full.shape[1]} / {n_before} GO terms")
 
-    pca_df, explained_variance, loadings, normalized_df = run_pca_on_relative_abundance(raw_full, total_prots)
+    # n_components=3 so the browser can offer an optional 3D (PC1/PC2/PC3)
+    # view -- PC1/PC2 themselves are unaffected (see run_pca_on_relative_abundance's
+    # docstring: this relies on algorithm="arpack" being an exact, nested
+    # solver), so the default 2D page is the same PCA as before. loadings/
+    # top-loadings/contributions below are deliberately sliced back to
+    # PC1/PC2 only, so the sidebar and species modal don't gain an
+    # unrequested PC3 section.
+    pca_df, explained_variance, loadings_3d, normalized_df = run_pca_on_relative_abundance(
+        raw_full, total_prots, n_components=3
+    )
+    loadings = loadings_3d[["PC1", "PC2"]]
     n_go_used = loadings.shape[0]
     # How many of the same GO columns the PCA was fit on (loadings.index)
     # each species has any annotation for, for the tooltip -- reuses the
@@ -124,6 +134,7 @@ def main():
             "name": name,
             "pc1": float(pca_df.loc[name, "PC1"]),
             "pc2": float(pca_df.loc[name, "PC2"]),
+            "pc3": float(pca_df.loc[name, "PC3"]),
             "group": pca_df.loc[name, "Group"],
             "go_terms_present": int(richness.get(name, 0)),
             "contributions": contributions.get(name, {}),

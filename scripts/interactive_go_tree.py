@@ -85,7 +85,7 @@ def filter_species_by_stats(raw_df, total_prots):
     return raw_df.loc[species]
 
 
-def run_pca_on_relative_abundance(raw_df, total_prots):
+def run_pca_on_relative_abundance(raw_df, total_prots, n_components=2):
     """
     Drop rare GO columns, convert raw counts to a centered log-ratio (CLR)
     per species, then PCA via StandardScaler + TruncatedSVD. Computed once:
@@ -102,6 +102,19 @@ def run_pca_on_relative_abundance(raw_df, total_prots):
     Also returns the per-GO-term loadings (model.components_, transposed so
     rows are GO ids): how much each retained GO column contributes to PC1/
     PC2, for the "most influential GO terms per component" report.
+
+    n_components defaults to 2 (PC1/PC2, every existing caller). Passing 3
+    adds a PC3 column to pca_df/loadings without changing PC1/PC2 at all,
+    so general_pca_abundance.py can fit once with n_components=3 and feed
+    an optional 3D view while its default 2D output stays exactly the same
+    PCA. This nested-components guarantee needs algorithm="arpack": the
+    sklearn default ("randomized") is a stochastic approximation whose
+    result depends on n_components itself (and varies between runs with no
+    random_state set) -- verified empirically that asking for 2 vs. 3
+    components gave PC1/PC2 differing by ~5-8%, i.e. NOT nested. ARPACK is
+    an exact (to float precision) solver, so its top-k singular vectors are
+    identical regardless of how many more are requested, and calling it
+    with the same input twice always returns the same answer.
     """
     # total_prots not used to filter species here (see docstring above) --
     # a species missing Total_prots still gets a CLR row and gets plotted.
@@ -115,11 +128,12 @@ def run_pca_on_relative_abundance(raw_df, total_prots):
     scaler = StandardScaler()
     normalized = scaler.fit_transform(clr_values)
 
-    model = TruncatedSVD(n_components=2)
+    model = TruncatedSVD(n_components=n_components, algorithm="arpack")
     components = model.fit_transform(normalized)
 
-    pca_df = pd.DataFrame(components, columns=["PC1", "PC2"], index=species)
-    loadings = pd.DataFrame(model.components_.T, columns=["PC1", "PC2"], index=pca_input.columns)
+    pc_cols = [f"PC{i}" for i in range(1, n_components + 1)]
+    pca_df = pd.DataFrame(components, columns=pc_cols, index=species)
+    loadings = pd.DataFrame(model.components_.T, columns=pc_cols, index=pca_input.columns)
     normalized_df = pd.DataFrame(normalized, columns=pca_input.columns, index=species)
     return pca_df, model.explained_variance_ratio_, loadings, normalized_df
 

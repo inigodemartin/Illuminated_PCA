@@ -323,6 +323,7 @@
     flex-direction: column;
   }
   .plot-card {
+    position: relative;
     flex: 1 1 auto;
     min-height: 0;
     display: flex;
@@ -333,6 +334,19 @@
     border-radius: 8px;
     padding: 16px 20px;
     box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+  }
+  #pc3d-info {
+    position: absolute;
+    top: 32px;
+    left: 40px;
+    background: rgba(255,255,255,0.92);
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 11px;
+    color: #333;
+    line-height: 1.5;
+    pointer-events: none;
   }
   .plot-row {
     flex: 1 1 auto;
@@ -601,6 +615,8 @@
     </div>
     <button id="species-search-clear-btn" class="toolbar-btn">Clear species</button>
     <button id="reset-zoom-btn" class="toolbar-btn">Reset zoom</button>
+    <button id="view-3d-toggle-btn" class="toolbar-btn">View in 3D</button>
+    <button id="reset-3d-btn" class="toolbar-btn" style="display:none;">Reset rotation/zoom</button>
     <button id="download-png-btn" class="toolbar-btn">Download PNG</button>
   </div>
   <div id="go-search-chips"></div>
@@ -627,10 +643,12 @@
     <div class="plot-row">
       <div class="axis-label-y"><span id="y-axis-label"></span></div>
       <svg id="scatter" class="scatter"></svg>
+      <canvas id="scatter-3d" class="scatter" style="display:none;"></canvas>
       <div id="go-count-rail" class="threshold-rail inactive" title="Drag to filter by GO count"></div>
     </div>
     <div class="axis-label-x" id="x-axis-label"></div>
     <div class="plot-hint">Scroll to zoom, drag to pan.</div>
+    <div id="pc3d-info" style="display:none;"></div>
   </div>
 </div>
 <div id="species-modal" class="hidden">
@@ -973,6 +991,7 @@
       }
       c.style.display = suppressed ? "none" : "";
     });
+    if (is3D) render3D();
   }
 
   function syncLegendCheckboxes() {
@@ -994,6 +1013,7 @@
     document.querySelectorAll('circle[data-group]').forEach(function (c) {
       if (c.getAttribute("data-group") === g) c.setAttribute("fill", hex);
     });
+    if (is3D) render3D();
   }
 
   // Re-appends every circle in GROUP_ORDER order, back-to-front (last group
@@ -1841,6 +1861,207 @@
 
     positionRailHandles();
   })();
+
+  // ---- optional 3D view (PC1/PC2/PC3) ----
+  // Same rotate-drag/wheel-zoom/perspective math as the standalone
+  // general_pca_abundance_3d.py canvas template, but reusing this page's
+  // own species records, taxon colors (DATA.groups) and visibility
+  // (hiddenGroups) instead of a separate payload -- toggling a taxon
+  // checkbox or repainting a legend swatch while the 3D view is open
+  // updates it immediately (see the `if (is3D) render3D();` hooks in
+  // applyVisibility/updateGroupColor above). Only shown at all when every
+  // species record carries a pc3 (general_pca_abundance.py always fits 3
+  // components; presence_absence_pca.py and other 2D-only consumers of
+  // this same template don't, so the toggle button just stays hidden there).
+  var HAS_3D = DATA.species.length > 0 &&
+    DATA.species.every(function (s) { return s.pc3 !== undefined && s.pc3 !== null; });
+  var view3dBtn = document.getElementById("view-3d-toggle-btn");
+  var reset3dBtn = document.getElementById("reset-3d-btn");
+  var canvas3d = document.getElementById("scatter-3d");
+  var info3d = document.getElementById("pc3d-info");
+  var ctx3d = canvas3d.getContext("2d");
+  var is3D = false;
+  var info3dReady = false;
+
+  if (!HAS_3D) view3dBtn.style.display = "none";
+
+  var maxAbs3d = 0;
+  DATA.species.forEach(function (s) {
+    maxAbs3d = Math.max(maxAbs3d, Math.abs(s.pc1), Math.abs(s.pc2), Math.abs(s.pc3 || 0));
+  });
+  maxAbs3d = maxAbs3d || 1;
+
+  var points3d = DATA.species.map(function (s, i) {
+    return { x: s.pc1 / maxAbs3d, y: s.pc2 / maxAbs3d, z: (s.pc3 || 0) / maxAbs3d, idx: i, species: s };
+  });
+
+  var TD_INITIAL_YAW = 0.6, TD_INITIAL_PITCH = -0.35; // radians; off edge-on so the cloud reads as 3D from the start
+  var tdYaw = TD_INITIAL_YAW, tdPitch = TD_INITIAL_PITCH, tdZoom = 1;
+  var tdFocal = 3.2, tdBaseRadius = 220, tdBaseDotR = 4.5;
+  var tdDragging = false, tdLastX = 0, tdLastY = 0;
+  var tdLastProjected = [];
+
+  function tdRotatePoint(p) {
+    var cosY = Math.cos(tdYaw), sinY = Math.sin(tdYaw);
+    var x1 = p.x * cosY + p.z * sinY;
+    var z1 = -p.x * sinY + p.z * cosY;
+    var y1 = p.y;
+    var cosX = Math.cos(tdPitch), sinX = Math.sin(tdPitch);
+    var y2 = y1 * cosX - z1 * sinX;
+    var z2 = y1 * sinX + z1 * cosX;
+    return { x: x1, y: y2, z: z2 };
+  }
+
+  function resize3D() {
+    var rect = canvas3d.getBoundingClientRect();
+    var dpr = window.devicePixelRatio || 1;
+    canvas3d.width = Math.max(1, Math.round(rect.width * dpr));
+    canvas3d.height = Math.max(1, Math.round(rect.height * dpr));
+    ctx3d.setTransform(dpr, 0, 0, dpr, 0, 0);
+    render3D();
+  }
+
+  function render3D() {
+    var rect = canvas3d.getBoundingClientRect();
+    var cx = rect.width / 2, cy = rect.height / 2;
+    ctx3d.clearRect(0, 0, rect.width, rect.height);
+
+    var axes = [
+      { x: 1, y: 0, z: 0, label: "PC1", color: "#4C9BE8" },
+      { x: 0, y: 1, z: 0, label: "PC2", color: "#E8604C" },
+      { x: 0, y: 0, z: 1, label: "PC3", color: "#F5A623" },
+    ];
+
+    var projected = [];
+    points3d.forEach(function (p) {
+      var s = p.species;
+      if (hiddenGroups[s.group]) return;
+      var r = tdRotatePoint(p);
+      var scale = tdFocal / (tdFocal + r.z);
+      projected.push({
+        sx: cx + r.x * tdBaseRadius * tdZoom * scale,
+        sy: cy - r.y * tdBaseRadius * tdZoom * scale,
+        depth: r.z,
+        scale: scale,
+        p: p,
+      });
+    });
+    // Painter's algorithm: draw far points first so nearer points overlap them.
+    projected.sort(function (a, b) { return a.depth - b.depth; });
+
+    var origin = tdRotatePoint({ x: 0, y: 0, z: 0 });
+    var s0 = tdFocal / (tdFocal + origin.z);
+    var x0 = cx + origin.x * tdBaseRadius * tdZoom * s0;
+    var y0 = cy - origin.y * tdBaseRadius * tdZoom * s0;
+
+    axes.forEach(function (ax) {
+      var r1 = tdRotatePoint({ x: ax.x, y: ax.y, z: ax.z });
+      var s1 = tdFocal / (tdFocal + r1.z);
+      var x1 = cx + r1.x * tdBaseRadius * tdZoom * s1 * 1.15;
+      var y1 = cy - r1.y * tdBaseRadius * tdZoom * s1 * 1.15;
+      ctx3d.strokeStyle = ax.color;
+      ctx3d.lineWidth = 1.5;
+      ctx3d.beginPath();
+      ctx3d.moveTo(x0, y0);
+      ctx3d.lineTo(x1, y1);
+      ctx3d.stroke();
+      ctx3d.fillStyle = ax.color;
+      ctx3d.font = "12px -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif";
+      ctx3d.fillText(ax.label, x1 + 4, y1);
+    });
+
+    projected.forEach(function (pp) {
+      var s = pp.p.species;
+      var r = Math.max(1.5, tdBaseDotR * pp.scale * tdZoom);
+      ctx3d.beginPath();
+      ctx3d.fillStyle = DATA.groups[s.group] || "#999999";
+      ctx3d.globalAlpha = Math.min(1, Math.max(0.35, pp.scale));
+      ctx3d.arc(pp.sx, pp.sy, r, 0, Math.PI * 2);
+      ctx3d.fill();
+      ctx3d.globalAlpha = 1;
+    });
+
+    tdLastProjected = projected;
+  }
+
+  function tdHandleHover(evt) {
+    var rect = canvas3d.getBoundingClientRect();
+    var mx = evt.clientX - rect.left, my = evt.clientY - rect.top;
+    var best = null, bestDist = 14; // px hit-radius
+    tdLastProjected.forEach(function (pp) {
+      var d = Math.hypot(pp.sx - mx, pp.sy - my);
+      if (d < bestDist) { bestDist = d; best = pp; }
+    });
+    if (best) {
+      showTooltip(evt, best.p.species, best.p.idx);
+      tooltip.innerHTML += "<br>PC3: " + best.p.species.pc3.toFixed(2);
+    } else {
+      hideTooltip();
+    }
+  }
+
+  canvas3d.addEventListener("mousedown", function (evt) {
+    tdDragging = true;
+    tdLastX = evt.clientX; tdLastY = evt.clientY;
+    canvas3d.classList.add("panning");
+    hideTooltip();
+  });
+  window.addEventListener("mousemove", function (evt) {
+    if (!is3D) return;
+    if (!tdDragging) { tdHandleHover(evt); return; }
+    var dx = evt.clientX - tdLastX, dy = evt.clientY - tdLastY;
+    tdLastX = evt.clientX; tdLastY = evt.clientY;
+    tdYaw += dx * 0.008;
+    tdPitch += dy * 0.008;
+    var limit = Math.PI / 2 - 0.05;
+    tdPitch = Math.max(-limit, Math.min(limit, tdPitch));
+    render3D();
+  });
+  window.addEventListener("mouseup", function () {
+    tdDragging = false;
+    canvas3d.classList.remove("panning");
+  });
+  canvas3d.addEventListener("wheel", function (evt) {
+    if (!is3D) return;
+    evt.preventDefault();
+    var factor = evt.deltaY < 0 ? 1.08 : 1 / 1.08;
+    tdZoom = Math.max(0.2, Math.min(6, tdZoom * factor));
+    render3D();
+  }, { passive: false });
+  window.addEventListener("resize", function () { if (is3D) resize3D(); });
+
+  function setMode3D(active) {
+    is3D = active;
+    svg.style.display = active ? "none" : "";
+    canvas3d.style.display = active ? "block" : "none";
+    document.getElementById("go-count-rail").style.display = active ? "none" : "";
+    document.getElementById("reset-zoom-btn").style.display = active ? "none" : "";
+    document.getElementById("download-png-btn").style.display = active ? "none" : "";
+    reset3dBtn.style.display = active ? "" : "none";
+    document.querySelector(".axis-label-y").style.display = active ? "none" : "";
+    document.querySelector(".axis-label-x").style.display = active ? "none" : "";
+    document.querySelector(".plot-hint").textContent = active
+      ? "Drag to rotate, scroll to zoom."
+      : "Scroll to zoom, drag to pan.";
+    view3dBtn.textContent = active ? "Back to 2D" : "View in 3D";
+    info3d.style.display = active ? "" : "none";
+    if (active) {
+      if (!info3dReady) {
+        info3d.innerHTML = "Explained variance<br>" +
+          ["PC1", "PC2", "PC3"].map(function (label, i) {
+            return label + ": " + ((EXPLAINED[i] || 0) * 100).toFixed(1) + "%";
+          }).join("<br>");
+        info3dReady = true;
+      }
+      resize3D();
+    }
+  }
+
+  view3dBtn.onclick = function () { if (HAS_3D) setMode3D(!is3D); };
+  reset3dBtn.onclick = function () {
+    tdYaw = TD_INITIAL_YAW; tdPitch = TD_INITIAL_PITCH; tdZoom = 1;
+    render3D();
+  };
 
   buildSidebarLegend();
   buildSidebarTopLoadings();
