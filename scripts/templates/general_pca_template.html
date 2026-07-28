@@ -542,7 +542,7 @@
       <div id="go-count-rail" class="threshold-rail inactive" title="Drag to filter by GO count"></div>
     </div>
     <div class="axis-label-x" id="x-axis-label"></div>
-    <div class="plot-hint">Scroll to zoom, drag to pan.</div>
+    <div class="plot-hint">Scroll to zoom, drag to pan, click a species for its NCBI genome page.</div>
     <div id="pc3d-info" style="display:none;"></div>
   </div>
 </div>
@@ -781,6 +781,18 @@
 
   function escapeHtml(s) {
     return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  // Species names here are underscore-joined ("Genus_species", sometimes
+  // with a strain/locality suffix) rather than an NCBI taxon ID or assembly
+  // accession, so there's no ID we can link to directly -- this opens
+  // NCBI's Genome database SEARCH for the plain "Genus species" text
+  // instead, same click-through pattern as go_space's AmiGO link. Internal
+  // codes (e.g. "ASG001" for the Asgard archaea group) just won't match
+  // anything on NCBI; that's an accepted gap, not an error case to handle.
+  function openNcbiGenome(name) {
+    var query = encodeURIComponent(String(name).replace(/_/g, " "));
+    window.open("https://www.ncbi.nlm.nih.gov/genome/?term=" + query, "_blank");
   }
 
   function formatLoading(v) {
@@ -1134,6 +1146,7 @@
     c.addEventListener("mouseenter", function (evt) { if (!isPanning) showTooltip(evt, s, i); });
     c.addEventListener("mousemove", function (evt) { if (!isPanning) moveTooltip(evt); });
     c.addEventListener("mouseleave", hideTooltip);
+    c.addEventListener("mouseup", function () { if (!panMoved) openNcbiGenome(s.name); });
     svg.appendChild(c);
     circleEls.push(c);
   });
@@ -1767,8 +1780,8 @@
     view3dBtn.textContent = active ? "Back to 2D" : "View in 3D";
     reset3dBtn.style.display = active ? "" : "none";
     document.querySelector(".plot-hint").textContent = active
-      ? "Drag to rotate, Shift+drag to pan, scroll to zoom."
-      : "Scroll to zoom, drag to pan.";
+      ? "Drag to rotate, Shift+drag to pan, scroll to zoom, click a species for its NCBI genome page."
+      : "Scroll to zoom, drag to pan, click a species for its NCBI genome page.";
     info3d.style.display = active ? "" : "none";
     if (active && !info3dReady) {
       info3d.innerHTML = "Explained variance<br>" +
