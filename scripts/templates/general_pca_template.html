@@ -556,6 +556,7 @@
       <div class="axis-label-y"><span id="y-axis-label"></span></div>
       <svg id="scatter" class="scatter"></svg>
       <div id="go-count-rail" class="threshold-rail inactive" title="Drag to filter by GO count"></div>
+      <div id="total-prots-rail" class="threshold-rail inactive" title="Drag to filter by total annotated proteins"></div>
     </div>
     <div class="axis-label-x" id="x-axis-label"></div>
     <div class="plot-hint">Scroll to zoom, drag to pan, click a species for its NCBI genome page.</div>
@@ -682,6 +683,50 @@
     railEl.classList.add("inactive");
     goCountMin = 0;
     goCountMax = Infinity;
+  }
+
+  // ---- Total-annotated-proteins threshold rail ----
+  // Unlike the GO-count rail above (only active while a GO term search is
+  // illuminated), total_prots is static per-species data -- present on
+  // every species record from general_pca_abundance.py / _raw.py (both load
+  // --species-stats), absent from presence_absence_pca.py (never loads a
+  // species-stats file). So this rail is built and shown immediately on
+  // load rather than in response to a search, and hidden entirely when the
+  // page's species don't carry total_prots at all.
+  var HAS_TOTAL_PROTS = DATA.species.length > 0 &&
+    DATA.species.every(function (s) { return s.total_prots !== undefined && s.total_prots !== null; });
+  var tpMin = 0, tpMax = Infinity, tpRailTrackMax = 1;
+  var tpRailMaxInput, tpRailMinInput, tpRailFill, tpRailMinHandle, tpRailMaxHandle, tpRailTrackEl;
+  var tpRailEl = document.getElementById("total-prots-rail");
+
+  function positionTpRailHandles() {
+    var minPct = (tpMin / tpRailTrackMax) * 100;
+    var maxClamped = Math.min(tpMax === Infinity ? tpRailTrackMax : tpMax, tpRailTrackMax);
+    var maxPct = (maxClamped / tpRailTrackMax) * 100;
+    tpRailMinHandle.style.top = (100 - minPct) + "%";
+    tpRailMaxHandle.style.top = (100 - maxPct) + "%";
+    tpRailFill.style.top = (100 - maxPct) + "%";
+    tpRailFill.style.height = (maxPct - minPct) + "%";
+  }
+
+  function setTpRailMin(v) {
+    if (isNaN(v)) return;
+    v = Math.min(tpRailTrackMax, Math.max(0, Math.round(v)));
+    if (v > tpMax) v = tpMax;
+    tpMin = v;
+    tpRailMinInput.value = v;
+    positionTpRailHandles();
+    applyVisibility();
+  }
+
+  function setTpRailMax(v) {
+    if (isNaN(v)) return;
+    v = Math.min(tpRailTrackMax, Math.max(0, Math.round(v)));
+    if (v < tpMin) v = tpMin;
+    tpMax = v;
+    tpRailMaxInput.value = v;
+    positionTpRailHandles();
+    applyVisibility();
   }
 
   // ---- GO term search / illumination ----
@@ -896,7 +941,9 @@
 
   // A point is hidden if its taxon group is toggled off, or -- while
   // illuminating a searched GO term -- it has zero counts for that term, or
-  // its count falls outside the [goCountMin, goCountMax] threshold range.
+  // its count falls outside the [goCountMin, goCountMax] threshold range, or
+  // (independently of any GO search) its total_prots falls outside the
+  // [tpMin, tpMax] threshold range.
   var circleEls = [];
   function applyVisibility() {
     circleEls.forEach(function (c, i) {
@@ -907,6 +954,9 @@
       } else if (!suppressed && activeCounts) {
         var count = activeCounts[i];
         suppressed = count === 0 || count < goCountMin || count > goCountMax;
+      }
+      if (!suppressed && HAS_TOTAL_PROTS) {
+        suppressed = s.total_prots < tpMin || s.total_prots > tpMax;
       }
       c.style.display = suppressed ? "none" : "";
     });
@@ -1895,6 +1945,76 @@
 
     positionRailHandles();
   })();
+
+  // Build the total-proteins threshold rail DOM, and activate it right
+  // away (no search needed -- total_prots is static per-species data, so
+  // there's no "nothing illuminated yet" state to wait out).
+  if (HAS_TOTAL_PROTS) {
+    tpRailMaxInput = document.createElement("input");
+    tpRailMaxInput.type = "number";
+    tpRailMaxInput.min = "0";
+    tpRailMaxInput.className = "threshold-rail-input";
+    tpRailEl.appendChild(tpRailMaxInput);
+
+    tpRailTrackEl = document.createElement("div");
+    tpRailTrackEl.className = "threshold-rail-track";
+    tpRailFill = document.createElement("div");
+    tpRailFill.className = "threshold-rail-fill";
+    tpRailMinHandle = document.createElement("div");
+    tpRailMinHandle.className = "threshold-rail-handle";
+    tpRailMaxHandle = document.createElement("div");
+    tpRailMaxHandle.className = "threshold-rail-handle";
+    tpRailTrackEl.appendChild(tpRailFill);
+    tpRailTrackEl.appendChild(tpRailMinHandle);
+    tpRailTrackEl.appendChild(tpRailMaxHandle);
+    tpRailEl.appendChild(tpRailTrackEl);
+
+    tpRailMinInput = document.createElement("input");
+    tpRailMinInput.type = "number";
+    tpRailMinInput.min = "0";
+    tpRailMinInput.className = "threshold-rail-input";
+    tpRailEl.appendChild(tpRailMinInput);
+
+    tpRailMinInput.oninput = function () { setTpRailMin(parseFloat(tpRailMinInput.value)); };
+    tpRailMaxInput.oninput = function () { setTpRailMax(parseFloat(tpRailMaxInput.value)); };
+
+    (function () {
+      function valueFromClientY(clientY) {
+        var rect = tpRailTrackEl.getBoundingClientRect();
+        var frac = Math.min(1, Math.max(0, (rect.bottom - clientY) / rect.height));
+        return frac * tpRailTrackMax;
+      }
+      function startDrag(setter) {
+        return function (evt) {
+          evt.preventDefault();
+          setter(valueFromClientY(evt.clientY));
+          function onMove(e) { setter(valueFromClientY(e.clientY)); }
+          function onUp() {
+            window.removeEventListener("mousemove", onMove);
+            window.removeEventListener("mouseup", onUp);
+          }
+          window.addEventListener("mousemove", onMove);
+          window.addEventListener("mouseup", onUp);
+        };
+      }
+      tpRailMinHandle.addEventListener("mousedown", startDrag(setTpRailMin));
+      tpRailMaxHandle.addEventListener("mousedown", startDrag(setTpRailMax));
+      tpRailTrackEl.addEventListener("mousedown", function (evt) {
+        if (evt.target === tpRailMinHandle || evt.target === tpRailMaxHandle) return;
+        var v = valueFromClientY(evt.clientY);
+        (Math.abs(v - tpMin) <= Math.abs(v - (tpMax === Infinity ? tpRailTrackMax : tpMax))
+          ? setTpRailMin : setTpRailMax)(v);
+      });
+    })();
+
+    tpRailTrackMax = Math.max.apply(null, DATA.species.map(function (s) { return s.total_prots; }));
+    tpMin = 0;
+    tpMax = tpRailTrackMax;
+    tpRailMinInput.value = 0;
+    tpRailMaxInput.value = tpRailTrackMax;
+    positionTpRailHandles();
+    tpRailEl.classList.remove("inactive");
+  }
 
   // ---- 3D rotation (PC1/PC2/PC3), built directly into the plot ----
   // Rotates each point's real (pc1, pc2, pc3) and re-projects through the
