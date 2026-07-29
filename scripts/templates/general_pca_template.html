@@ -275,31 +275,49 @@
   .legend .count {
     color: #94a3b8;
   }
-  .loading-pc-label {
+  .loading-group {
+    border: 1px solid #e2e8f0;
+    border-radius: 5px;
+    margin: 0 0 6px;
+    overflow: hidden;
+  }
+  .loading-group summary {
     font-size: 11px;
     font-weight: 600;
     color: #334155;
-    margin: 10px 0 4px;
+    padding: 6px 8px;
+    cursor: pointer;
+    background: #f8fafc;
+    list-style: none;
   }
-  .loading-pc-label:first-child {
-    margin-top: 0;
+  .loading-group summary::-webkit-details-marker {
+    display: none;
   }
-  .loading-direction-label {
-    font-size: 10px;
-    font-weight: 600;
-    color: #64748b;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    margin: 6px 0 2px;
+  .loading-group summary::before {
+    content: "\25B8";
+    display: inline-block;
+    width: 0.8em;
+    margin-right: 4px;
+    color: #94a3b8;
+    transition: transform 0.15s;
+  }
+  .loading-group[open] summary {
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .loading-group[open] summary::before {
+    transform: rotate(90deg);
   }
   .loading-row {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
     gap: 6px;
-    padding: 3px 0;
+    padding: 3px 8px;
     border-bottom: 1px solid #eef1f5;
     font-size: 11px;
+  }
+  .loading-row:last-child {
+    border-bottom: none;
   }
   .loading-go {
     font-weight: 600;
@@ -429,14 +447,18 @@
   }
   .rail-label {
     flex: 0 0 auto;
-    display: inline-block;
-    transform: rotate(-90deg);
+    /* writing-mode (not transform: rotate) so the rotated text reserves
+       its own real box in the flex column instead of just being painted
+       rotated on top of whatever sibling (the number inputs) sits where
+       its unrotated, near-zero-height box would have been. */
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
     font-size: 9px;
     font-weight: 700;
     letter-spacing: 0.03em;
     color: var(--rail-color);
     white-space: nowrap;
-    margin: 10px 0;
+    margin: 4px 0;
   }
   .threshold-rail-input {
     width: 32px;
@@ -904,11 +926,15 @@
   // the fitted PCA model's loadings (see top_loadings_by_pc in
   // presence_absence_pca.py) -- a property of the PCA itself, the same
   // regardless of taxon filtering, so it's built once in the sidebar.
+  // One collapsed <details> per (PC, direction) -- 4 total for the usual
+  // PC1/PC2 x positive/negative case. Collapsed by default (no "open"
+  // attribute) so the page loads showing only the 4 titles, not every GO
+  // term in the sidebar at once.
   function buildSidebarTopLoadings() {
     var container = document.getElementById("sidebar-top-loadings");
     var pcLabels = { PC1: PC1_LABEL, PC2: PC2_LABEL };
 
-    function appendEntries(entries) {
+    function appendEntries(parent, entries) {
       entries.forEach(function (entry) {
         var row = document.createElement("div");
         row.className = "loading-row";
@@ -916,26 +942,24 @@
           '<span class="loading-go">' + escapeHtml(entry.go_id) + "</span>" +
           '<span class="loading-value">' + formatLoading(entry.loading) + "</span>" +
           '<div class="loading-desc">' + escapeHtml(entry.description) + "</div>";
-        container.appendChild(row);
+        parent.appendChild(row);
       });
     }
 
     Object.keys(DATA.top_loadings || {}).forEach(function (pc) {
-      var heading = document.createElement("div");
-      heading.className = "loading-pc-label";
-      heading.textContent = pcLabels[pc] || pc;
-      container.appendChild(heading);
-
       var sections = DATA.top_loadings[pc];
       [["positive", "▲ Positive"], ["negative", "▼ Negative"]].forEach(function (pair) {
         var key = pair[0], label = pair[1];
         var entries = sections[key];
         if (!entries || !entries.length) return;
-        var subLabel = document.createElement("div");
-        subLabel.className = "loading-direction-label";
-        subLabel.textContent = label;
-        container.appendChild(subLabel);
-        appendEntries(entries);
+
+        var details = document.createElement("details");
+        details.className = "loading-group";
+        var summary = document.createElement("summary");
+        summary.textContent = (pcLabels[pc] || pc) + " — " + label;
+        details.appendChild(summary);
+        appendEntries(details, entries);
+        container.appendChild(details);
       });
     });
   }
