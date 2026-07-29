@@ -429,11 +429,14 @@
   }
   .rail-label {
     flex: 0 0 auto;
+    display: inline-block;
+    transform: rotate(-90deg);
     font-size: 9px;
     font-weight: 700;
-    letter-spacing: 0.02em;
+    letter-spacing: 0.03em;
     color: var(--rail-color);
     white-space: nowrap;
+    margin: 10px 0;
   }
   .threshold-rail-input {
     width: 32px;
@@ -579,10 +582,10 @@
       <div class="axis-label-y"><span id="y-axis-label"></span></div>
       <svg id="scatter" class="scatter"></svg>
       <div id="go-count-rail" class="threshold-rail rail-go inactive" title="Drag to filter by GO count">
-        <span class="rail-label">GO</span>
+        <span class="rail-label">GO Abundance</span>
       </div>
       <div id="total-prots-rail" class="threshold-rail rail-prot inactive" title="Drag to filter by total annotated proteins">
-        <span class="rail-label">Prot</span>
+        <span class="rail-label">Protein Count</span>
       </div>
     </div>
     <div class="axis-label-x" id="x-axis-label"></div>
