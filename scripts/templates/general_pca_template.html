@@ -407,10 +407,33 @@
     gap: 4px;
     padding: 4px 0;
     user-select: none;
+    --rail-color: #6366f1;
+    --rail-color-light: #eef2ff;
+    --rail-color-mid: #c7d2fe;
   }
   .threshold-rail.inactive {
     visibility: hidden;
     pointer-events: none;
+  }
+  /* Each rail gets its own accent color so the two are distinguishable at
+     a glance -- indigo for GO-term abundance, amber for total proteins. */
+  .rail-go {
+    --rail-color: #6366f1;
+    --rail-color-light: #eef2ff;
+    --rail-color-mid: #c7d2fe;
+  }
+  .rail-prot {
+    --rail-color: #f5a623;
+    --rail-color-light: #fff4e0;
+    --rail-color-mid: #fde3b0;
+  }
+  .rail-label {
+    flex: 0 0 auto;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--rail-color);
+    white-space: nowrap;
   }
   .threshold-rail-input {
     width: 32px;
@@ -424,7 +447,7 @@
   }
   .threshold-rail-input:hover,
   .threshold-rail-input:focus {
-    border-color: #6366f1;
+    border-color: var(--rail-color);
     outline: none;
   }
   .threshold-rail-input::-webkit-inner-spin-button,
@@ -442,7 +465,7 @@
   .threshold-rail-fill {
     position: absolute;
     left: 0; right: 0;
-    background: #6366f1;
+    background: var(--rail-color);
     border-radius: 3px;
   }
   .threshold-rail-handle {
@@ -453,15 +476,15 @@
     height: 12px;
     border-radius: 50%;
     background: #fff;
-    border: 2px solid #6366f1;
+    border: 2px solid var(--rail-color);
     cursor: ns-resize;
     box-sizing: border-box;
   }
   .threshold-rail-handle:hover {
-    background: #eef2ff;
+    background: var(--rail-color-light);
   }
   .threshold-rail-handle:active {
-    background: #c7d2fe;
+    background: var(--rail-color-mid);
   }
   .axis-line {
     stroke: #9ca3af;
@@ -555,8 +578,12 @@
     <div class="plot-row">
       <div class="axis-label-y"><span id="y-axis-label"></span></div>
       <svg id="scatter" class="scatter"></svg>
-      <div id="go-count-rail" class="threshold-rail inactive" title="Drag to filter by GO count"></div>
-      <div id="total-prots-rail" class="threshold-rail inactive" title="Drag to filter by total annotated proteins"></div>
+      <div id="go-count-rail" class="threshold-rail rail-go inactive" title="Drag to filter by GO count">
+        <span class="rail-label">GO</span>
+      </div>
+      <div id="total-prots-rail" class="threshold-rail rail-prot inactive" title="Drag to filter by total annotated proteins">
+        <span class="rail-label">Prot</span>
+      </div>
     </div>
     <div class="axis-label-x" id="x-axis-label"></div>
     <div class="plot-hint">Scroll to zoom, drag to pan, click a species for its NCBI genome page.</div>
