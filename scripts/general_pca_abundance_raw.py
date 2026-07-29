@@ -129,6 +129,7 @@ def main():
             "pc2": float(pca_df.loc[name, "PC2"]),
             "group": pca_df.loc[name, "Group"],
             "go_terms_present": int(richness.get(name, 0)),
+            "total_prots": int(total_prots[name]) if name in total_prots.index else None,
         }
         for name in species
     ]

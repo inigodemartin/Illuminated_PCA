@@ -864,6 +864,9 @@
       "Group: " + escapeHtml(species.group) + "<br>" +
       "GO terms present: " + species.go_terms_present + " / " + DATA.meta.n_go_terms_used + "<br>" +
       "Share: " + pct.toFixed(2) + "%";
+    if (species.total_prots !== undefined && species.total_prots !== null) {
+      html += "<br>Annotated proteins: " + species.total_prots;
+    }
     if (activeGos.length && activeCounts) {
       if (activeGos.length === 1) {
         html += "<br>" + escapeHtml(activeGos[0].go_id) + " count: " + activeCounts[idx];
