@@ -91,6 +91,18 @@ def write_top_loadings_tsv(top_loadings, output_path):
     pd.DataFrame(rows).to_csv(output_path, sep="\t", index=False)
 
 
+def write_full_loadings_tsv(loadings, go_desc, output_path):
+    """
+    Full per-GO-term loading matrix -- one row per GO id retained in the
+    PCA, one column per principal component fit, unlike write_top_loadings_tsv
+    which only keeps the n most positive/negative per PC.
+    """
+    df = loadings.copy()
+    df.insert(0, "Description", [go_desc.get(go_id, "unknown") for go_id in df.index])
+    df.insert(0, "GO_id", df.index)
+    df.to_csv(output_path, sep="\t", index=False)
+
+
 def compute_species_contributions(normalized_df, loadings, n=10):
     """
     For each species, the n GO terms whose normalized-abundance × loading

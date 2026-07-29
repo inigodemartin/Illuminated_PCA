@@ -25,6 +25,7 @@ from general_pca_common import (
     load_go_ic_and_descriptions,
     top_loadings_by_pc,
     write_top_loadings_tsv,
+    write_full_loadings_tsv,
     build_go_search_payload,
 )
 
@@ -169,6 +170,10 @@ def main():
     loadings_output = args.loadings_output or f"{Path(args.output).with_suffix('')}_top_loadings.tsv"
     write_top_loadings_tsv(top_loadings, loadings_output)
     print(f"Wrote {loadings_output} (top {args.top_loadings_n} GO terms per PC)")
+
+    full_loadings_output = f"{Path(args.output).with_suffix('')}_full_loadings.tsv"
+    write_full_loadings_tsv(loadings, go_desc, full_loadings_output)
+    print(f"Wrote {full_loadings_output} ({loadings.shape[0]} GO terms x {loadings.shape[1]} PCs)")
 
 
 if __name__ == "__main__":
