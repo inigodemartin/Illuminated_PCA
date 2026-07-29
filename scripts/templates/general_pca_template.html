@@ -688,13 +688,23 @@
   // ---- Total-annotated-proteins threshold rail ----
   // Unlike the GO-count rail above (only active while a GO term search is
   // illuminated), total_prots is static per-species data -- present on
-  // every species record from general_pca_abundance.py / _raw.py (both load
-  // --species-stats), absent from presence_absence_pca.py (never loads a
-  // species-stats file). So this rail is built and shown immediately on
-  // load rather than in response to a search, and hidden entirely when the
-  // page's species don't carry total_prots at all.
-  var HAS_TOTAL_PROTS = DATA.species.length > 0 &&
-    DATA.species.every(function (s) { return s.total_prots !== undefined && s.total_prots !== null; });
+  // species records from general_pca_abundance.py / _raw.py (both load
+  // --species-stats), absent entirely from presence_absence_pca.py (never
+  // loads a species-stats file). So this rail is built and shown immediately
+  // on load rather than in response to a search, and hidden only when NONE
+  // of the page's species carry total_prots at all.
+  //
+  // Real --species-stats files can be missing Total_prots for a handful of
+  // species (a data-quality gap, not a per-script thing), so this can't
+  // require *every* species to have it -- that would hide the rail entirely
+  // over one gap. Species missing it are treated as total_prots = 0 for
+  // filtering (see tpValueOf below): they stay visible at the rail's
+  // default full-range position, and only drop out once the user drags
+  // tpMin above 0.
+  var HAS_TOTAL_PROTS = DATA.species.some(function (s) { return s.total_prots !== undefined && s.total_prots !== null; });
+  function tpValueOf(s) {
+    return (s.total_prots === undefined || s.total_prots === null) ? 0 : s.total_prots;
+  }
   var tpMin = 0, tpMax = Infinity, tpRailTrackMax = 1;
   var tpRailMaxInput, tpRailMinInput, tpRailFill, tpRailMinHandle, tpRailMaxHandle, tpRailTrackEl;
   var tpRailEl = document.getElementById("total-prots-rail");
@@ -956,7 +966,8 @@
         suppressed = count === 0 || count < goCountMin || count > goCountMax;
       }
       if (!suppressed && HAS_TOTAL_PROTS) {
-        suppressed = s.total_prots < tpMin || s.total_prots > tpMax;
+        var tp = tpValueOf(s);
+        suppressed = tp < tpMin || tp > tpMax;
       }
       c.style.display = suppressed ? "none" : "";
     });
@@ -2007,7 +2018,7 @@
       });
     })();
 
-    tpRailTrackMax = Math.max.apply(null, DATA.species.map(function (s) { return s.total_prots; }));
+    tpRailTrackMax = Math.max.apply(null, DATA.species.map(tpValueOf));
     tpMin = 0;
     tpMax = tpRailTrackMax;
     tpRailMinInput.value = 0;
