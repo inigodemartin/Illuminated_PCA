@@ -991,6 +991,15 @@
     return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 
+  // species.name is a directory name ("Genus_species", sometimes with a
+  // strain/locality suffix) -- everywhere it's shown to the user, display it
+  // as "Genus species" in italics instead, matching normal scientific-name
+  // formatting. The underscore form is still what's used internally for
+  // lookups/matching/URLs (e.g. openNcbiGenome's search fallback).
+  function formatSpeciesName(name) {
+    return String(name).replace(/_/g, " ");
+  }
+
   // species.ncbi_id (see scripts/build_ncbi_accession_lookup.py) is a real
   // assembly accession (e.g. "GCF_010015735.1") for species resolved from
   // the Fungi/Viridiplantae 00_GenomeSource folders or the Metazoa NCBI
@@ -1061,7 +1070,7 @@
       ? (species.go_terms_present / DATA.meta.n_go_terms_used) * 100
       : 0;
     var html =
-      "<b>" + escapeHtml(species.name) + "</b><br>" +
+      "<b><i>" + escapeHtml(formatSpeciesName(species.name)) + "</i></b><br>" +
       "Group: " + escapeHtml(species.group) + "<br>" +
       "GO terms present: " + species.go_terms_present + " / " + DATA.meta.n_go_terms_used + "<br>" +
       "Share: " + pct.toFixed(2) + "%";
@@ -1974,7 +1983,8 @@
   // brought to front) so it's easy to spot among ~1000+ points, while every
   // other point keeps its normal color/opacity/visibility.
   var SPECIES_ENTRIES = DATA.species.map(function (s, i) {
-    return { name: s.name, group: s.group, idx: i, key: (s.name + " " + s.group).toLowerCase() };
+    var displayName = formatSpeciesName(s.name);
+    return { name: s.name, displayName: displayName, group: s.group, idx: i, key: (displayName + " " + s.group).toLowerCase() };
   });
   var speciesHighlightIdx = null;
   var speciesSearchInput = document.getElementById("species-search-input");
@@ -2017,7 +2027,7 @@
     svg.appendChild(c); // re-inserting an existing child moves it to the end -> drawn on top
     speciesHighlightIdx = idx;
     updateMarkerScale();
-    setSpeciesSearchStatus("Highlighting: " + s.name + " (" + s.group + ")", false);
+    setSpeciesSearchStatus("Highlighting: " + formatSpeciesName(s.name) + " (" + s.group + ")", false);
   }
 
   function renderSpeciesSuggestions(matches) {
@@ -2030,11 +2040,11 @@
       var item = document.createElement("div");
       item.className = "go-suggestion";
       item.innerHTML =
-        '<span class="go-suggestion-id">' + escapeHtml(m.name) + "</span>" +
+        '<span class="go-suggestion-id"><i>' + escapeHtml(m.displayName) + "</i></span>" +
         '<span class="go-suggestion-desc">' + escapeHtml(m.group) + "</span>";
       item.addEventListener("mousedown", function (evt) {
         evt.preventDefault();
-        speciesSearchInput.value = m.name;
+        speciesSearchInput.value = m.displayName;
         speciesSearchSuggestions.classList.add("hidden");
         highlightSpecies(m.idx);
       });
@@ -2067,11 +2077,13 @@
     var query = speciesSearchInput.value.trim();
     if (!query) return;
     var matches = findSpeciesMatches(query);
-    var exact = matches.find(function (m) { return m.name.toLowerCase() === query.toLowerCase(); });
+    var exact = matches.find(function (m) {
+      return m.displayName.toLowerCase() === query.toLowerCase() || m.name.toLowerCase() === query.toLowerCase();
+    });
     var target = exact || matches[0];
     speciesSearchSuggestions.classList.add("hidden");
     if (target) {
-      speciesSearchInput.value = target.name;
+      speciesSearchInput.value = target.displayName;
       highlightSpecies(target.idx);
     } else {
       setSpeciesSearchStatus("Species not found: " + query, true);
