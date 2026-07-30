@@ -98,8 +98,8 @@ def main():
     # view -- PC1/PC2 themselves are unaffected (see run_pca_on_relative_abundance's
     # docstring: this relies on algorithm="arpack" being an exact, nested
     # solver), so the default 2D page is the same PCA as before. loadings/
-    # top-loadings below are deliberately sliced back to PC1/PC2 only, so
-    # the sidebar doesn't gain an unrequested PC3 section.
+    # top-loadings below keep all three PCs, so the sidebar's "Top GO terms
+    # per PC" also covers PC3.
     # normalized_df isn't used here (it only fed the now-removed per-species
     # contributions modal) -- discarded immediately, it's the single biggest
     # in-memory array in this pipeline (n_species x n_go floats).
@@ -107,7 +107,7 @@ def main():
         raw_full, total_prots, n_components=3
     )
     del normalized_df
-    loadings = loadings_3d[["PC1", "PC2"]]
+    loadings = loadings_3d
     n_go_used = loadings.shape[0]
     # How many of the same GO columns the PCA was fit on (loadings.index)
     # each species has any annotation for, for the tooltip -- reuses the

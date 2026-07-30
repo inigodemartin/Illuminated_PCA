@@ -752,6 +752,7 @@
   var EXPLAINED = DATA.meta.explained_variance || [0, 0];
   var PC1_LABEL = "PC1 (" + (EXPLAINED[0] * 100).toFixed(1) + "% variance)";
   var PC2_LABEL = "PC2 (" + (EXPLAINED[1] * 100).toFixed(1) + "% variance)";
+  var PC3_LABEL = EXPLAINED[2] !== undefined ? "PC3 (" + (EXPLAINED[2] * 100).toFixed(1) + "% variance)" : "PC3";
   document.getElementById("y-axis-label").textContent = PC2_LABEL;
   document.getElementById("x-axis-label").textContent = PC1_LABEL;
 
@@ -1007,13 +1008,13 @@
   // the fitted PCA model's loadings (see top_loadings_by_pc in
   // presence_absence_pca.py) -- a property of the PCA itself, the same
   // regardless of taxon filtering, so it's built once in the sidebar.
-  // One collapsed <details> per (PC, direction) -- 4 total for the usual
-  // PC1/PC2 x positive/negative case. Collapsed by default (no "open"
-  // attribute) so the page loads showing only the 4 titles, not every GO
-  // term in the sidebar at once.
+  // One collapsed <details> per (PC, direction) -- 4 total for a 2D-only
+  // fit, 6 once PC3's loadings are included (see general_pca_abundance.py).
+  // Collapsed by default (no "open" attribute) so the page loads showing
+  // only the section titles, not every GO term in the sidebar at once.
   function buildSidebarTopLoadings() {
     var container = document.getElementById("sidebar-top-loadings");
-    var pcLabels = { PC1: PC1_LABEL, PC2: PC2_LABEL };
+    var pcLabels = { PC1: PC1_LABEL, PC2: PC2_LABEL, PC3: PC3_LABEL };
 
     function appendEntries(parent, entries) {
       entries.forEach(function (entry) {
