@@ -434,30 +434,28 @@
     pointer-events: none;
   }
   /* Each rail gets its own accent color so the two are distinguishable at
-     a glance -- indigo for GO-term abundance, amber for total proteins. */
+     a glance -- muted indigo for GO-term abundance, muted amber for total
+     proteins. Kept deliberately subdued (rather than a saturated brand
+     color) since the fill is the loudest thing on a narrow sidebar rail. */
   .rail-go {
-    --rail-color: #6366f1;
+    --rail-color: #8a8fc0;
     --rail-color-light: #eef2ff;
     --rail-color-mid: #c7d2fe;
   }
   .rail-prot {
-    --rail-color: #f5a623;
+    --rail-color: #c9a35c;
     --rail-color-light: #fff4e0;
     --rail-color-mid: #fde3b0;
   }
   .rail-label {
     flex: 0 0 auto;
-    /* writing-mode (not transform: rotate) so the rotated text reserves
-       its own real box in the flex column instead of just being painted
-       rotated on top of whatever sibling (the number inputs) sits where
-       its unrotated, near-zero-height box would have been. */
-    writing-mode: vertical-rl;
-    transform: rotate(180deg);
     font-size: 9px;
     font-weight: 700;
-    letter-spacing: 0.03em;
-    color: var(--rail-color);
-    white-space: nowrap;
+    letter-spacing: 0.02em;
+    color: #1a1a1a;
+    text-align: center;
+    line-height: 1.2;
+    white-space: normal;
     margin: 4px 0;
   }
   .threshold-rail-input {
