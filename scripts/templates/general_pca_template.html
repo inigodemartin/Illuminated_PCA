@@ -1048,8 +1048,10 @@
       if (c.getAttribute("data-group") === g) c.setAttribute("fill", hex);
     });
     if (ellipseEls[g]) {
-      ellipseEls[g].setAttribute("fill", hex);
-      ellipseEls[g].setAttribute("stroke", hex);
+      ellipseEls[g].forEach(function (el) {
+        el.setAttribute("fill", hex);
+        el.setAttribute("stroke", hex);
+      });
     }
   }
 
@@ -1272,146 +1274,227 @@
     svg.appendChild(axis.labelEl);
   });
 
-  // ---- group ellipsoids (toggleable) ----
-  // A real 3D ~95% covariance ellipsoid per taxon group -- drawn as 3
-  // "great ellipse" wireframe loops (one per pair of principal axes, like
-  // the equator + two meridians of a globe), each sampled as actual 3D
-  // points and pushed through the SAME rotate3D + scaleX/scaleY pipeline
-  // as the data points themselves. This is deliberately NOT a flat 2D
-  // silhouette of the ellipsoid (a first version did that, projecting the
-  // covariance itself): a silhouette only ever shows one tilting outline
-  // and never conveys volume. Three great-ellipses rotating together, each
-  // foreshortening differently as you drag, is what actually reads as a
-  // solid "veil" wrapped around the group instead of a flat shape leaning.
-  var ELLIPSOID_SCALE = 2.795; // sqrt(chi-square(3 df, 95%)) = sqrt(7.815)
-  var ELLIPSE_STEPS = 48;
+  // ---- group convex hulls (toggleable) ----
+  // A real 3D convex hull per taxon group: the polyhedron whose vertices are
+  // literally the group's own PCA points -- no distributional assumption, no
+  // arbitrary confidence radius. A first version fit a covariance ellipsoid
+  // instead; this replaces it because an ellipsoid is a statistical
+  // abstraction that can drift away from the actual point cloud (skewed or
+  // multi-lobed groups in particular), whereas the hull is exactly "the
+  // smallest shape enclosing every point" and every vertex IS a real
+  // species. Each triangular facet is sampled as actual 3D points and pushed
+  // through the SAME rotate3D + scaleX/scaleY pipeline as the data points.
+  //
+  // Faces are redrawn every frame with no depth-sorting or back-face
+  // culling: every facet of a group shares the same fill color and opacity,
+  // and compositing identical-color translucent layers is order-independent
+  // (T(T(x)) for the same blend T regardless of which layer went "first"),
+  // so skipping hidden-face removal costs nothing visually while avoiding
+  // having to pin down this pipeline's screen-space winding convention.
 
-  // Cyclic Jacobi eigensolver for a symmetric 3x3 matrix -- simple and
-  // numerically robust for this size (a handful of rotations converges),
-  // unlike a closed-form cubic solution which has awkward edge cases.
-  // Verified against numpy.linalg.eigh (values and vectors match, up to
-  // eigenvectors' inherent sign ambiguity, which doesn't matter here since
-  // the ellipse sampling below covers both +v and -v around the loop).
-  function jacobiEigen3x3(cov) {
-    var A = [
-      [cov.xx, cov.xy, cov.xz],
-      [cov.xy, cov.yy, cov.yz],
-      [cov.xz, cov.yz, cov.zz],
+  function vSub(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }
+  function vCross(a, b) {
+    return [
+      a[1] * b[2] - a[2] * b[1],
+      a[2] * b[0] - a[0] * b[2],
+      a[0] * b[1] - a[1] * b[0],
     ];
-    var V = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
-    for (var iter = 0; iter < 100; iter++) {
-      var p = 0, q = 1, off = Math.abs(A[0][1]);
-      if (Math.abs(A[0][2]) > off) { off = Math.abs(A[0][2]); p = 0; q = 2; }
-      if (Math.abs(A[1][2]) > off) { off = Math.abs(A[1][2]); p = 1; q = 2; }
-      if (off < 1e-12) break;
-      var theta = (A[q][q] - A[p][p]) / (2 * A[p][q]);
-      var t = (theta >= 0 ? 1 : -1) / (Math.abs(theta) + Math.sqrt(theta * theta + 1));
-      var c = 1 / Math.sqrt(t * t + 1), s = t * c;
-      var App = A[p][p], Aqq = A[q][q], Apq = A[p][q];
-      A[p][p] = c * c * App - 2 * s * c * Apq + s * s * Aqq;
-      A[q][q] = s * s * App + 2 * s * c * Apq + c * c * Aqq;
-      A[p][q] = A[q][p] = 0;
-      for (var k = 0; k < 3; k++) {
-        if (k !== p && k !== q) {
-          var Akp = A[k][p], Akq = A[k][q];
-          A[k][p] = A[p][k] = c * Akp - s * Akq;
-          A[k][q] = A[q][k] = s * Akp + c * Akq;
-        }
-      }
-      for (k = 0; k < 3; k++) {
-        var Vkp = V[k][p], Vkq = V[k][q];
-        V[k][p] = c * Vkp - s * Vkq;
-        V[k][q] = s * Vkp + c * Vkq;
+  }
+  function vDot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+  function vDistSq(a, b) { var d = vSub(a, b); return vDot(d, d); }
+
+  // Randomized-order incremental 3D convex hull (see O'Rourke, "Computational
+  // Geometry in C", ch. 4): start from a non-degenerate tetrahedron, then add
+  // each remaining point, remove every face it can "see", and stitch a fan of
+  // new faces from the newly-exposed horizon edges to that point. Returns
+  // null for degenerate input (all points coincide, collinear, or coplanar --
+  // notably this template is also used for 2D-only PCA runs where every
+  // point has z = 0, which is coplanar by construction; see the 2D fallback
+  // below).
+  function convexHull3D(points) {
+    var n = points.length;
+    if (n < 4) return null;
+
+    var iA = 0, iB = 1, maxD = -1, i, j;
+    for (i = 0; i < n; i++) {
+      for (j = i + 1; j < n; j++) {
+        var d0 = vDistSq(points[i], points[j]);
+        if (d0 > maxD) { maxD = d0; iA = i; iB = j; }
       }
     }
-    return {
-      values: [A[0][0], A[1][1], A[2][2]],
-      vectors: [
-        [V[0][0], V[1][0], V[2][0]],
-        [V[0][1], V[1][1], V[2][1]],
-        [V[0][2], V[1][2], V[2][2]],
-      ],
-    };
+    if (maxD < 1e-12) return null; // every point coincides
+
+    var ab = vSub(points[iB], points[iA]);
+    var iC = -1, maxArea = -1;
+    for (i = 0; i < n; i++) {
+      if (i === iA || i === iB) continue;
+      var cr = vCross(ab, vSub(points[i], points[iA]));
+      var area = vDot(cr, cr);
+      if (area > maxArea) { maxArea = area; iC = i; }
+    }
+    if (iC < 0 || maxArea < 1e-12) return null; // all collinear
+
+    var normalABC = vCross(vSub(points[iB], points[iA]), vSub(points[iC], points[iA]));
+    var planeScale = Math.sqrt(vDot(normalABC, normalABC));
+    var iD = -1, maxDist = -1;
+    for (i = 0; i < n; i++) {
+      if (i === iA || i === iB || i === iC) continue;
+      var dist = Math.abs(vDot(normalABC, vSub(points[i], points[iA])));
+      if (dist > maxDist) { maxDist = dist; iD = i; }
+    }
+    if (iD < 0 || maxDist < 1e-9 * planeScale) return null; // all coplanar
+
+    var centroid = [0, 0, 0];
+    [iA, iB, iC, iD].forEach(function (idx) {
+      centroid[0] += points[idx][0]; centroid[1] += points[idx][1]; centroid[2] += points[idx][2];
+    });
+    centroid = [centroid[0] / 4, centroid[1] / 4, centroid[2] / 4];
+
+    function makeFace(a, b, c) {
+      var normal = vCross(vSub(points[b], points[a]), vSub(points[c], points[a]));
+      var towardCentroid = vDot(normal, vSub(centroid, points[a]));
+      return towardCentroid > 0 ? { v: [a, c, b] } : { v: [a, b, c] };
+    }
+
+    var faces = [makeFace(iA, iB, iC), makeFace(iA, iB, iD), makeFace(iA, iC, iD), makeFace(iB, iC, iD)];
+    var used = {}; used[iA] = used[iB] = used[iC] = used[iD] = true;
+    var remaining = [];
+    for (i = 0; i < n; i++) if (!used[i]) remaining.push(i);
+
+    function faceNormal(f) {
+      var p0 = points[f.v[0]], p1 = points[f.v[1]], p2 = points[f.v[2]];
+      return vCross(vSub(p1, p0), vSub(p2, p0));
+    }
+
+    remaining.forEach(function (pIdx) {
+      var p = points[pIdx];
+      var visible = [];
+      faces.forEach(function (f, fi) {
+        if (vDot(faceNormal(f), vSub(p, points[f.v[0]])) > 1e-9) visible.push(fi);
+      });
+      if (visible.length === 0) return; // point already inside the current hull
+
+      var visibleSet = {};
+      visible.forEach(function (fi) { visibleSet[fi] = true; });
+
+      var edgeToFace = {};
+      faces.forEach(function (f, fi) {
+        var v = f.v;
+        edgeToFace[v[0] + "_" + v[1]] = fi;
+        edgeToFace[v[1] + "_" + v[2]] = fi;
+        edgeToFace[v[2] + "_" + v[0]] = fi;
+      });
+
+      var horizon = [];
+      visible.forEach(function (fi) {
+        var v = faces[fi].v;
+        [[v[0], v[1]], [v[1], v[2]], [v[2], v[0]]].forEach(function (e) {
+          var neighborFi = edgeToFace[e[1] + "_" + e[0]];
+          if (neighborFi === undefined || !visibleSet[neighborFi]) horizon.push(e);
+        });
+      });
+
+      faces = faces.filter(function (f, fi) { return !visibleSet[fi]; });
+      horizon.forEach(function (e) { faces.push({ v: [e[0], e[1], pIdx] }); });
+    });
+
+    return faces;
   }
 
-  var groupStats = (function () {
-    var sums = {};
+  // 2D fallback (Andrew's monotone chain on x/y) for groups whose points are
+  // coplanar -- in practice, every 2D-only PCA run through this same
+  // template, where z is always 0. Produces a single flat, fan-triangulated
+  // polygon rather than a volume.
+  function convexHull2DFan(points) {
+    if (points.length < 3) return null;
+    var idx = points.map(function (_, i) { return i; });
+    idx.sort(function (a, b) { return points[a][0] - points[b][0] || points[a][1] - points[b][1]; });
+    function cross2(o, a, b) { return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]); }
+    var lower = [];
+    idx.forEach(function (i) {
+      while (lower.length >= 2 && cross2(points[lower[lower.length - 2]], points[lower[lower.length - 1]], points[i]) <= 0) lower.pop();
+      lower.push(i);
+    });
+    var upper = [];
+    for (var k = idx.length - 1; k >= 0; k--) {
+      var i = idx[k];
+      while (upper.length >= 2 && cross2(points[upper[upper.length - 2]], points[upper[upper.length - 1]], points[i]) <= 0) upper.pop();
+      upper.push(i);
+    }
+    lower.pop(); upper.pop();
+    var hull = lower.concat(upper);
+    if (hull.length < 3) return null;
+    var faces = [];
+    for (var f = 1; f < hull.length - 1; f++) faces.push({ v: [hull[0], hull[f], hull[f + 1]] });
+    return faces;
+  }
+
+  function hullFacesFor(points) {
+    if (points.length === 3) return [{ v: [0, 1, 2] }];
+    return convexHull3D(points) || convexHull2DFan(points);
+  }
+
+  var groupHulls = (function () {
+    var byGroup = {};
     DATA.species.forEach(function (s) {
-      var g = s.group, z = s.pc3 || 0;
-      var a = sums[g] || (sums[g] = { n: 0, sx: 0, sy: 0, sz: 0, sxx: 0, sxy: 0, sxz: 0, syy: 0, syz: 0, szz: 0 });
-      a.n++; a.sx += s.pc1; a.sy += s.pc2; a.sz += z;
-      a.sxx += s.pc1 * s.pc1; a.sxy += s.pc1 * s.pc2; a.sxz += s.pc1 * z;
-      a.syy += s.pc2 * s.pc2; a.syz += s.pc2 * z; a.szz += z * z;
+      var g = s.group;
+      (byGroup[g] || (byGroup[g] = [])).push([s.pc1, s.pc2, s.pc3 || 0]);
     });
-    var stats = {};
-    Object.keys(sums).forEach(function (g) {
-      var a = sums[g];
-      if (a.n < 4) return; // not enough points for a meaningful 3D covariance
-      var mx = a.sx / a.n, my = a.sy / a.n, mz = a.sz / a.n;
-      var denom = a.n - 1;
-      var cov = {
-        xx: (a.sxx - a.n * mx * mx) / denom,
-        xy: (a.sxy - a.n * mx * my) / denom,
-        xz: (a.sxz - a.n * mx * mz) / denom,
-        yy: (a.syy - a.n * my * my) / denom,
-        yz: (a.syz - a.n * my * mz) / denom,
-        zz: (a.szz - a.n * mz * mz) / denom,
-      };
-      stats[g] = { mean: [mx, my, mz], eigen: jacobiEigen3x3(cov) };
+    var hulls = {};
+    Object.keys(byGroup).forEach(function (g) {
+      var pts = byGroup[g];
+      if (pts.length < 3) return; // fewer than a triangle's worth of points
+      var faces = hullFacesFor(pts);
+      if (faces && faces.length) hulls[g] = { points: pts, faces: faces };
     });
-    return stats;
+    return hulls;
   })();
-
-  var ELLIPSOID_AXIS_PAIRS = [[0, 1], [0, 2], [1, 2]];
-
-  function ellipsoidPathFor(g, yaw, pitch) {
-    var stat = groupStats[g];
-    if (!stat) return null;
-    var mean = stat.mean, eigen = stat.eigen;
-    var d = "";
-    ELLIPSOID_AXIS_PAIRS.forEach(function (pair) {
-      var va = eigen.vectors[pair[0]], vb = eigen.vectors[pair[1]];
-      var ra = ELLIPSOID_SCALE * Math.sqrt(Math.max(0, eigen.values[pair[0]]));
-      var rb = ELLIPSOID_SCALE * Math.sqrt(Math.max(0, eigen.values[pair[1]]));
-      for (var k = 0; k <= ELLIPSE_STEPS; k++) {
-        var t = (k / ELLIPSE_STEPS) * Math.PI * 2;
-        var ox = ra * Math.cos(t), oy = rb * Math.sin(t);
-        var x = mean[0] + ox * va[0] + oy * vb[0];
-        var y = mean[1] + ox * va[1] + oy * vb[1];
-        var z = mean[2] + ox * va[2] + oy * vb[2];
-        var r = rotate3D(x, y, z, yaw, pitch);
-        var px = scaleX(r.x), py = scaleY(r.y);
-        d += (k === 0 ? "M" : "L") + px.toFixed(2) + "," + py.toFixed(2) + " ";
-      }
-      d += "Z ";
-    });
-    return d;
-  }
 
   var showEllipses = false;
   var ellipseEls = {};
+  var hullFacesGroup = document.createElementNS(svgNS, "g");
+  hullFacesGroup.setAttribute("id", "hull-faces");
+  svg.appendChild(hullFacesGroup);
+
   ALL_GROUPS.forEach(function (g) {
-    if (!groupStats[g]) return;
-    var path = document.createElementNS(svgNS, "path");
-    path.setAttribute("class", "group-ellipse");
-    path.setAttribute("fill", DATA.groups[g] || "#999999");
-    path.setAttribute("stroke", DATA.groups[g] || "#999999");
-    path.setAttribute("d", ellipsoidPathFor(g, 0, 0));
-    path.style.display = "none";
-    svg.appendChild(path);
-    ellipseEls[g] = path;
+    var hull = groupHulls[g];
+    if (!hull) return;
+    var color = DATA.groups[g] || "#999999";
+    ellipseEls[g] = hull.faces.map(function () {
+      var path = document.createElementNS(svgNS, "path");
+      path.setAttribute("class", "group-ellipse");
+      path.setAttribute("fill", color);
+      path.setAttribute("stroke", color);
+      path.style.display = "none";
+      hullFacesGroup.appendChild(path);
+      return path;
+    });
   });
 
   function updateEllipses(yaw, pitch) {
-    Object.keys(ellipseEls).forEach(function (g) {
-      var d = ellipsoidPathFor(g, yaw, pitch);
-      if (d) ellipseEls[g].setAttribute("d", d);
+    Object.keys(groupHulls).forEach(function (g) {
+      var hull = groupHulls[g], els = ellipseEls[g];
+      var projected = hull.points.map(function (p) {
+        var r = rotate3D(p[0], p[1], p[2], yaw, pitch);
+        return [scaleX(r.x), scaleY(r.y)];
+      });
+      hull.faces.forEach(function (f, fi) {
+        var a = projected[f.v[0]], b = projected[f.v[1]], c = projected[f.v[2]];
+        els[fi].setAttribute(
+          "d",
+          "M" + a[0].toFixed(2) + "," + a[1].toFixed(2) +
+          " L" + b[0].toFixed(2) + "," + b[1].toFixed(2) +
+          " L" + c[0].toFixed(2) + "," + c[1].toFixed(2) + " Z"
+        );
+      });
     });
   }
+  updateEllipses(0, 0);
 
   function updateEllipseVisibility() {
     Object.keys(ellipseEls).forEach(function (g) {
-      ellipseEls[g].style.display = (showEllipses && !hiddenGroups[g]) ? "" : "none";
+      var show = showEllipses && !hiddenGroups[g];
+      ellipseEls[g].forEach(function (el) { el.style.display = show ? "" : "none"; });
     });
   }
 
