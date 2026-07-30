@@ -1095,7 +1095,7 @@
       // checkbox, swatch, or label text never gets misread as a drag.
       var handle = document.createElement("span");
       handle.className = "legend-drag-handle";
-      handle.title = "Drag to reorder -- top of the list draws in front";
+      handle.title = "Drag to reorder -- top of the list draws in front (while the plot is flat; once you rotate in 3D, actual depth decides)";
       handle.textContent = "⋮⋮";
       handle.draggable = true;
       handle.addEventListener("dragstart", function (evt) {
@@ -2199,13 +2199,42 @@
     return { x: x1, y: y2 };
   }
 
+  // Same rotation as rotate3D, but also keeps the depth component (z2)
+  // instead of dropping it -- needed below to sort points front-to-back by
+  // where they actually are in 3D, rather than by cx/cy screen position.
+  function rotate3DWithDepth(x, y, z, yaw, pitch) {
+    var cosY = Math.cos(yaw), sinY = Math.sin(yaw);
+    var x1 = x * cosY + z * sinY;
+    var z1 = -x * sinY + z * cosY;
+    var cosX = Math.cos(pitch), sinX = Math.sin(pitch);
+    var y2 = y * cosX - z1 * sinX;
+    var z2 = y * sinX + z1 * cosX;
+    return { x: x1, y: y2, z: z2 };
+  }
+
   function applyRotation3D() {
+    // At yaw = pitch = 0 the page must stay pixel-identical to a plain 2D
+    // PCA (see HAS_3D above), so paint order there still follows the
+    // legend's manual group order. But the moment you actually rotate, "in
+    // front" has a real geometric answer -- the legend's layer order (drag
+    // handle in the sidebar) stops applying and every point is instead
+    // reordered by its own rotated depth, nearest-last so it paints on top,
+    // regardless of which group it belongs to.
+    var rotated = td3Yaw !== 0 || td3Pitch !== 0;
+
     circleEls.forEach(function (c, i) {
       var s = DATA.species[i];
-      var r = rotate3D(s.pc1, s.pc2, s.pc3, td3Yaw, td3Pitch);
+      var r = rotate3DWithDepth(s.pc1, s.pc2, s.pc3, td3Yaw, td3Pitch);
       c.setAttribute("cx", scaleX(r.x));
       c.setAttribute("cy", scaleY(r.y));
+      c._depth3d = r.z;
     });
+    if (rotated) {
+      circleEls.slice().sort(function (a, b) { return a._depth3d - b._depth3d; })
+        .forEach(function (c) { svg.appendChild(c); });
+    } else {
+      reorderCirclesByGroupOrder();
+    }
     axisLines.forEach(function (axis) {
       var r1 = rotate3D(axis.p1[0], axis.p1[1], axis.p1[2], td3Yaw, td3Pitch);
       var r2 = rotate3D(axis.p2[0], axis.p2[1], axis.p2[2], td3Yaw, td3Pitch);
@@ -2220,7 +2249,6 @@
     // from the flat (yaw=pitch=0) layout -- hidden again if rotation is
     // ever brought back to exactly 0 (e.g. via the reset button), so it
     // never shows on a page that still looks like a plain 2D PCA.
-    var rotated = td3Yaw !== 0 || td3Pitch !== 0;
     if (rotated && !info3dReady) {
       info3d.innerHTML = "Explained variance<br>" +
         ["PC1", "PC2", "PC3"].map(function (label, i) {
