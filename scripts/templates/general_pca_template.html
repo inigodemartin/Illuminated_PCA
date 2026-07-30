@@ -366,6 +366,48 @@
     line-height: 1.5;
     pointer-events: none;
   }
+  /* Keyboard/click alternative to drag-to-rotate, for anyone (or any
+     screenshot/embedding context) without an easy mouse-drag gesture. Only
+     shown when HAS_3D (see the rotation setup below), same gating as the
+     "Drag to rotate" plot hint text. */
+  .rotate-pad {
+    position: absolute;
+    left: 40px;
+    bottom: 40px;
+    display: grid;
+    grid-template-areas:
+      ".    up    ."
+      "left .     right"
+      ".    down  .";
+    grid-template-columns: 26px 26px 26px;
+    grid-template-rows: 26px 26px 26px;
+    gap: 2px;
+  }
+  .rotate-pad button {
+    border: 1px solid #cbd5e1;
+    background: rgba(255,255,255,0.85);
+    border-radius: 4px;
+    font-size: 10px;
+    line-height: 1;
+    color: #64748b;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+  .rotate-pad button:hover {
+    background: #f1f5f9;
+    border-color: #94a3b8;
+    color: #334155;
+  }
+  .rotate-pad button:active {
+    background: #e2e8f0;
+  }
+  #rotate-up { grid-area: up; }
+  #rotate-left { grid-area: left; }
+  #rotate-right { grid-area: right; }
+  #rotate-down { grid-area: down; }
   .plot-row {
     flex: 1 1 auto;
     min-height: 0;
@@ -639,6 +681,12 @@
     <div class="axis-label-x" id="x-axis-label"></div>
     <div class="plot-hint">Scroll to zoom, drag to pan, click a species for its NCBI genome page.</div>
     <div id="pc3d-info" style="display:none;"></div>
+    <div id="rotate-pad" class="rotate-pad" style="display:none;" title="Rotate the 3D view">
+      <button type="button" id="rotate-up" aria-label="Rotate up">&#9650;</button>
+      <button type="button" id="rotate-left" aria-label="Rotate left">&#9664;</button>
+      <button type="button" id="rotate-right" aria-label="Rotate right">&#9654;</button>
+      <button type="button" id="rotate-down" aria-label="Rotate down">&#9660;</button>
+    </div>
   </div>
 </div>
 <div id="tooltip" class="hidden"></div>
@@ -2381,6 +2429,22 @@
       applyRotation3D();
       resetViewBox();
     };
+
+    // Arrow-button alternative to drag-to-rotate -- same step size feel as a
+    // short drag, and the same pitch clamp as the drag handler above so you
+    // can't nudge past a near-vertical, degenerate view.
+    var ROTATE_STEP = Math.PI / 18; // 10 degrees per click
+    var PITCH_LIMIT = Math.PI / 2 - 0.05;
+    function nudgeRotation(dYaw, dPitch) {
+      td3Yaw += dYaw;
+      td3Pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, td3Pitch + dPitch));
+      applyRotation3D();
+    }
+    document.getElementById("rotate-up").onclick = function () { nudgeRotation(0, -ROTATE_STEP); };
+    document.getElementById("rotate-down").onclick = function () { nudgeRotation(0, ROTATE_STEP); };
+    document.getElementById("rotate-left").onclick = function () { nudgeRotation(-ROTATE_STEP, 0); };
+    document.getElementById("rotate-right").onclick = function () { nudgeRotation(ROTATE_STEP, 0); };
+    document.getElementById("rotate-pad").style.display = "grid";
   }
 
   buildSidebarLegend();
