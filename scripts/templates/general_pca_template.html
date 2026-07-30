@@ -524,8 +524,8 @@
     user-select: none;
   }
   .group-ellipse {
-    fill-opacity: 0.12;
-    stroke-opacity: 0.35;
+    fill-opacity: var(--hull-fill-opacity, 0.12);
+    stroke-opacity: var(--hull-stroke-opacity, 0.35);
     stroke-width: 1;
     pointer-events: none;
   }
@@ -537,6 +537,23 @@
     color: #334155;
     cursor: pointer;
     margin-bottom: 8px;
+  }
+  .ellipse-opacity-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    color: #334155;
+    margin: -4px 0 8px 20px;
+  }
+  .ellipse-opacity-row input[type="range"] {
+    flex: 1;
+    accent-color: #334155;
+  }
+  .ellipse-opacity-row.disabled {
+    color: #94a3b8;
+    pointer-events: none;
+    opacity: 0.6;
   }
   #tooltip {
     position: fixed;
@@ -589,6 +606,10 @@
     </div>
     <label class="ellipse-toggle-label">
       <input type="checkbox" id="ellipse-toggle"> Show group ellipses
+    </label>
+    <label class="ellipse-opacity-row disabled" id="ellipse-opacity-row">
+      Opacity
+      <input type="range" id="ellipse-opacity" min="0" max="60" value="12" step="1">
     </label>
     <p class="legend-hint">Drag &#x22EE;&#x22EE; to reorder — top group draws in front</p>
     <div id="sidebar-legend" class="legend"></div>
@@ -1471,15 +1492,22 @@
     });
   });
 
+  // Flat list of every facet across every group, used below to fold hull
+  // faces into the same depth sort as the scatter points once rotated --
+  // otherwise a point from another group would always paint over a group's
+  // polyhedron even when it is actually behind it.
+  var allHullFaceEls = [].concat.apply([], ALL_GROUPS.map(function (g) { return ellipseEls[g] || []; }));
+
   function updateEllipses(yaw, pitch) {
     Object.keys(groupHulls).forEach(function (g) {
       var hull = groupHulls[g], els = ellipseEls[g];
       var projected = hull.points.map(function (p) {
-        var r = rotate3D(p[0], p[1], p[2], yaw, pitch);
-        return [scaleX(r.x), scaleY(r.y)];
+        var r = rotate3DWithDepth(p[0], p[1], p[2], yaw, pitch);
+        return [scaleX(r.x), scaleY(r.y), r.z];
       });
       hull.faces.forEach(function (f, fi) {
         var a = projected[f.v[0]], b = projected[f.v[1]], c = projected[f.v[2]];
+        els[fi]._depth3d = (a[2] + b[2] + c[2]) / 3;
         els[fi].setAttribute(
           "d",
           "M" + a[0].toFixed(2) + "," + a[1].toFixed(2) +
@@ -1498,8 +1526,22 @@
     });
   }
 
+  var ellipseOpacityRow = document.getElementById("ellipse-opacity-row");
+  var ellipseOpacitySlider = document.getElementById("ellipse-opacity");
+  var HULL_STROKE_TO_FILL_RATIO = 0.35 / 0.12; // keep the original fill:stroke look at any opacity
+
+  function applyHullOpacity() {
+    var fillOpacity = ellipseOpacitySlider.value / 100;
+    var strokeOpacity = Math.min(1, fillOpacity * HULL_STROKE_TO_FILL_RATIO);
+    svg.style.setProperty("--hull-fill-opacity", fillOpacity);
+    svg.style.setProperty("--hull-stroke-opacity", strokeOpacity);
+  }
+  ellipseOpacitySlider.oninput = applyHullOpacity;
+  applyHullOpacity();
+
   document.getElementById("ellipse-toggle").onchange = function (evt) {
     showEllipses = evt.target.checked;
+    ellipseOpacityRow.classList.toggle("disabled", !showEllipses);
     updateEllipseVisibility();
   };
 
@@ -2215,11 +2257,14 @@
   function applyRotation3D() {
     // At yaw = pitch = 0 the page must stay pixel-identical to a plain 2D
     // PCA (see HAS_3D above), so paint order there still follows the
-    // legend's manual group order. But the moment you actually rotate, "in
-    // front" has a real geometric answer -- the legend's layer order (drag
-    // handle in the sidebar) stops applying and every point is instead
-    // reordered by its own rotated depth, nearest-last so it paints on top,
-    // regardless of which group it belongs to.
+    // legend's manual group order, and every hull facet stays behind every
+    // point (its original, always-behind grouping). But the moment you
+    // actually rotate, "in front" has a real geometric answer -- the
+    // legend's layer order stops applying, and points AND hull facets alike
+    // are reordered together by their own rotated depth, nearest-last so it
+    // paints on top. This is what makes a point from another group actually
+    // disappear behind a group's translucent polyhedron once it is behind
+    // it, instead of every point always painting over every hull face.
     var rotated = td3Yaw !== 0 || td3Pitch !== 0;
 
     circleEls.forEach(function (c, i) {
@@ -2229,11 +2274,15 @@
       c.setAttribute("cy", scaleY(r.y));
       c._depth3d = r.z;
     });
+    updateEllipses(td3Yaw, td3Pitch); // also stamps _depth3d on each hull facet
+
     if (rotated) {
-      circleEls.slice().sort(function (a, b) { return a._depth3d - b._depth3d; })
-        .forEach(function (c) { svg.appendChild(c); });
+      circleEls.concat(allHullFaceEls)
+        .sort(function (a, b) { return a._depth3d - b._depth3d; })
+        .forEach(function (el) { svg.appendChild(el); });
     } else {
       reorderCirclesByGroupOrder();
+      allHullFaceEls.forEach(function (el) { hullFacesGroup.appendChild(el); });
     }
     axisLines.forEach(function (axis) {
       var r1 = rotate3D(axis.p1[0], axis.p1[1], axis.p1[2], td3Yaw, td3Pitch);
@@ -2243,7 +2292,6 @@
       axis.labelEl.setAttribute("x", scaleX(r2.x) + 4);
       axis.labelEl.setAttribute("y", scaleY(r2.y) - 4);
     });
-    updateEllipses(td3Yaw, td3Pitch);
 
     // The explained-variance box only appears once actually rotated away
     // from the flat (yaw=pitch=0) layout -- hidden again if rotation is
