@@ -611,6 +611,13 @@
       Opacity
       <input type="range" id="ellipse-opacity" min="0" max="60" value="12" step="1">
     </label>
+    <label class="ellipse-toggle-label">
+      <input type="checkbox" id="points-toggle" checked> Show points
+    </label>
+    <label class="ellipse-opacity-row" id="point-size-row">
+      Point size
+      <input type="range" id="point-size" min="20" max="220" value="100" step="10">
+    </label>
     <p class="legend-hint">Drag &#x22EE;&#x22EE; to reorder — top group draws in front</p>
     <div id="sidebar-legend" class="legend"></div>
   </div>
@@ -703,6 +710,13 @@
   document.getElementById("x-axis-label").textContent = PC1_LABEL;
 
   var hiddenGroups = {};
+  var showPoints = true; // "Show points" checkbox -- a display preference only, unlike the filters below it never affects which species feed a group's hull
+
+  // Declared here (rather than down by the drag-to-rotate handler that owns
+  // them) so rebuildHulls -- which runs once during initial setup, well
+  // before that handler's code -- can safely check td3Yaw/td3Pitch without
+  // finding them still undefined from var hoisting.
+  var td3Yaw = 0, td3Pitch = 0;
 
   // ---- GO count threshold rail ----
   var goCountMin = 0;
@@ -1024,29 +1038,37 @@
     tooltip.classList.add("hidden");
   }
 
-  // A point is hidden if its taxon group is toggled off, or -- while
+  // A species is suppressed if its taxon group is toggled off, or -- while
   // illuminating a searched GO term -- it has zero counts for that term, or
   // its count falls outside the [goCountMin, goCountMax] threshold range, or
   // (independently of any GO search) its total_prots falls outside the
-  // [tpMin, tpMax] threshold range.
+  // [tpMin, tpMax] threshold range. This is also the single source of truth
+  // for which species feed each group's convex hull (see rebuildHulls
+  // below): a species filtered out for having too few annotations or
+  // proteins is dropped from the polyhedron too, not just hidden as a point.
+  function isSpeciesSuppressed(s, i) {
+    var suppressed = hiddenGroups[s.group];
+    if (!suppressed && activeMatchMask) {
+      suppressed = !activeMatchMask[i];
+    } else if (!suppressed && activeCounts) {
+      var count = activeCounts[i];
+      suppressed = count === 0 || count < goCountMin || count > goCountMax;
+    }
+    if (!suppressed && HAS_TOTAL_PROTS) {
+      var tp = tpValueOf(s);
+      suppressed = tp < tpMin || tp > tpMax;
+    }
+    return suppressed;
+  }
+
   var circleEls = [];
   function applyVisibility() {
     circleEls.forEach(function (c, i) {
       var s = DATA.species[i];
-      var suppressed = hiddenGroups[s.group];
-      if (!suppressed && activeMatchMask) {
-        suppressed = !activeMatchMask[i];
-      } else if (!suppressed && activeCounts) {
-        var count = activeCounts[i];
-        suppressed = count === 0 || count < goCountMin || count > goCountMax;
-      }
-      if (!suppressed && HAS_TOTAL_PROTS) {
-        var tp = tpValueOf(s);
-        suppressed = tp < tpMin || tp > tpMax;
-      }
-      c.style.display = suppressed ? "none" : "";
+      c.style.display = (isSpeciesSuppressed(s, i) || !showPoints) ? "none" : "";
     });
     updateEllipseVisibility();
+    scheduleHullRebuild();
   }
 
   function syncLegendCheckboxes() {
@@ -1183,14 +1205,24 @@
   }
   applyViewBox();
 
+  var pointSizeScale = 1; // driven by the "Point size" sidebar slider
   function updateMarkerScale() {
     var ratio = viewBox.w / PLOT_W;
-    var scale = ratio * (1 + MARKER_ZOOM_GROWTH * (1 - ratio));
+    var scale = ratio * (1 + MARKER_ZOOM_GROWTH * (1 - ratio)) * pointSizeScale;
     svg.querySelectorAll("circle[data-base-r]").forEach(function (c) {
       c.setAttribute("r", parseFloat(c.getAttribute("data-base-r")) * scale);
       c.setAttribute("stroke-width", BASE_STROKE_WIDTH * scale);
     });
   }
+
+  document.getElementById("points-toggle").onchange = function (evt) {
+    showPoints = evt.target.checked;
+    applyVisibility();
+  };
+  document.getElementById("point-size").oninput = function (evt) {
+    pointSizeScale = evt.target.value / 100;
+    updateMarkerScale();
+  };
 
   function resetViewBox() {
     viewBox.x = 0; viewBox.y = 0; viewBox.w = PLOT_W; viewBox.h = PLOT_H;
@@ -1455,9 +1487,10 @@
     return convexHull3D(points) || convexHull2DFan(points);
   }
 
-  var groupHulls = (function () {
+  function computeGroupHulls(isIncluded) {
     var byGroup = {};
-    DATA.species.forEach(function (s) {
+    DATA.species.forEach(function (s, i) {
+      if (!isIncluded(s, i)) return;
       var g = s.group;
       (byGroup[g] || (byGroup[g] = [])).push([s.pc1, s.pc2, s.pc3 || 0]);
     });
@@ -1469,34 +1502,15 @@
       if (faces && faces.length) hulls[g] = { points: pts, faces: faces };
     });
     return hulls;
-  })();
+  }
 
+  var groupHulls = {};
   var showEllipses = false;
   var ellipseEls = {};
+  var allHullFaceEls = [];
   var hullFacesGroup = document.createElementNS(svgNS, "g");
   hullFacesGroup.setAttribute("id", "hull-faces");
   svg.appendChild(hullFacesGroup);
-
-  ALL_GROUPS.forEach(function (g) {
-    var hull = groupHulls[g];
-    if (!hull) return;
-    var color = DATA.groups[g] || "#999999";
-    ellipseEls[g] = hull.faces.map(function () {
-      var path = document.createElementNS(svgNS, "path");
-      path.setAttribute("class", "group-ellipse");
-      path.setAttribute("fill", color);
-      path.setAttribute("stroke", color);
-      path.style.display = "none";
-      hullFacesGroup.appendChild(path);
-      return path;
-    });
-  });
-
-  // Flat list of every facet across every group, used below to fold hull
-  // faces into the same depth sort as the scatter points once rotated --
-  // otherwise a point from another group would always paint over a group's
-  // polyhedron even when it is actually behind it.
-  var allHullFaceEls = [].concat.apply([], ALL_GROUPS.map(function (g) { return ellipseEls[g] || []; }));
 
   function updateEllipses(yaw, pitch) {
     Object.keys(groupHulls).forEach(function (g) {
@@ -1517,7 +1531,56 @@
       });
     });
   }
-  updateEllipses(0, 0);
+
+  // Recomputes each group's hull from scratch using only the species that
+  // currently pass isSpeciesSuppressed (group toggle, GO-count/total_prots
+  // thresholds, GO search match) -- so a species filtered out for having too
+  // few annotations or proteins actually drops out of the polyhedron's shape
+  // instead of just disappearing as a point while still propping up the
+  // hull's vertices. The facet count changes whenever the included point set
+  // changes, so existing <path> elements can't just be repositioned: every
+  // facet is thrown away and recreated. Called through scheduleHullRebuild
+  // (debounced) rather than directly from applyVisibility, since the GO
+  // count / total_prots rails call applyVisibility on every drag frame, and
+  // a full hull recompute (an O(n) incremental algorithm per group) is too
+  // slow to redo dozens of times a second for the larger taxon groups.
+  function rebuildHulls() {
+    groupHulls = computeGroupHulls(function (s, i) { return !isSpeciesSuppressed(s, i); });
+
+    while (hullFacesGroup.firstChild) hullFacesGroup.removeChild(hullFacesGroup.firstChild);
+    ellipseEls = {};
+    ALL_GROUPS.forEach(function (g) {
+      var hull = groupHulls[g];
+      if (!hull) return;
+      var color = DATA.groups[g] || "#999999";
+      ellipseEls[g] = hull.faces.map(function () {
+        var path = document.createElementNS(svgNS, "path");
+        path.setAttribute("class", "group-ellipse");
+        path.setAttribute("fill", color);
+        path.setAttribute("stroke", color);
+        path.style.display = "none";
+        hullFacesGroup.appendChild(path);
+        return path;
+      });
+    });
+    allHullFaceEls = [].concat.apply([], ALL_GROUPS.map(function (g) { return ellipseEls[g] || []; }));
+
+    updateEllipses(td3Yaw, td3Pitch);
+    updateEllipseVisibility();
+    // While actually rotated, hull facets are interleaved with the scatter
+    // points in one shared depth-sorted paint order (see applyRotation3D) --
+    // the freshly rebuilt facets above start out back in hullFacesGroup, so
+    // that interleaving has to be redone too.
+    if (td3Yaw !== 0 || td3Pitch !== 0) applyRotation3D();
+  }
+
+  var hullRebuildTimer = null;
+  function scheduleHullRebuild() {
+    clearTimeout(hullRebuildTimer);
+    hullRebuildTimer = setTimeout(rebuildHulls, 150);
+  }
+
+  rebuildHulls();
 
   function updateEllipseVisibility() {
     Object.keys(ellipseEls).forEach(function (g) {
@@ -2226,7 +2289,6 @@
   var info3d = document.getElementById("pc3d-info");
   var info3dReady = false;
   var ROTATE_SPEED = 0.01; // radians per pixel dragged
-  var td3Yaw = 0, td3Pitch = 0;
 
   document.querySelector(".plot-hint").textContent = HAS_3D
     ? "Drag to rotate, Shift+drag to pan, scroll to zoom, click a species for its NCBI genome page."
