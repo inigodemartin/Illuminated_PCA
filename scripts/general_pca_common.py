@@ -14,8 +14,26 @@ import pandas as pd
 
 TEMPLATE_PATH = Path(__file__).parent / "templates" / "general_pca_template.html"
 DEFAULT_IC_PATH = Path(__file__).parent.parent / "data" / "All_GOs_ic.tsv"
+DEFAULT_FUNGI_STRUCTURE_PATH = Path(__file__).parent.parent / "fungi_structure.txt"
+DEFAULT_VIRIDIPLANTAE_STRUCTURE_PATH = Path(__file__).parent.parent / "viridiplantae_structure.txt"
+DEFAULT_SPECIES_ACCESSION_PATH = Path(__file__).parent.parent / "data" / "species_ncbi_accession.tsv"
 DATA_MARKER = "__GENERAL_PCA_DATA__"
 TITLE_MARKER = "__GENERAL_PCA_TITLE__"
+
+
+def load_species_ncbi_accessions(path):
+    """
+    species name -> NCBI accession (e.g. "GCF_010015735.1"), for the species
+    that scripts/build_ncbi_accession_lookup.py could resolve one for.
+    Species missing from this table (Asgard, Protists, and any Fungi/
+    Viridiplantae/Metazoa species without a resolvable accession) just get
+    {} back for that key, which the HTML falls back to a text search for.
+    """
+    path = Path(path)
+    if not path.exists():
+        return {}
+    df = pd.read_csv(path, sep="\t")
+    return dict(zip(df["Species"], df["NCBI_Accession"]))
 
 
 def rgb_to_hex(rgb):

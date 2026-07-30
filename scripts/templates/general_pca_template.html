@@ -991,15 +991,22 @@
     return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
   }
 
-  // Species names here are underscore-joined ("Genus_species", sometimes
-  // with a strain/locality suffix) rather than an NCBI taxon ID or assembly
-  // accession, so there's no ID we can link to directly -- this opens
-  // NCBI's Genome database SEARCH for the plain "Genus species" text
-  // instead, same click-through pattern as go_space's AmiGO link. Internal
-  // codes (e.g. "ASG001" for the Asgard archaea group) just won't match
-  // anything on NCBI; that's an accepted gap, not an error case to handle.
-  function openNcbiGenome(name) {
-    var query = encodeURIComponent(String(name).replace(/_/g, " "));
+  // species.ncbi_id (see scripts/build_ncbi_accession_lookup.py) is a real
+  // assembly accession (e.g. "GCF_010015735.1") for species resolved from
+  // the Fungi/Viridiplantae 00_GenomeSource folders or the Metazoa NCBI
+  // taxon-id lookup -- link straight to that assembly's NCBI Datasets page.
+  // Species without one (Asgard's internal "ASG001"-style codes, Protists'
+  // informal environmental-sample names, or anything the lookup just
+  // couldn't resolve) fall back to the old NCBI Genome database text
+  // search, which for underscore-joined "Genus_species" names at least has
+  // a chance of finding something, same click-through pattern as go_space's
+  // AmiGO link.
+  function openNcbiGenome(species) {
+    if (species.ncbi_id) {
+      window.open("https://www.ncbi.nlm.nih.gov/datasets/genome/" + encodeURIComponent(species.ncbi_id) + "/", "_blank");
+      return;
+    }
+    var query = encodeURIComponent(String(species.name).replace(/_/g, " "));
     window.open("https://www.ncbi.nlm.nih.gov/genome/?term=" + query, "_blank");
   }
 
@@ -1723,7 +1730,7 @@
     c.addEventListener("mouseenter", function (evt) { if (!isPanning) showTooltip(evt, s, i); });
     c.addEventListener("mousemove", function (evt) { if (!isPanning) moveTooltip(evt); });
     c.addEventListener("mouseleave", hideTooltip);
-    c.addEventListener("mouseup", function () { if (!panMoved) openNcbiGenome(s.name); });
+    c.addEventListener("mouseup", function () { if (!panMoved) openNcbiGenome(s); });
     svg.appendChild(c);
     circleEls.push(c);
   });

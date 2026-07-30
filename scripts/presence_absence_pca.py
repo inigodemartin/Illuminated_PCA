@@ -21,10 +21,12 @@ from illuminate_PCA import load_taxonomy, build_global_color_map, remove_outlier
 from general_pca_common import (
     TEMPLATE_PATH,
     DEFAULT_IC_PATH,
+    DEFAULT_SPECIES_ACCESSION_PATH,
     DATA_MARKER,
     TITLE_MARKER,
     rgb_to_hex,
     load_go_descriptions,
+    load_species_ncbi_accessions,
     top_loadings_by_pc,
     write_top_loadings_tsv,
     write_full_loadings_tsv,
@@ -73,6 +75,11 @@ def parse_args():
     )
     parser.add_argument("--output", default="general_pca_presence_absence.html", help="Output HTML path")
     parser.add_argument("--ic-file", default=str(DEFAULT_IC_PATH), help="GO id -> description TSV (default: bundled data/All_GOs_ic.tsv)")
+    parser.add_argument("--species-accession-file", default=str(DEFAULT_SPECIES_ACCESSION_PATH),
+                         help="Species -> NCBI genome accession TSV, for the click-through NCBI link "
+                              "(default: bundled data/species_ncbi_accession.tsv, see "
+                              "scripts/build_ncbi_accession_lookup.py; species missing from it fall back "
+                              "to a text search)")
     parser.add_argument("--top-loadings-n", type=int, default=10,
                          help="Number of GO terms to report per direction (positive/negative) per PC (default: 10)")
     parser.add_argument("--loadings-output", default=None,
@@ -109,6 +116,7 @@ def main():
 
     species = list(pca_df.index)
     color_map = build_global_color_map(taxon_dict)
+    ncbi_accessions = load_species_ncbi_accessions(args.species_accession_file)
 
     species_records = [
         {
@@ -117,6 +125,7 @@ def main():
             "pc2": float(pca_df.loc[name, "PC2"]),
             "group": pca_df.loc[name, "Group"],
             "go_terms_present": int(richness.get(name, 0)),
+            "ncbi_id": ncbi_accessions.get(name),
         }
         for name in species
     ]
