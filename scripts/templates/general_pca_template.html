@@ -567,7 +567,10 @@
     fill-opacity: var(--hull-fill-opacity, 0.12);
     stroke-opacity: var(--hull-stroke-opacity, 0.35);
     stroke-width: 1;
-    pointer-events: none;
+    /* Hoverable (see showGroupTooltip) -- a species point sitting on top of
+       a facet still wins the hover, since paint order is also DOM/z order
+       and pointer-events hit-tests the topmost element at that pixel. */
+    cursor: default;
   }
   .ellipse-toggle-label {
     display: flex;
@@ -1085,6 +1088,26 @@
     tooltip.classList.add("hidden");
   }
 
+  // Shown when hovering a group's polyhedron where no species point happens
+  // to sit -- summarizes the same shape instead of leaving the hover empty.
+  // Stats are over whatever species currently feed that group's hull (see
+  // rebuildHulls/groupSummaries), so they track the active filters exactly.
+  function showGroupTooltip(evt, g) {
+    var summary = groupSummaries[g];
+    var html = "<b>" + escapeHtml(g) + "</b><br>Species in shape: " + (summary ? summary.n : 0);
+    if (summary && summary.go.length) {
+      html += "<br>GO terms present &mdash; mean: " + Math.round(mean(summary.go)) +
+        ", median: " + Math.round(median(summary.go));
+    }
+    if (summary && summary.prot.length) {
+      html += "<br>Annotated proteins &mdash; mean: " + Math.round(mean(summary.prot)) +
+        ", median: " + Math.round(median(summary.prot));
+    }
+    tooltip.innerHTML = html;
+    tooltip.classList.remove("hidden");
+    moveTooltip(evt);
+  }
+
   // A species is suppressed if its taxon group is toggled off, or -- while
   // illuminating a searched GO term -- it has zero counts for that term, or
   // its count falls outside the [goCountMin, goCountMax] threshold range, or
@@ -1536,10 +1559,15 @@
 
   function computeGroupHulls(isIncluded) {
     var byGroup = {};
+    var summaryByGroup = {};
     DATA.species.forEach(function (s, i) {
       if (!isIncluded(s, i)) return;
       var g = s.group;
       (byGroup[g] || (byGroup[g] = [])).push([s.pc1, s.pc2, s.pc3 || 0]);
+      var sum = summaryByGroup[g] || (summaryByGroup[g] = { n: 0, go: [], prot: [] });
+      sum.n++;
+      sum.go.push(s.go_terms_present);
+      if (s.total_prots !== undefined && s.total_prots !== null) sum.prot.push(s.total_prots);
     });
     var hulls = {};
     Object.keys(byGroup).forEach(function (g) {
@@ -1548,10 +1576,22 @@
       var faces = hullFacesFor(pts);
       if (faces && faces.length) hulls[g] = { points: pts, faces: faces };
     });
-    return hulls;
+    return { hulls: hulls, summaries: summaryByGroup };
+  }
+
+  function mean(arr) {
+    if (!arr.length) return null;
+    return arr.reduce(function (a, b) { return a + b; }, 0) / arr.length;
+  }
+  function median(arr) {
+    if (!arr.length) return null;
+    var sorted = arr.slice().sort(function (a, b) { return a - b; });
+    var mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
   }
 
   var groupHulls = {};
+  var groupSummaries = {};
   var showEllipses = false;
   var ellipseEls = {};
   var allHullFaceEls = [];
@@ -1592,7 +1632,9 @@
   // a full hull recompute (an O(n) incremental algorithm per group) is too
   // slow to redo dozens of times a second for the larger taxon groups.
   function rebuildHulls() {
-    groupHulls = computeGroupHulls(function (s, i) { return !isSpeciesSuppressed(s, i); });
+    var computed = computeGroupHulls(function (s, i) { return !isSpeciesSuppressed(s, i); });
+    groupHulls = computed.hulls;
+    groupSummaries = computed.summaries;
 
     // Old facets may have been reparented directly under <svg> by the
     // combined depth sort in applyRotation3D (see there), so clearing
@@ -1612,6 +1654,11 @@
         path.setAttribute("fill", color);
         path.setAttribute("stroke", color);
         path.style.display = "none";
+        // Hovering empty polyhedron area (no species point at that pixel)
+        // shows the group's own tooltip -- see showGroupTooltip.
+        path.addEventListener("mouseenter", function (evt) { if (!isPanning) showGroupTooltip(evt, g); });
+        path.addEventListener("mousemove", function (evt) { if (!isPanning) moveTooltip(evt); });
+        path.addEventListener("mouseleave", hideTooltip);
         hullFacesGroup.appendChild(path);
         return path;
       });
