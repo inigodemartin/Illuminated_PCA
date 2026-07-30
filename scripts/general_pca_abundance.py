@@ -44,6 +44,17 @@ def parse_args():
         default=None,
         help="Comma-separated taxonomic groups to restrict to",
     )
+    parser.add_argument("--min-go-terms", type=int, default=None,
+                         help="Drop species with fewer than this many GO terms present before fitting the PCA "
+                              "-- weakly-annotated species are a major non-biological confound (they alone can "
+                              "dominate PC1/PC2). Off by default. See --min-go-terms-exempt for groups to spare.")
+    parser.add_argument(
+        "--min-go-terms-exempt",
+        type=lambda s: [item.strip() for item in s.split(",")],
+        default=[],
+        help="Comma-separated taxonomy groups exempt from --min-go-terms (e.g. groups where thin annotation "
+             "is normal for the whole group, not a red flag for that one species -- 'Asgard,Protists')",
+    )
     parser.add_argument("--output", default="general_pca_abundance.html", help="Output HTML path")
     parser.add_argument("--ic-file", default=str(DEFAULT_IC_PATH), help="GO id -> description TSV (default: bundled data/All_GOs_ic.tsv)")
     parser.add_argument("--ic-threshold", type=float, default=None,
@@ -81,6 +92,24 @@ def main():
     # to a sub-region of the same global layout.
     if args.taxa:
         raw_full = raw_full[raw_full.index.map(taxon_dict).isin(args.taxa)]
+
+    # Drop species with too few GO terms annotated *before* fitting, same
+    # reasoning as -t/--taxa above: a weakly-annotated species should not
+    # get to pull on the PCA's variance at all, not be fit in and cropped
+    # out of the plot afterward. Computed on the full matrix as loaded
+    # (before the IC-threshold column filter just below), since annotation
+    # completeness is a property of the species, independent of this run's
+    # own GO-term cutoff.
+    if args.min_go_terms is not None:
+        richness_pre_fit = (raw_full > 0).sum(axis=1)
+        species_group = raw_full.index.map(taxon_dict)
+        exempt = set(args.min_go_terms_exempt)
+        keep_mask = (richness_pre_fit >= args.min_go_terms) | species_group.isin(exempt)
+        n_before = raw_full.shape[0]
+        raw_full = raw_full[keep_mask]
+        n_dropped = n_before - raw_full.shape[0]
+        exempt_note = f" (exempt: {', '.join(sorted(exempt))})" if exempt else ""
+        print(f"GO-terms-present filter (< {args.min_go_terms}){exempt_note}: dropped {n_dropped} / {n_before} species")
 
     # Drop GO terms below the IC threshold before fitting the PCA so that
     # overly general terms (present in nearly all species, low information
