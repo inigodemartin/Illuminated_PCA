@@ -1547,7 +1547,13 @@
   function rebuildHulls() {
     groupHulls = computeGroupHulls(function (s, i) { return !isSpeciesSuppressed(s, i); });
 
-    while (hullFacesGroup.firstChild) hullFacesGroup.removeChild(hullFacesGroup.firstChild);
+    // Old facets may have been reparented directly under <svg> by the
+    // combined depth sort in applyRotation3D (see there), so clearing
+    // hullFacesGroup alone would miss them -- remove each one from wherever
+    // it actually ended up, or a rotated view leaves stale facets behind
+    // forever, since nothing else ever revisits an element that's no longer
+    // referenced by ellipseEls/allHullFaceEls.
+    allHullFaceEls.forEach(function (el) { if (el.parentNode) el.parentNode.removeChild(el); });
     ellipseEls = {};
     ALL_GROUPS.forEach(function (g) {
       var hull = groupHulls[g];
