@@ -780,20 +780,56 @@
     return counts.map(function (c, i) { return c === 0 ? 0 : norm[i]; });
   }
 
-  // The counts blob is gzip-compressed + base64-encoded server-side (see
-  // build_go_search_payload in presence_absence_pca.py) since a dense
-  // species x GO-term matrix is tens of MB as raw JSON. Decoded once, on
+  // The counts blob packs a nonzero-bitmap plus an array holding only the
+  // nonzero values (see build_go_search_payload in general_pca_common.py),
+  // gzip-compressed + base64-encoded server-side -- a dense species x
+  // GO-term matrix is tens of MB even before this packing. Decoded once, on
   // first search, via the native DecompressionStream -- no bundled inflate
   // library. fetch() of a data: URL hands the base64 decoding itself to
   // the browser's native (fast) implementation instead of a manual atob +
   // per-character loop over a multi-million-character string.
+  //
+  // Unpacked back into a dense Uint32Array (not Uint16 -- the wire format
+  // packs values as uint16 to stay compact, but a couple of real cells can
+  // exceed that range; those ship separately in GO_SEARCH.overrides as
+  // [flat_index, true_value] pairs, patched in after unpacking, which needs
+  // the full 32-bit range to hold correctly) the same length as the
+  // original dense matrix, so every existing consumer (countsForGoIndex's
+  // subarray slicing chief among them) sees exactly the same shape it did
+  // before this was ever sparse.
+  function unpackGoCounts(buf) {
+    var maskLen = GO_SEARCH.mask_bytes;
+    var total = GO_SEARCH.n_go * GO_SEARCH.n_species;
+    var maskBytes = new Uint8Array(buf, 0, maskLen);
+    var values = new Uint16Array(buf, maskLen);
+
+    var dense = new Uint32Array(total);
+    var vi = 0;
+    for (var bytePos = 0; bytePos < maskLen; bytePos++) {
+      var byte = maskBytes[bytePos];
+      if (byte === 0) continue;
+      var base = bytePos * 8;
+      for (var bit = 0; bit < 8; bit++) {
+        // np.packbits default bit order is "big": bit 0 of each group of 8
+        // is the byte's MSB (0x80), not its LSB.
+        if (byte & (0x80 >> bit)) {
+          var pos = base + bit;
+          if (pos < total) dense[pos] = values[vi];
+          vi++;
+        }
+      }
+    }
+    GO_SEARCH.overrides.forEach(function (ov) { dense[ov[0]] = ov[1]; });
+    return dense;
+  }
+
   var goCountsPromise = null;
   function loadGoCounts() {
     if (goCountsPromise) return goCountsPromise;
     goCountsPromise = fetch("data:application/octet-stream;base64," + GO_SEARCH.counts_gzip_b64)
       .then(function (resp) { return resp.body.pipeThrough(new DecompressionStream("gzip")); })
       .then(function (stream) { return new Response(stream).arrayBuffer(); })
-      .then(function (buf) { return GO_SEARCH.bytes_per_value === 4 ? new Uint32Array(buf) : new Uint16Array(buf); });
+      .then(function (buf) { return unpackGoCounts(buf); });
     return goCountsPromise;
   }
 

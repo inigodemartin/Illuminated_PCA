@@ -169,14 +169,23 @@ def build_go_search_payload(raw_full, species, go_desc):
     of one baked in at generation time.
 
     There's no server, so this has to ship as data embedded in the HTML.
-    A dense species x GO-term count matrix here is ~1200 x ~24000 cells,
-    too big as JSON (~12M non-zero entries -- sparse wouldn't meaningfully
-    shrink it, the matrix is ~33% dense). Instead: pack counts as a flat
-    typed-array byte buffer (uint16, or uint32 if some count overflows
-    that), gzip it, and base64-encode the gzipped bytes -- gzip alone gets
-    this down roughly 5x, base64 adds ~33% back, netting a fraction of the
-    raw size. The browser reverses this with the native
-    DecompressionStream("gzip") API (no bundled inflate library needed).
+    A dense species x GO-term count matrix here is ~1200 x ~24000 cells --
+    too big even gzipped as a plain typed-array dump. Two things shrink it,
+    both lossless:
+
+    1. Values always pack as uint16, even though a couple of cells in real
+       data exceed 65535 -- those go in a tiny separate `overrides` list
+       (flat GO-major index -> true value) applied after decoding, instead
+       of doubling every one of the millions of *other* cells to uint32
+       just to cover a handful of outliers.
+    2. The matrix is ~70% zero, so it ships as a packed nonzero-bitmap plus
+       a values array holding only the nonzero cells, concatenated and
+       gzipped together -- smaller than gzipping the dense array directly,
+       since gzip has to spend bits re-discovering the zero runs itself
+       otherwise. The browser reverses this with the native
+       DecompressionStream("gzip") API (no bundled inflate library needed),
+       then rebuilds the dense typed array the rest of the JS expects by
+       scattering values back in at the bitmap's set-bit positions.
 
     Layout is GO-major: all `len(species)` counts for go_ids[0], then all
     counts for go_ids[1], etc. -- so looking up one GO id's counts for
@@ -184,18 +193,32 @@ def build_go_search_payload(raw_full, species, go_desc):
     """
     go_ids = list(raw_full.columns)
     counts = raw_full.loc[species, go_ids].to_numpy()
-
     counts = np.clip(counts, 0, None)
-    max_count = int(counts.max()) if counts.size else 0
-    dtype = np.uint16 if max_count <= 65535 else np.uint32
 
-    by_go = np.ascontiguousarray(counts.astype(dtype).T)  # shape (n_go, n_species)
-    compressed = gzip.compress(by_go.tobytes(), compresslevel=6)
+    by_go = np.ascontiguousarray(counts.T)  # shape (n_go, n_species), GO-major
+    flat = by_go.reshape(-1)
+
+    UINT16_MAX = 65535
+    overflow_positions = np.flatnonzero(flat > UINT16_MAX)
+    overrides = [[int(p), int(flat[p])] for p in overflow_positions]
+
+    flat_clipped = np.minimum(flat, UINT16_MAX).astype(np.uint16)
+    nonzero_mask = flat_clipped != 0
+    mask_bytes = np.packbits(nonzero_mask).tobytes()
+    if len(mask_bytes) % 2:
+        # Pad to an even length so the browser can lay a Uint16Array view
+        # directly over the values that follow (typed-array byteOffsets
+        # must be a multiple of the element size).
+        mask_bytes += b"\x00"
+    values_bytes = flat_clipped[nonzero_mask].tobytes()
+    compressed = gzip.compress(mask_bytes + values_bytes, compresslevel=6)
 
     return {
         "go_ids": go_ids,
         "go_desc": {go_id: go_desc.get(go_id, "unknown") for go_id in go_ids},
         "n_species": len(species),
-        "bytes_per_value": int(np.dtype(dtype).itemsize),
+        "n_go": len(go_ids),
+        "mask_bytes": len(mask_bytes),
+        "overrides": overrides,
         "counts_gzip_b64": base64.b64encode(compressed).decode("ascii"),
     }
