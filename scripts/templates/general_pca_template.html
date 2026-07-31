@@ -1368,10 +1368,20 @@
     showPoints = evt.target.checked;
     applyVisibility();
   };
+  // Routed through the same canvas-preview machinery as rotation: "input"
+  // fires continuously while dragging the slider (same per-frame-update
+  // volume as a mouse drag, same per-element-SVG-repaint jank if it touched
+  // every circle's r/stroke-width directly), so live feedback goes through
+  // the canvas instead and only "change" (drag released / value committed)
+  // does the real, exact SVG sync via exitCanvasPreview.
   document.getElementById("point-size").oninput = function (evt) {
     pointSizeScale = evt.target.value / 100;
-    updateMarkerScale();
+    enterCanvasPreview();
+    scheduleCanvasPreviewDraw();
   };
+  document.getElementById("point-size").addEventListener("change", function () {
+    exitCanvasPreview();
+  });
 
   function resetViewBox() {
     viewBox.x = 0; viewBox.y = 0; viewBox.w = PLOT_W; viewBox.h = PLOT_H;
@@ -1458,7 +1468,13 @@
     canvasPreviewActive = false;
     pointsCanvas.style.display = "none";
     rotatableGroup.style.display = "";
-    applyRotation3D(); // one exact, full sync of the real SVG to the final rotation
+    // Full sync of the real SVG: applyRotation3D for cx/cy/paint-order (in
+    // case this preview session rotated) and updateMarkerScale for r/
+    // stroke-width (in case it was the point-size slider driving the
+    // preview instead) -- always both, regardless of which one actually
+    // changed, since either can be the reason a preview session was active.
+    applyRotation3D();
+    updateMarkerScale();
   }
 
   // Draws every currently-visible point + hull facet onto the canvas, depth
@@ -1482,8 +1498,17 @@
     var ma = ctm.a, mb = ctm.b, mc = ctm.c, md = ctm.d;
     var me = ctm.e - canvasRect.left, mf = ctm.f - canvasRect.top;
     function toPx(ux, uy) { return [ux * ma + uy * mc + me, ux * mb + uy * md + mf]; }
+    // The real SVG circles' r/stroke-width attributes are set in the SVG's
+    // own user-coordinate system (see updateMarkerScale) -- the browser then
+    // applies the viewBox-to-screen scale automatically when painting them.
+    // toPx already applies that same scale to positions via the CTM; sizes
+    // need it applied explicitly (ctm.a/b encode the transformed length of a
+    // unit x-vector -- a pure scale+translate, no rotation/skew, since
+    // that's all an SVG viewBox transform ever is).
+    var ctmScale = Math.sqrt(ma * ma + mb * mb);
 
     var trig = trigFor(td3Yaw, td3Pitch);
+    updateAxisLines(trig); // real SVG elements, cheap enough to keep live during the preview too
     var scale = currentMarkerScale();
     var drawables = [];
 
@@ -1497,9 +1522,9 @@
         ux: scaleX(r.x), uy: scaleY(r.y),
         fill: c.getAttribute("fill"),
         opacity: parseFloat(c.getAttribute("opacity")),
-        radius: parseFloat(c.getAttribute("data-base-r")) * scale,
+        radius: parseFloat(c.getAttribute("data-base-r")) * scale * ctmScale,
         stroke: c.getAttribute("stroke"),
-        strokeWidth: BASE_STROKE_WIDTH * scale,
+        strokeWidth: BASE_STROKE_WIDTH * scale * ctmScale,
       });
     });
 
@@ -1547,25 +1572,26 @@
         pointsCtx.fill();
         pointsCtx.globalAlpha = currentHullStrokeOpacity;
         pointsCtx.strokeStyle = item.fill;
-        pointsCtx.lineWidth = 1;
+        pointsCtx.lineWidth = ctmScale; // matches the real facets' CSS stroke-width:1, in SVG user-units
         pointsCtx.stroke();
       }
     });
     pointsCtx.globalAlpha = 1;
   }
 
-  // Coalesces redraws to at most one per animation frame: a drag (or a held
-  // rotate key) can fire many more update events than the display can
-  // paint, so running the redraw straight off each one does duplicate work
-  // the screen never even shows. td3Yaw/td3Pitch (cheap) still update
-  // immediately every time, so the frame that does paint always reflects
-  // the latest input.
-  var rotationRAFPending = false;
-  function scheduleApplyRotation3D() {
-    if (rotationRAFPending) return;
-    rotationRAFPending = true;
+  // Coalesces redraws to at most one per animation frame: a drag, a held
+  // rotate key, or dragging the point-size slider can all fire many more
+  // update events than the display can paint, so running the redraw
+  // straight off each one does duplicate work the screen never even shows.
+  // The underlying state (td3Yaw/td3Pitch/pointSizeScale, all cheap) still
+  // updates immediately every time, so the frame that does paint always
+  // reflects the latest input.
+  var previewRAFPending = false;
+  function scheduleCanvasPreviewDraw() {
+    if (previewRAFPending) return;
+    previewRAFPending = true;
     requestAnimationFrame(function () {
-      rotationRAFPending = false;
+      previewRAFPending = false;
       if (canvasPreviewActive) drawCanvasPreview();
     });
   }
@@ -1582,11 +1608,13 @@
     if (!isPanning) return;
     panMoved = true;
     if (HAS_3D && !evt.shiftKey) {
-      var rotLimit = Math.PI / 2 - 0.05;
+      // Pitch is unbounded, same as yaw -- full 360 in both axes, not just
+      // horizontal. rotate3D's trig is well-defined for any angle, so
+      // there's no actual degenerate view to guard against.
       td3Yaw = panStart.yaw + (evt.clientX - panStart.x) * ROTATE_SPEED;
-      td3Pitch = Math.max(-rotLimit, Math.min(rotLimit, panStart.pitch + (evt.clientY - panStart.y) * ROTATE_SPEED));
+      td3Pitch = panStart.pitch + (evt.clientY - panStart.y) * ROTATE_SPEED;
       enterCanvasPreview();
-      scheduleApplyRotation3D();
+      scheduleCanvasPreviewDraw();
       return;
     }
     // Plain pan: always in 2D mode, or in 3D mode while holding Shift --
@@ -2698,6 +2726,23 @@
     return { cosY: Math.cos(yaw), sinY: Math.sin(yaw), cosX: Math.cos(pitch), sinX: Math.sin(pitch) };
   }
 
+  // Shared by applyRotation3D (the real SVG, on a full sync) and
+  // drawCanvasPreview (every live preview frame) -- axis lines are cheap
+  // (3 lines + labels) and stay real SVG elements even during the canvas
+  // preview rather than moving to canvas too, but they still need repositioning
+  // every frame or they'd stay frozen at their pre-drag position for the
+  // whole gesture, only snapping to correct at the end.
+  function updateAxisLines(trig) {
+    axisLines.forEach(function (axis) {
+      var r1 = rotate3D(axis.p1[0], axis.p1[1], axis.p1[2], trig.cosY, trig.sinY, trig.cosX, trig.sinX);
+      var r2 = rotate3D(axis.p2[0], axis.p2[1], axis.p2[2], trig.cosY, trig.sinY, trig.cosX, trig.sinX);
+      axis.el.setAttribute("x1", scaleX(r1.x)); axis.el.setAttribute("y1", scaleY(r1.y));
+      axis.el.setAttribute("x2", scaleX(r2.x)); axis.el.setAttribute("y2", scaleY(r2.y));
+      axis.labelEl.setAttribute("x", scaleX(r2.x) + 4);
+      axis.labelEl.setAttribute("y", scaleY(r2.y) - 4);
+    });
+  }
+
   function applyRotation3D() {
     // At yaw = pitch = 0 the page must stay pixel-identical to a plain 2D
     // PCA (see HAS_3D above), so paint order there still follows the
@@ -2737,14 +2782,7 @@
       reorderCirclesByGroupOrder();
       allHullFaceEls.forEach(function (el) { hullFacesGroup.appendChild(el); });
     }
-    axisLines.forEach(function (axis) {
-      var r1 = rotate3D(axis.p1[0], axis.p1[1], axis.p1[2], trig.cosY, trig.sinY, trig.cosX, trig.sinX);
-      var r2 = rotate3D(axis.p2[0], axis.p2[1], axis.p2[2], trig.cosY, trig.sinY, trig.cosX, trig.sinX);
-      axis.el.setAttribute("x1", scaleX(r1.x)); axis.el.setAttribute("y1", scaleY(r1.y));
-      axis.el.setAttribute("x2", scaleX(r2.x)); axis.el.setAttribute("y2", scaleY(r2.y));
-      axis.labelEl.setAttribute("x", scaleX(r2.x) + 4);
-      axis.labelEl.setAttribute("y", scaleY(r2.y) - 4);
-    });
+    updateAxisLines(trig);
 
     // The explained-variance box only appears once actually rotated away
     // from the flat (yaw=pitch=0) layout -- hidden again if rotation is
@@ -2770,13 +2808,12 @@
     };
 
     // Arrow-button alternative to drag-to-rotate -- same step size feel as a
-    // short drag, and the same pitch clamp as the drag handler above so you
-    // can't nudge past a near-vertical, degenerate view.
+    // short drag. Pitch is unbounded here too, same as yaw (see the drag
+    // handler above).
     var ROTATE_STEP = Math.PI / 18; // 10 degrees per click
-    var PITCH_LIMIT = Math.PI / 2 - 0.05;
     function nudgeRotation(dYaw, dPitch) {
       td3Yaw += dYaw;
-      td3Pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, td3Pitch + dPitch));
+      td3Pitch += dPitch;
       applyRotation3D();
     }
     document.getElementById("rotate-up").onclick = function () { nudgeRotation(0, -ROTATE_STEP); };
@@ -2815,7 +2852,7 @@
       if (heldRotateKeys.ArrowDown) dPitch += 1;
       if (dYaw || dPitch) {
         td3Yaw += dYaw * KEYBOARD_ROTATE_RAD_PER_SEC * dt;
-        td3Pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, td3Pitch + dPitch * KEYBOARD_ROTATE_RAD_PER_SEC * dt));
+        td3Pitch += dPitch * KEYBOARD_ROTATE_RAD_PER_SEC * dt; // unbounded, same as yaw
         enterCanvasPreview();
         drawCanvasPreview();
         keyboardRotateFrame = requestAnimationFrame(keyboardRotateTick);
