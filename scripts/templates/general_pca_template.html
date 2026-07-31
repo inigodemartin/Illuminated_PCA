@@ -1640,14 +1640,22 @@
     }
     // Plain pan: always in 2D mode, or in 3D mode while holding Shift --
     // moves the view (viewBox) without touching td3Yaw/td3Pitch, so the
-    // cloud's rotation stays exactly as-is while you reposition it.
-    exitCanvasPreview();
+    // cloud's rotation stays exactly as-is while you reposition it. Changing
+    // the SVG's viewBox is a single attribute write, but the browser still
+    // has to repaint every one of the ~4200 individual circle/facet elements
+    // at their new effective position -- same per-element paint cost as
+    // rotation, just triggered by the parent's viewBox instead of each
+    // child's cx/cy. Routed through the canvas preview for the same reason:
+    // drawCanvasPreview() already re-reads the live viewBox via
+    // svg.getScreenCTM() every frame, so panning needs no changes there.
     var rect = svg.getBoundingClientRect();
     var dx = (evt.clientX - panStart.x) / rect.width * viewBox.w;
     var dy = (evt.clientY - panStart.y) / rect.height * viewBox.h;
     viewBox.x = panStart.vbX - dx;
     viewBox.y = panStart.vbY - dy;
     applyViewBox();
+    enterCanvasPreview();
+    scheduleCanvasPreviewDraw();
   });
   window.addEventListener("mouseup", function () {
     isPanning = false;
