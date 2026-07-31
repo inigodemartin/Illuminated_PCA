@@ -1391,6 +1391,17 @@
   document.getElementById("reset-zoom-btn").onclick = resetViewBox;
 
   var minViewW = PLOT_W * MIN_VIEW_FRACTION;
+  // applyViewBox() itself is cheap (one attribute on the SVG root -- the
+  // browser scales all its content natively from that, no per-element work
+  // needed). updateMarkerScale() is the expensive part (touches every
+  // circle's r/stroke-width to counter-scale marker size against zoom), so
+  // that's what gets routed through the canvas preview, same as rotation
+  // and the point-size slider. Unlike a mouse drag (clear mousedown/mouseup
+  // bounds) a continuous scroll/pinch-zoom gesture is just a rapid burst of
+  // "wheel" events with no explicit start/end signal, so the preview exits
+  // via a short debounce (same pattern as scheduleHullRebuild) instead --
+  // each new wheel event within the gesture just pushes the exit back out.
+  var zoomPreviewExitTimer = null;
   svg.addEventListener("wheel", function (evt) {
     evt.preventDefault();
     var rect = svg.getBoundingClientRect();
@@ -1406,7 +1417,17 @@
     viewBox.w = newW;
     viewBox.h = newH;
     applyViewBox();
-    updateMarkerScale();
+    enterCanvasPreview();
+    scheduleCanvasPreviewDraw();
+    clearTimeout(zoomPreviewExitTimer);
+    zoomPreviewExitTimer = setTimeout(function () {
+      // Guards against a rare overlap with an active mouse-drag (rotate or
+      // pan) still in progress when the debounce fires -- that drag's own
+      // mouseup handler is the one that should end the preview then, not
+      // this timer racing in and yanking it out from under an unrelated,
+      // still-ongoing gesture.
+      if (!isPanning) exitCanvasPreview();
+    }, 150);
   }, { passive: false });
 
   // Dragging rotates the point cloud directly (no toggle needed -- see
