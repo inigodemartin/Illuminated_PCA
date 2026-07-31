@@ -1668,11 +1668,11 @@
   hullFacesGroup.setAttribute("id", "hull-faces");
   svg.appendChild(hullFacesGroup);
 
-  function updateEllipses(yaw, pitch) {
+  function updateEllipses(cosY, sinY, cosX, sinX) {
     Object.keys(groupHulls).forEach(function (g) {
       var hull = groupHulls[g], els = ellipseEls[g];
       var projected = hull.points.map(function (p) {
-        var r = rotate3DWithDepth(p[0], p[1], p[2], yaw, pitch);
+        var r = rotate3DWithDepth(p[0], p[1], p[2], cosY, sinY, cosX, sinX);
         return [scaleX(r.x), scaleY(r.y), r.z];
       });
       hull.faces.forEach(function (f, fi) {
@@ -1734,7 +1734,8 @@
     });
     allHullFaceEls = [].concat.apply([], ALL_GROUPS.map(function (g) { return ellipseEls[g] || []; }));
 
-    updateEllipses(td3Yaw, td3Pitch);
+    var rebuildTrig = trigFor(td3Yaw, td3Pitch);
+    updateEllipses(rebuildTrig.cosY, rebuildTrig.sinY, rebuildTrig.cosX, rebuildTrig.sinX);
     updateEllipseVisibility();
     // While actually rotated, hull facets are interleaved with the scatter
     // points in one shared depth-sorted paint order (see applyRotation3D) --
@@ -2466,11 +2467,17 @@
     ? "Drag to rotate, Shift+drag to pan, scroll to zoom, click a species for its NCBI genome page."
     : "Scroll to zoom, drag to pan, click a species for its NCBI genome page.";
 
-  function rotate3D(x, y, z, yaw, pitch) {
-    var cosY = Math.cos(yaw), sinY = Math.sin(yaw);
+  // Takes precomputed cos/sin of yaw and pitch rather than the angles
+  // themselves -- yaw/pitch are fixed for an entire frame (thousands of
+  // points + hull vertices all rotate by the same amount), so computing
+  // Math.cos/Math.sin once per frame and reusing them here, instead of
+  // recomputing all four inside this function on every single point/vertex
+  // call, cuts out tens of thousands of redundant trig evaluations per
+  // frame at real species counts -- a big share of why dragging felt heavy
+  // once there were actually points on screen.
+  function rotate3D(x, y, z, cosY, sinY, cosX, sinX) {
     var x1 = x * cosY + z * sinY;
     var z1 = -x * sinY + z * cosY;
-    var cosX = Math.cos(pitch), sinX = Math.sin(pitch);
     var y2 = y * cosX - z1 * sinX; // at yaw=pitch=0: x1=x, y2=y -- z drops out
     return { x: x1, y: y2 };
   }
@@ -2478,14 +2485,18 @@
   // Same rotation as rotate3D, but also keeps the depth component (z2)
   // instead of dropping it -- needed below to sort points front-to-back by
   // where they actually are in 3D, rather than by cx/cy screen position.
-  function rotate3DWithDepth(x, y, z, yaw, pitch) {
-    var cosY = Math.cos(yaw), sinY = Math.sin(yaw);
+  function rotate3DWithDepth(x, y, z, cosY, sinY, cosX, sinX) {
     var x1 = x * cosY + z * sinY;
     var z1 = -x * sinY + z * cosY;
-    var cosX = Math.cos(pitch), sinX = Math.sin(pitch);
     var y2 = y * cosX - z1 * sinX;
     var z2 = y * sinX + z1 * cosX;
     return { x: x1, y: y2, z: z2 };
+  }
+
+  // One trig evaluation per axis per frame, shared by every rotate3D/
+  // rotate3DWithDepth call that frame needs (see the comment on rotate3D).
+  function trigFor(yaw, pitch) {
+    return { cosY: Math.cos(yaw), sinY: Math.sin(yaw), cosX: Math.cos(pitch), sinX: Math.sin(pitch) };
   }
 
   function applyRotation3D() {
@@ -2500,15 +2511,16 @@
     // disappear behind a group's translucent polyhedron once it is behind
     // it, instead of every point always painting over every hull face.
     var rotated = td3Yaw !== 0 || td3Pitch !== 0;
+    var trig = trigFor(td3Yaw, td3Pitch);
 
     circleEls.forEach(function (c, i) {
       var s = DATA.species[i];
-      var r = rotate3DWithDepth(s.pc1, s.pc2, s.pc3, td3Yaw, td3Pitch);
+      var r = rotate3DWithDepth(s.pc1, s.pc2, s.pc3, trig.cosY, trig.sinY, trig.cosX, trig.sinX);
       c.setAttribute("cx", scaleX(r.x));
       c.setAttribute("cy", scaleY(r.y));
       c._depth3d = r.z;
     });
-    updateEllipses(td3Yaw, td3Pitch); // also stamps _depth3d on each hull facet
+    updateEllipses(trig.cosY, trig.sinY, trig.cosX, trig.sinX); // also stamps _depth3d on each hull facet
 
     if (rotated) {
       // Built into a detached DocumentFragment first, then attached to the
@@ -2527,8 +2539,8 @@
       allHullFaceEls.forEach(function (el) { hullFacesGroup.appendChild(el); });
     }
     axisLines.forEach(function (axis) {
-      var r1 = rotate3D(axis.p1[0], axis.p1[1], axis.p1[2], td3Yaw, td3Pitch);
-      var r2 = rotate3D(axis.p2[0], axis.p2[1], axis.p2[2], td3Yaw, td3Pitch);
+      var r1 = rotate3D(axis.p1[0], axis.p1[1], axis.p1[2], trig.cosY, trig.sinY, trig.cosX, trig.sinX);
+      var r2 = rotate3D(axis.p2[0], axis.p2[1], axis.p2[2], trig.cosY, trig.sinY, trig.cosX, trig.sinX);
       axis.el.setAttribute("x1", scaleX(r1.x)); axis.el.setAttribute("y1", scaleY(r1.y));
       axis.el.setAttribute("x2", scaleX(r2.x)); axis.el.setAttribute("y2", scaleY(r2.y));
       axis.labelEl.setAttribute("x", scaleX(r2.x) + 4);
