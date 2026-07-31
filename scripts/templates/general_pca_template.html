@@ -443,9 +443,14 @@
     color: #94a3b8;
     margin-top: 6px;
   }
-  .scatter {
+  #scatter-wrap {
+    position: relative;
     flex: 1 1 auto;
     min-width: 0;
+  }
+  .scatter {
+    position: absolute;
+    inset: 0;
     width: 100%;
     height: 100%;
     display: block;
@@ -454,6 +459,20 @@
   }
   .scatter.panning {
     cursor: grabbing;
+  }
+  /* Shown only while actively dragging/rotating (see enterCanvasPreview) --
+     a fast single-surface stand-in for the real SVG points+hulls, which are
+     hidden for the duration of the drag. Never receives pointer events
+     itself: rotate/pan is already handled by listeners on the SVG/window,
+     and nothing needs to be hoverable/clickable mid-drag (the real elements
+     already suppress tooltips/clicks while isPanning is true). */
+  #points-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: none;
+    pointer-events: none;
   }
   .scatter circle {
     transition: opacity 0.1s;
@@ -673,7 +692,10 @@
   <div class="plot-card">
     <div class="plot-row">
       <div class="axis-label-y"><span id="y-axis-label"></span></div>
-      <svg id="scatter" class="scatter"></svg>
+      <div id="scatter-wrap">
+        <svg id="scatter" class="scatter"></svg>
+        <canvas id="points-canvas"></canvas>
+      </div>
       <div id="go-count-rail" class="threshold-rail rail-go inactive" title="Drag to filter by GO count">
         <span class="rail-label">GO Abundance</span>
       </div>
@@ -1230,7 +1252,7 @@
     for (var i = GROUP_ORDER.length - 1; i >= 0; i--) {
       var g = GROUP_ORDER[i];
       circleEls.forEach(function (c) {
-        if (c.getAttribute("data-group") === g) svg.appendChild(c);
+        if (c.getAttribute("data-group") === g) rotatableGroup.appendChild(c);
       });
     }
   }
@@ -1328,9 +1350,14 @@
   applyViewBox();
 
   var pointSizeScale = 1; // driven by the "Point size" sidebar slider
-  function updateMarkerScale() {
+  // Shared by the real SVG circles (updateMarkerScale) and the canvas
+  // preview (drawCanvasPreview), so both always agree on marker size.
+  function currentMarkerScale() {
     var ratio = viewBox.w / PLOT_W;
-    var scale = ratio * (1 + MARKER_ZOOM_GROWTH * (1 - ratio)) * pointSizeScale;
+    return ratio * (1 + MARKER_ZOOM_GROWTH * (1 - ratio)) * pointSizeScale;
+  }
+  function updateMarkerScale() {
+    var scale = currentMarkerScale();
     svg.querySelectorAll("circle[data-base-r]").forEach(function (c) {
       c.setAttribute("r", parseFloat(c.getAttribute("data-base-r")) * scale);
       c.setAttribute("stroke-width", BASE_STROKE_WIDTH * scale);
@@ -1379,19 +1406,167 @@
   // unchanged from before 3D existed.
   var isPanning = false, panMoved = false, panStart = null;
 
-  // Coalesces rotation redraws to at most one per animation frame: a drag
-  // can fire many more mousemove events than the display can paint, and
-  // applyRotation3D redraws every point and hull facet, so running it
-  // straight off each raw event does duplicate work the screen never even
-  // shows. td3Yaw/td3Pitch (cheap) still update immediately on every event,
-  // so the frame that does paint always reflects the latest mouse position.
+  // ---- canvas preview: what actually makes rotation fluid ----
+  // The real points+hulls are SVG elements (needed for hover tooltips,
+  // click-to-NCBI, legend drag-reordering, the color picker, and PNG
+  // export -- rewriting all of that to a permanent canvas would be a much
+  // bigger, riskier change for the same visual result). But repainting
+  // thousands of them individually every dragged frame is what made
+  // rotation janky at real species counts, even after the DOM-batching and
+  // redundant-trig fixes (both real, both insufficient alone -- confirmed
+  // by it staying fluid with "Show points" off, i.e. nothing painted).
+  //
+  // So: for the duration of an active rotate-drag (or held rotate key, see
+  // the keyboard handler below), the real SVG content is hidden with one
+  // DOM write (rotatableGroup.style.display) and a <canvas> overlay takes
+  // over, redrawing every point/facet as a single bitmap each frame instead
+  // of thousands of separately-painted DOM nodes. Nothing needs to be
+  // hoverable/clickable mid-drag anyway -- the real elements already
+  // suppress tooltips/clicks while isPanning is true -- so this loses
+  // nothing interactive, only pauses it for the gesture's duration. The
+  // instant the gesture ends, the canvas hides and one exact, full
+  // applyRotation3D() sync brings the real SVG back to the same state it
+  // would have been in if it had been updating live the whole time.
+  var pointsCanvas = document.getElementById("points-canvas");
+  var pointsCtx = pointsCanvas.getContext("2d");
+  var canvasPreviewActive = false;
+
+  function resizeCanvasToMatchSvg() {
+    var rect = svg.getBoundingClientRect();
+    var dpr = window.devicePixelRatio || 1;
+    pointsCanvas.width = Math.max(1, Math.round(rect.width * dpr));
+    pointsCanvas.height = Math.max(1, Math.round(rect.height * dpr));
+    pointsCanvas.style.width = rect.width + "px";
+    pointsCanvas.style.height = rect.height + "px";
+  }
+
+  function enterCanvasPreview() {
+    if (canvasPreviewActive) return;
+    canvasPreviewActive = true;
+    resizeCanvasToMatchSvg();
+    rotatableGroup.style.display = "none";
+    pointsCanvas.style.display = "block";
+    // Paint immediately rather than waiting for the next rAF-throttled
+    // frame -- otherwise the real SVG is already hidden but the canvas is
+    // still blank for up to one frame, a brief empty-plot flash right as a
+    // rotate-drag/keyboard-hold begins.
+    drawCanvasPreview();
+  }
+
+  function exitCanvasPreview() {
+    if (!canvasPreviewActive) return;
+    canvasPreviewActive = false;
+    pointsCanvas.style.display = "none";
+    rotatableGroup.style.display = "";
+    applyRotation3D(); // one exact, full sync of the real SVG to the final rotation
+  }
+
+  // Draws every currently-visible point + hull facet onto the canvas, depth
+  // sorted exactly like applyRotation3D's shared paint order, reading style
+  // (fill/opacity/stroke/visibility) straight off the real (hidden) SVG
+  // elements each frame rather than maintaining a second copy of that state
+  // -- so the preview can never drift from what the real elements will show
+  // once restored.
+  function drawCanvasPreview() {
+    var dpr = window.devicePixelRatio || 1;
+    pointsCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    pointsCtx.clearRect(0, 0, pointsCanvas.width / dpr, pointsCanvas.height / dpr);
+
+    // svg.getScreenCTM() is the browser's own user-space -> screen-pixel
+    // transform for the SVG (accounts for its viewBox and rendered size),
+    // queried once per frame rather than once per point/facet -- turns into
+    // plain per-point arithmetic below instead of a DOM/geometry API call
+    // for each of thousands of points.
+    var ctm = svg.getScreenCTM();
+    var canvasRect = pointsCanvas.getBoundingClientRect();
+    var ma = ctm.a, mb = ctm.b, mc = ctm.c, md = ctm.d;
+    var me = ctm.e - canvasRect.left, mf = ctm.f - canvasRect.top;
+    function toPx(ux, uy) { return [ux * ma + uy * mc + me, ux * mb + uy * md + mf]; }
+
+    var trig = trigFor(td3Yaw, td3Pitch);
+    var scale = currentMarkerScale();
+    var drawables = [];
+
+    DATA.species.forEach(function (s, i) {
+      var c = circleEls[i];
+      if (c.style.display === "none") return;
+      var r = rotate3DWithDepth(s.pc1, s.pc2, s.pc3, trig.cosY, trig.sinY, trig.cosX, trig.sinX);
+      drawables.push({
+        kind: "point",
+        depth: r.z,
+        ux: scaleX(r.x), uy: scaleY(r.y),
+        fill: c.getAttribute("fill"),
+        opacity: parseFloat(c.getAttribute("opacity")),
+        radius: parseFloat(c.getAttribute("data-base-r")) * scale,
+        stroke: c.getAttribute("stroke"),
+        strokeWidth: BASE_STROKE_WIDTH * scale,
+      });
+    });
+
+    Object.keys(groupHulls).forEach(function (g) {
+      var hull = groupHulls[g], els = ellipseEls[g];
+      if (!els || !els.length || els[0].style.display === "none") return;
+      var projected = hull.points.map(function (p) {
+        return rotate3DWithDepth(p[0], p[1], p[2], trig.cosY, trig.sinY, trig.cosX, trig.sinX);
+      });
+      hull.faces.forEach(function (f, fi) {
+        var a = projected[f.v[0]], b = projected[f.v[1]], c2 = projected[f.v[2]];
+        drawables.push({
+          kind: "hull",
+          depth: (a.z + b.z + c2.z) / 3,
+          tri: [[scaleX(a.x), scaleY(a.y)], [scaleX(b.x), scaleY(b.y)], [scaleX(c2.x), scaleY(c2.y)]],
+          fill: els[fi].getAttribute("fill"),
+        });
+      });
+    });
+
+    drawables.sort(function (x, y) { return x.depth - y.depth; });
+
+    drawables.forEach(function (item) {
+      if (item.kind === "point") {
+        var p = toPx(item.ux, item.uy);
+        pointsCtx.beginPath();
+        pointsCtx.arc(p[0], p[1], item.radius, 0, Math.PI * 2);
+        pointsCtx.globalAlpha = item.opacity;
+        pointsCtx.fillStyle = item.fill;
+        pointsCtx.fill();
+        pointsCtx.lineWidth = item.strokeWidth;
+        pointsCtx.strokeStyle = item.stroke;
+        pointsCtx.stroke();
+      } else {
+        var p0 = toPx(item.tri[0][0], item.tri[0][1]);
+        var p1 = toPx(item.tri[1][0], item.tri[1][1]);
+        var p2 = toPx(item.tri[2][0], item.tri[2][1]);
+        pointsCtx.beginPath();
+        pointsCtx.moveTo(p0[0], p0[1]);
+        pointsCtx.lineTo(p1[0], p1[1]);
+        pointsCtx.lineTo(p2[0], p2[1]);
+        pointsCtx.closePath();
+        pointsCtx.globalAlpha = currentHullFillOpacity;
+        pointsCtx.fillStyle = item.fill;
+        pointsCtx.fill();
+        pointsCtx.globalAlpha = currentHullStrokeOpacity;
+        pointsCtx.strokeStyle = item.fill;
+        pointsCtx.lineWidth = 1;
+        pointsCtx.stroke();
+      }
+    });
+    pointsCtx.globalAlpha = 1;
+  }
+
+  // Coalesces redraws to at most one per animation frame: a drag (or a held
+  // rotate key) can fire many more update events than the display can
+  // paint, so running the redraw straight off each one does duplicate work
+  // the screen never even shows. td3Yaw/td3Pitch (cheap) still update
+  // immediately every time, so the frame that does paint always reflects
+  // the latest input.
   var rotationRAFPending = false;
   function scheduleApplyRotation3D() {
     if (rotationRAFPending) return;
     rotationRAFPending = true;
     requestAnimationFrame(function () {
       rotationRAFPending = false;
-      applyRotation3D();
+      if (canvasPreviewActive) drawCanvasPreview();
     });
   }
 
@@ -1410,12 +1585,14 @@
       var rotLimit = Math.PI / 2 - 0.05;
       td3Yaw = panStart.yaw + (evt.clientX - panStart.x) * ROTATE_SPEED;
       td3Pitch = Math.max(-rotLimit, Math.min(rotLimit, panStart.pitch + (evt.clientY - panStart.y) * ROTATE_SPEED));
+      enterCanvasPreview();
       scheduleApplyRotation3D();
       return;
     }
     // Plain pan: always in 2D mode, or in 3D mode while holding Shift --
     // moves the view (viewBox) without touching td3Yaw/td3Pitch, so the
     // cloud's rotation stays exactly as-is while you reposition it.
+    exitCanvasPreview();
     var rect = svg.getBoundingClientRect();
     var dx = (evt.clientX - panStart.x) / rect.width * viewBox.w;
     var dy = (evt.clientY - panStart.y) / rect.height * viewBox.h;
@@ -1426,6 +1603,7 @@
   window.addEventListener("mouseup", function () {
     isPanning = false;
     svg.classList.remove("panning");
+    exitCanvasPreview();
   });
 
   function styleAxisLine(line) {
@@ -1664,9 +1842,22 @@
   var showEllipses = false;
   var ellipseEls = {};
   var allHullFaceEls = [];
+
+  // Every hull facet and (further below) every species circle lives inside
+  // this one group -- axis lines/labels above stay direct children of svg,
+  // outside it -- so the whole rotate-affected scene can be hidden with a
+  // single DOM write. See enterCanvasPreview: a canvas overlay takes over
+  // the live redraw while this group is hidden during an active rotate-drag,
+  // which is what keeps rotation fluid at real species counts (redrawing a
+  // single canvas surface per frame instead of repainting thousands of
+  // individually-styled SVG elements).
+  var rotatableGroup = document.createElementNS(svgNS, "g");
+  rotatableGroup.setAttribute("id", "rotatable-content");
+  svg.appendChild(rotatableGroup);
+
   var hullFacesGroup = document.createElementNS(svgNS, "g");
   hullFacesGroup.setAttribute("id", "hull-faces");
-  svg.appendChild(hullFacesGroup);
+  rotatableGroup.appendChild(hullFacesGroup);
 
   function updateEllipses(cosY, sinY, cosX, sinX) {
     Object.keys(groupHulls).forEach(function (g) {
@@ -1763,9 +1954,17 @@
   var ellipseOpacitySlider = document.getElementById("ellipse-opacity");
   var HULL_STROKE_TO_FILL_RATIO = 0.35 / 0.12; // keep the original fill:stroke look at any opacity
 
+  // Mirrored into plain JS vars (not just the CSS custom properties the real
+  // SVG facets read) so the canvas preview can use the current opacity
+  // without a getComputedStyle() read (a known layout-forcing call) on every
+  // dragged frame.
+  var currentHullFillOpacity = 0.12, currentHullStrokeOpacity = 0.35;
+
   function applyHullOpacity() {
     var fillOpacity = ellipseOpacitySlider.value / 100;
     var strokeOpacity = Math.min(1, fillOpacity * HULL_STROKE_TO_FILL_RATIO);
+    currentHullFillOpacity = fillOpacity;
+    currentHullStrokeOpacity = strokeOpacity;
     svg.style.setProperty("--hull-fill-opacity", fillOpacity);
     svg.style.setProperty("--hull-stroke-opacity", strokeOpacity);
   }
@@ -1794,7 +1993,7 @@
     c.addEventListener("mousemove", function (evt) { if (!isPanning) moveTooltip(evt); });
     c.addEventListener("mouseleave", hideTooltip);
     c.addEventListener("mouseup", function () { if (!panMoved) openNcbiGenome(s); });
-    svg.appendChild(c);
+    rotatableGroup.appendChild(c);
     circleEls.push(c);
   });
 
@@ -2078,7 +2277,7 @@
     c.setAttribute("data-base-r", BASE_RADIUS * 2.2);
     c.setAttribute("stroke", "#F5A623");
     c.classList.add("species-highlighted");
-    svg.appendChild(c); // re-inserting an existing child moves it to the end -> drawn on top
+    rotatableGroup.appendChild(c); // re-inserting an existing child moves it to the end -> drawn on top
     speciesHighlightIdx = idx;
     updateMarkerScale();
     setSpeciesSearchStatus("Highlighting: " + formatSpeciesName(s.name) + " (" + s.group + ")", false);
@@ -2533,7 +2732,7 @@
       circleEls.concat(allHullFaceEls)
         .sort(function (a, b) { return a._depth3d - b._depth3d; })
         .forEach(function (el) { sortedFrag.appendChild(el); });
-      svg.appendChild(sortedFrag);
+      rotatableGroup.appendChild(sortedFrag);
     } else {
       reorderCirclesByGroupOrder();
       allHullFaceEls.forEach(function (el) { hullFacesGroup.appendChild(el); });
@@ -2585,6 +2784,74 @@
     document.getElementById("rotate-left").onclick = function () { nudgeRotation(-ROTATE_STEP, 0); };
     document.getElementById("rotate-right").onclick = function () { nudgeRotation(ROTATE_STEP, 0); };
     document.getElementById("rotate-pad").style.display = "grid";
+
+    // Press-and-hold keyboard rotation: unlike the rotate-pad buttons above
+    // (one fixed ROTATE_STEP nudge per click), holding an arrow key rotates
+    // continuously at a constant angular velocity for as long as it's held,
+    // driven by requestAnimationFrame + measured delta time rather than a
+    // fixed step per keydown (so the rotation speed doesn't depend on the
+    // browser's key-repeat rate, which varies by OS/browser and is usually
+    // much slower than 60fps). Routes through the same canvas-preview path
+    // as drag-rotation, for the same reason: a held key drives just as many
+    // rotation updates per second as a mouse drag does.
+    var ROTATE_KEYS = { ArrowUp: 1, ArrowDown: 1, ArrowLeft: 1, ArrowRight: 1 };
+    var KEYBOARD_ROTATE_RAD_PER_SEC = Math.PI * 0.6; // ~108 deg/sec
+    var heldRotateKeys = Object.create(null);
+    var keyboardRotateFrame = null;
+    var keyboardRotateLastT = null;
+
+    function isTypingTarget(evt) {
+      var tag = evt.target && evt.target.tagName;
+      return tag === "INPUT" || tag === "TEXTAREA";
+    }
+
+    function keyboardRotateTick(t) {
+      var dt = keyboardRotateLastT === null ? 0 : (t - keyboardRotateLastT) / 1000;
+      keyboardRotateLastT = t;
+      var dYaw = 0, dPitch = 0;
+      if (heldRotateKeys.ArrowLeft) dYaw -= 1;
+      if (heldRotateKeys.ArrowRight) dYaw += 1;
+      if (heldRotateKeys.ArrowUp) dPitch -= 1;
+      if (heldRotateKeys.ArrowDown) dPitch += 1;
+      if (dYaw || dPitch) {
+        td3Yaw += dYaw * KEYBOARD_ROTATE_RAD_PER_SEC * dt;
+        td3Pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, td3Pitch + dPitch * KEYBOARD_ROTATE_RAD_PER_SEC * dt));
+        enterCanvasPreview();
+        drawCanvasPreview();
+        keyboardRotateFrame = requestAnimationFrame(keyboardRotateTick);
+      } else {
+        keyboardRotateFrame = null;
+        keyboardRotateLastT = null;
+        exitCanvasPreview();
+      }
+    }
+
+    function ensureKeyboardRotateLoop() {
+      if (keyboardRotateFrame === null) {
+        keyboardRotateLastT = null;
+        keyboardRotateFrame = requestAnimationFrame(keyboardRotateTick);
+      }
+    }
+
+    // evt.repeat (OS key-auto-repeat while held) fires many keydown events
+    // for the same key -- harmless here since both heldRotateKeys[key]=true
+    // and ensureKeyboardRotateLoop() are idempotent, so no need to filter it
+    // out explicitly.
+    window.addEventListener("keydown", function (evt) {
+      if (!ROTATE_KEYS[evt.key] || isTypingTarget(evt)) return;
+      evt.preventDefault();
+      heldRotateKeys[evt.key] = true;
+      ensureKeyboardRotateLoop();
+    });
+    window.addEventListener("keyup", function (evt) {
+      if (!ROTATE_KEYS[evt.key]) return;
+      delete heldRotateKeys[evt.key];
+    });
+    // Releasing keys away from the page (e.g. alt-tabbing mid-hold) would
+    // otherwise leave a key "stuck" held forever, since no keyup ever fires.
+    window.addEventListener("blur", function () {
+      heldRotateKeys = Object.create(null);
+    });
   }
 
   buildSidebarLegend();
