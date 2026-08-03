@@ -8,8 +8,13 @@ results/
 !data/All_GOs_ic.tsv
 !data/merged_taxons_belen_metazoa_phyllum.tsv
 !data/species_taxid.tsv
+!data/species_lineage.tsv
 
 # Generated outputs / build artifacts
 test_*.html
 __pycache__/
 *.pyc
+
+# NCBI taxdump cache (build_species_lineage.py) -- ~1.3 GB, re-downloaded/
+# re-extracted on demand, never part of the repo
+data/.ncbi_taxdump_cache/
