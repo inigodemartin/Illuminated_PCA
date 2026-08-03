@@ -275,6 +275,55 @@
   .legend .count {
     color: #94a3b8;
   }
+  /* Metazoa's expand-into-phyla row: a <details> styled to look like a
+     plain .legend-row when collapsed, with a custom disclosure arrow
+     (native ::marker hidden). Deliberately NOT display:flex on the
+     <details> itself -- that would lay its summary and revealed content
+     out as side-by-side flex items instead of stacked. See
+     buildMetazoaAccordionRow / buildGroupRowContent for how checkbox/
+     swatch/label clicks are kept from also toggling the disclosure. */
+  .legend-accordion {
+    border-radius: 4px;
+  }
+  .legend-accordion > summary {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px 2px;
+    border-radius: 4px;
+    cursor: pointer;
+    list-style: none;
+  }
+  .legend-accordion > summary::-webkit-details-marker {
+    display: none;
+  }
+  .legend-accordion > summary:hover {
+    background: #eef2f7;
+  }
+  .legend-accordion.dragging {
+    opacity: 0.4;
+  }
+  .legend-accordion-toggle {
+    cursor: pointer;
+    color: #64748b;
+    font-size: 10px;
+    width: 14px;
+    text-align: center;
+    user-select: none;
+    flex-shrink: 0;
+  }
+  .legend-nested {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    margin-left: 20px;
+    border-left: 2px solid #e2e8f0;
+    padding-left: 4px;
+  }
+  .legend-nested .legend-row {
+    padding: 1px 2px;
+    font-size: 11.5px;
+  }
   .loading-group {
     border: 1px solid #e2e8f0;
     border-radius: 5px;
@@ -666,9 +715,6 @@
       <button id="sidebar-select-all" class="legend-action">Select all</button>
       <button id="sidebar-select-none" class="legend-action">Select none</button>
     </div>
-    <label class="ellipse-toggle-label" id="metazoa-subdivide-row" style="display:none;">
-      <input type="checkbox" id="metazoa-subdivide-toggle"> Subdivide Metazoa into phyla
-    </label>
     <label class="ellipse-toggle-label">
       <input type="checkbox" id="ellipse-toggle"> Show group ellipses
     </label>
@@ -733,30 +779,55 @@
     DATA.species.length + " species, " + DATA.meta.n_go_terms_used +
     " GO terms used (" + DATA.meta.mode_label + ")";
 
-  // Recomputed from DATA.species[i].group whenever grouping changes (see
-  // setMetazoaSubdivided below), not just once at load -- reassigned in
-  // place (not re-declared with var) so every function that closes over
-  // these three names -- hiddenGroups toggling, legend rows, hull colors --
-  // keeps seeing the current grouping without needing its own update path.
-  var ALL_GROUPS, GROUP_ORDER, GROUP_COUNTS;
+  // ALL_GROUPS is the *live* set of distinct DATA.species[i].group values --
+  // recomputed whenever the Metazoa accordion is expanded/collapsed (see
+  // setMetazoaExpanded), since expanding swaps every Metazoa species' group
+  // from "Metazoa" to its own phylum. It drives per-group hull building and
+  // the "select all/none" buttons -- reassigned in place (not re-declared
+  // with var) so those closures keep seeing the current grouping.
+  var ALL_GROUPS;
   function recomputeGroupState() {
     var present = {};
     DATA.species.forEach(function (s) { present[s.group] = true; });
     ALL_GROUPS = Object.keys(present).sort();
-
-    // Legend display order, top-to-bottom; also the plot z-order, front-to-back
-    // (drag rows in the sidebar to change which taxon group's points sit on
-    // top when they overlap -- same idea as reordering layers in a photo/video
-    // editor). Reset to alphabetical whenever the group set itself changes --
-    // a manually dragged order for the old label set doesn't carry meaning
-    // for a different one.
-    GROUP_ORDER = ALL_GROUPS.slice();
-
-    var counts = {};
-    DATA.species.forEach(function (s) { counts[s.group] = (counts[s.group] || 0) + 1; });
-    GROUP_COUNTS = counts;
   }
   recomputeGroupState();
+
+  // GROUP_ORDER/GROUP_COUNTS, by contrast, are keyed by base_group and
+  // computed once -- they're the legend's top-level rows (and drag order),
+  // which stay fixed at e.g. "Asgard, Fungi, Metazoa, Protists, ..." no
+  // matter whether Metazoa's row is expanded into phyla or not, so a
+  // manually dragged order survives toggling it. See buildMetazoaAccordionRow
+  // for where the "Metazoa" entry nests its live phyla instead of just
+  // being one more flat row.
+  var GROUP_ORDER = (function () {
+    var present = {};
+    DATA.species.forEach(function (s) { present[s.base_group] = true; });
+    return Object.keys(present).sort();
+  })();
+  var GROUP_COUNTS = (function () {
+    var counts = {};
+    DATA.species.forEach(function (s) { counts[s.base_group] = (counts[s.base_group] || 0) + 1; });
+    return counts;
+  })();
+
+  // Metazoa-phylum accordion state (see buildMetazoaAccordionRow /
+  // setMetazoaExpanded below) -- computed once, since which phyla exist
+  // and how many species each has never changes, only whether they're
+  // currently shown.
+  var METAZOA_HAS_SUBGROUPS = !!DATA.meta.has_metazoa_subgroups;
+  var METAZOA_PHYLA = [];
+  var METAZOA_PHYLUM_COUNTS = {};
+  if (METAZOA_HAS_SUBGROUPS) {
+    var phylumCounts = {};
+    DATA.species.forEach(function (s) {
+      if (s.base_group !== "Metazoa") return;
+      phylumCounts[s.metazoa_subgroup] = (phylumCounts[s.metazoa_subgroup] || 0) + 1;
+    });
+    METAZOA_PHYLA = Object.keys(phylumCounts).sort();
+    METAZOA_PHYLUM_COUNTS = phylumCounts;
+  }
+  var metazoaExpanded = false;
 
   var xs = DATA.species.map(function (s) { return s.pc1; });
   var ys = DATA.species.map(function (s) { return s.pc2; });
@@ -1252,15 +1323,34 @@
     }
   }
 
-  // Re-appends every circle in GROUP_ORDER order, back-to-front (last group
-  // in the list gets appended first) so the first group in GROUP_ORDER ends
-  // up last in the SVG's paint order -- i.e. drawn in front. SVG has no
-  // z-index; sibling order IS paint order, so moving a legend row re-parents
-  // (appendChild on an existing node just relocates it) that group's circles
-  // to the end of the DOM.
+  // GROUP_ORDER's "Metazoa" slot is a stand-in for whichever labels are
+  // actually painted right now -- either the single "Metazoa" group
+  // (collapsed) or its ~30 phyla (expanded, see setMetazoaExpanded). This
+  // expands that slot into the real paint-order list, so dragging the
+  // Metazoa row still moves its species as one block without the drag
+  // order itself needing to know about phyla.
+  function paintOrderGroups() {
+    var order = [];
+    GROUP_ORDER.forEach(function (g) {
+      if (g === "Metazoa" && METAZOA_HAS_SUBGROUPS && metazoaExpanded) {
+        order = order.concat(METAZOA_PHYLA);
+      } else {
+        order.push(g);
+      }
+    });
+    return order;
+  }
+
+  // Re-appends every circle in paint order, back-to-front (last group in
+  // the list gets appended first) so the first group ends up last in the
+  // SVG's paint order -- i.e. drawn in front. SVG has no z-index; sibling
+  // order IS paint order, so moving a legend row re-parents (appendChild on
+  // an existing node just relocates it) that group's circles to the end of
+  // the DOM.
   function reorderCirclesByGroupOrder() {
-    for (var i = GROUP_ORDER.length - 1; i >= 0; i--) {
-      var g = GROUP_ORDER[i];
+    var order = paintOrderGroups();
+    for (var i = order.length - 1; i >= 0; i--) {
+      var g = order[i];
       circleEls.forEach(function (c) {
         if (c.getAttribute("data-group") === g) rotatableGroup.appendChild(c);
       });
@@ -1276,40 +1366,80 @@
 
   var draggedLegendRow = null;
 
-  function buildSidebarLegend() {
-    var selectAllBtn = document.getElementById("sidebar-select-all");
-    var selectNoneBtn = document.getElementById("sidebar-select-none");
-    selectAllBtn.onclick = function () { setAllGroupsHidden(false); };
-    selectNoneBtn.onclick = function () { setAllGroupsHidden(true); };
+  // Shared by plain top-level rows and Metazoa's nested phylum rows: the
+  // checkbox/swatch/label/count block, optionally prefixed with the
+  // drag-to-reorder handle (only top-level rows are draggable -- phyla
+  // stay in a fixed alphabetical order inside the accordion).
+  // ownerEl is whichever element should visually dim/move during a drag
+  // (the plain row div, or the whole <details> for the Metazoa summary).
+  function buildGroupRowContent(g, count, draggable, ownerEl) {
+    var frag = document.createDocumentFragment();
 
-    var legend = document.getElementById("sidebar-legend");
-    legend.innerHTML = ""; // safe to call this more than once (e.g. after setMetazoaSubdivided)
-    GROUP_ORDER.forEach(function (g) {
-      var row = document.createElement("div");
-      row.className = "legend-row";
-      row.setAttribute("data-legend-group", g);
-
-      // Only the handle is draggable, not the whole row -- so clicking the
-      // checkbox, swatch, or label text never gets misread as a drag.
+    if (draggable) {
       var handle = document.createElement("span");
       handle.className = "legend-drag-handle";
       handle.title = "Drag to reorder -- top of the list draws in front (while the plot is flat; once you rotate in 3D, actual depth decides)";
       handle.textContent = "⋮⋮";
       handle.draggable = true;
       handle.addEventListener("dragstart", function (evt) {
-        draggedLegendRow = row;
-        row.classList.add("dragging");
+        draggedLegendRow = ownerEl;
+        ownerEl.classList.add("dragging");
         evt.dataTransfer.effectAllowed = "move";
         evt.dataTransfer.setData("text/plain", g);
       });
       handle.addEventListener("dragend", function () {
-        row.classList.remove("dragging");
+        ownerEl.classList.remove("dragging");
         draggedLegendRow = null;
-        syncGroupOrderFromDom(legend);
+        syncGroupOrderFromDom(document.getElementById("sidebar-legend"));
         reorderCirclesByGroupOrder();
       });
-      row.appendChild(handle);
+      frag.appendChild(handle);
+    }
 
+    var label = document.createElement("label");
+    // Only meaningful when this row is nested in the Metazoa accordion's
+    // <summary> (see buildMetazoaAccordionRow): a plain click bubbling out
+    // of the label would otherwise also trigger <summary>'s native
+    // toggle-the-details behavior, expanding/collapsing it just from
+    // checking the box or picking a color. Harmless on a normal top-level
+    // row, which has no <summary> ancestor to affect.
+    label.addEventListener("click", function (evt) { evt.stopPropagation(); });
+    var cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.setAttribute("data-group-checkbox", g);
+    cb.checked = !hiddenGroups[g];
+    cb.onchange = function () {
+      hiddenGroups[g] = !cb.checked;
+      applyVisibility();
+    };
+    var swatch = document.createElement("input");
+    swatch.type = "color";
+    swatch.className = "swatch";
+    swatch.value = DATA.groups[g] || "#999999";
+    swatch.title = "Click to change the color for " + g;
+    swatch.addEventListener("input", function () { updateGroupColor(g, swatch.value); });
+    var countEl = document.createElement("span");
+    countEl.className = "count";
+    countEl.textContent = "(" + count + ")";
+    label.appendChild(cb);
+    label.appendChild(swatch);
+    label.appendChild(document.createTextNode(g));
+    label.appendChild(countEl);
+    frag.appendChild(label);
+
+    return frag;
+  }
+
+  // A plain top-level row (any group except an expandable Metazoa) or one
+  // of Metazoa's nested phylum rows (draggable=false, no data-legend-group
+  // -- see syncGroupOrderFromDom, which must only ever see top-level rows).
+  function buildGroupRow(g, count, draggable) {
+    var row = document.createElement("div");
+    row.className = "legend-row";
+    if (draggable) row.setAttribute("data-legend-group", g);
+    row.appendChild(buildGroupRowContent(g, count, draggable, row));
+
+    if (draggable) {
       // Live-reorders the DOM as the drag passes over other rows (rather
       // than only on drop), same as most "sortable layer list" UIs.
       row.addEventListener("dragover", function (evt) {
@@ -1317,35 +1447,84 @@
         evt.preventDefault();
         var rect = row.getBoundingClientRect();
         var before = (evt.clientY - rect.top) < rect.height / 2;
-        legend.insertBefore(draggedLegendRow, before ? row : row.nextSibling);
+        document.getElementById("sidebar-legend").insertBefore(draggedLegendRow, before ? row : row.nextSibling);
       });
       row.addEventListener("drop", function (evt) { evt.preventDefault(); });
+    }
+    return row;
+  }
 
-      var label = document.createElement("label");
-      var cb = document.createElement("input");
-      cb.type = "checkbox";
-      cb.setAttribute("data-group-checkbox", g);
-      cb.checked = !hiddenGroups[g];
-      cb.onchange = function () {
-        hiddenGroups[g] = !cb.checked;
-        applyVisibility();
-      };
-      var swatch = document.createElement("input");
-      swatch.type = "color";
-      swatch.className = "swatch";
-      swatch.value = DATA.groups[g] || "#999999";
-      swatch.title = "Click to change the color for " + g;
-      swatch.addEventListener("input", function () { updateGroupColor(g, swatch.value); });
-      var count = document.createElement("span");
-      count.className = "count";
-      count.textContent = "(" + (GROUP_COUNTS[g] || 0) + ")";
-      label.appendChild(cb);
-      label.appendChild(swatch);
-      label.appendChild(document.createTextNode(g));
-      label.appendChild(count);
-      row.appendChild(label);
+  // Metazoa's legend entry: a native <details> that looks like a plain row
+  // when collapsed (own checkbox/swatch/count, draggable like any other
+  // top-level group) and reveals one row per phylum when expanded -- each
+  // with its own checkbox/swatch/count, exactly like a normal group.
+  // Clicking the drag handle, the arrow, or empty row space expands/
+  // collapses it (native <summary> behavior); clicking the checkbox,
+  // swatch, or name does not, and keeps behaving exactly like a plain
+  // row's (see buildGroupRowContent's label click handler).
+  function buildMetazoaAccordionRow() {
+    var details = document.createElement("details");
+    // Not .legend-row -- that class is display:flex, which would lay
+    // summary and .legend-nested out as flex-item siblings (side by side)
+    // instead of stacked (summary, then its revealed content below).
+    details.className = "legend-accordion";
+    details.setAttribute("data-legend-group", "Metazoa");
+    details.open = metazoaExpanded;
 
-      legend.appendChild(row);
+    var summary = document.createElement("summary");
+    summary.className = "legend-accordion-summary";
+    // Clicking a <summary> natively toggles its <details> -- left as-is
+    // here (no listener needed) for clicks on the drag handle, the arrow,
+    // or empty row space, which is exactly the disclosure affordance we
+    // want. The checkbox/swatch/label inside (via buildGroupRowContent)
+    // stop that same click from bubbling this far, so interacting with
+    // them doesn't also expand/collapse -- see the comment there.
+
+    var toggleBtn = document.createElement("span");
+    toggleBtn.className = "legend-accordion-toggle";
+    toggleBtn.textContent = metazoaExpanded ? "▾" : "▸"; // ▾ expanded, ▸ collapsed
+    toggleBtn.title = "Click this row to expand and show Metazoa's phyla individually";
+    summary.appendChild(toggleBtn);
+    summary.appendChild(buildGroupRowContent("Metazoa", GROUP_COUNTS["Metazoa"] || 0, true, details));
+    details.appendChild(summary);
+
+    details.addEventListener("dragover", function (evt) {
+      if (!draggedLegendRow || draggedLegendRow === details) return;
+      evt.preventDefault();
+      var rect = details.getBoundingClientRect();
+      var before = (evt.clientY - rect.top) < rect.height / 2;
+      document.getElementById("sidebar-legend").insertBefore(draggedLegendRow, before ? details : details.nextSibling);
+    });
+    details.addEventListener("drop", function (evt) { evt.preventDefault(); });
+
+    var nested = document.createElement("div");
+    nested.className = "legend-nested";
+    METAZOA_PHYLA.forEach(function (p) {
+      nested.appendChild(buildGroupRow(p, METAZOA_PHYLUM_COUNTS[p] || 0, false));
+    });
+    details.appendChild(nested);
+
+    details.addEventListener("toggle", function () {
+      toggleBtn.textContent = details.open ? "▾" : "▸";
+      setMetazoaExpanded(details.open);
+    });
+
+    return details;
+  }
+
+  function buildSidebarLegend() {
+    var selectAllBtn = document.getElementById("sidebar-select-all");
+    var selectNoneBtn = document.getElementById("sidebar-select-none");
+    selectAllBtn.onclick = function () { setAllGroupsHidden(false); };
+    selectNoneBtn.onclick = function () { setAllGroupsHidden(true); };
+
+    var legend = document.getElementById("sidebar-legend");
+    legend.innerHTML = ""; // safe to call this more than once (e.g. after setMetazoaExpanded)
+    GROUP_ORDER.forEach(function (g) {
+      var el = (g === "Metazoa" && METAZOA_HAS_SUBGROUPS)
+        ? buildMetazoaAccordionRow()
+        : buildGroupRow(g, GROUP_COUNTS[g] || 0, true);
+      legend.appendChild(el);
     });
 
     reorderCirclesByGroupOrder();
@@ -2045,7 +2224,7 @@
     updateEllipseVisibility();
   };
 
-  // Called once at initial load and again from setMetazoaSubdivided (after
+  // Called once at initial load and again from setMetazoaExpanded (after
   // clearing circleEls) -- so a regroup rebuilds every circle's fill/
   // data-group from the newly active DATA.species[i].group instead of
   // trying to patch existing elements in place.
@@ -2524,7 +2703,7 @@
     var Y_LABEL_W = 20;
     var X_LABEL_H = 22;
 
-    var rows = packLegendRows(GROUP_ORDER, Y_LABEL_W + PLOT_W);
+    var rows = packLegendRows(paintOrderGroups(), Y_LABEL_W + PLOT_W);
     var legendH = rows.length * LEGEND_ROW_H;
 
     var totalW = MARGIN * 2 + Y_LABEL_W + PLOT_W;
@@ -2943,64 +3122,73 @@
   }
 
   // ---- Metazoa phylum subdivision ----
-  // Off by default -- DATA.species[i].group starts out equal to base_group
-  // (set server-side). Toggling swaps every species' *displayed* group
-  // between its coarse taxon (e.g. "Metazoa") and its metazoa_subgroup (a
-  // phylum, e.g. "MOLLUSCA"); species outside Metazoa have metazoa_subgroup
-  // === base_group, so the swap is a no-op for them and needs no
-  // per-species special-casing here. Species order/count never changes
-  // across a toggle, so anything keyed by species *index* (activeCounts,
+  // Collapsed by default -- DATA.species[i].group starts out equal to
+  // base_group (set server-side). Expanding the legend's Metazoa row (see
+  // buildMetazoaAccordionRow) swaps every Metazoa species' *displayed*
+  // group between "Metazoa" and its metazoa_subgroup (a phylum, e.g.
+  // "MOLLUSCA"); species outside Metazoa have metazoa_subgroup ===
+  // base_group, so the swap is a no-op for them and needs no per-species
+  // special-casing here. Species order/count never changes across a
+  // toggle, so anything keyed by species *index* (activeCounts,
   // activeGoCounts, activeMatchMask, speciesHighlightIdx, the go-count/
   // total_prots rail thresholds) stays valid and is deliberately left
-  // untouched -- only what's keyed by *group name* (hiddenGroups, the
-  // legend, hull colors) needs rebuilding.
-  var metazoaSubdivided = false;
-  function setMetazoaSubdivided(subdivide) {
-    if (subdivide === metazoaSubdivided) return;
-    metazoaSubdivided = subdivide;
+  // untouched -- only what's keyed by *group name* (hiddenGroups for
+  // "Metazoa"/its phyla, hull colors) needs rebuilding; every other
+  // group's hidden/shown state and the legend's drag order are untouched.
+  function setMetazoaExpanded(expand) {
+    if (expand === metazoaExpanded) return;
+    // Flip the flag synchronously so a re-entrant "toggle" event -- fired
+    // when buildSidebarLegend() below re-appends an already-open <details>,
+    // see the deferral note just below -- hits this guard and no-ops
+    // instead of recursing.
+    metazoaExpanded = expand;
 
-    DATA.species.forEach(function (s) {
-      s.group = subdivide ? s.metazoa_subgroup : s.base_group;
-    });
+    // Rebuilding the legend recreates (destroys + re-appends) this exact
+    // <details> element, which is the one whose native "toggle" is what
+    // got us into this handler in the first place. Doing that
+    // synchronously, while that click's default action is still being
+    // committed, was observed to leave the row stuck closed in Chromium
+    // (the freshly-appended, already-open replacement's own "toggle" event
+    // firing mid-dispatch seems to confuse which click the browser is still
+    // processing). Deferring one tick sidesteps it -- this only delays the
+    // (already debounced-feeling) full rebuild by a frame, imperceptible.
+    setTimeout(function () {
+      DATA.species.forEach(function (s) {
+        if (s.base_group !== "Metazoa") return;
+        s.group = expand ? s.metazoa_subgroup : s.base_group;
+      });
 
-    // Group labels just changed wholesale, so a per-group hidden/shown
-    // selection from before can't carry over meaningfully -- reset to
-    // everything visible, same as a fresh page load.
-    hiddenGroups = {};
-    circleEls.forEach(function (c) { if (c.parentNode) c.parentNode.removeChild(c); });
-    circleEls = [];
+      delete hiddenGroups["Metazoa"];
+      METAZOA_PHYLA.forEach(function (p) { delete hiddenGroups[p]; });
 
-    recomputeGroupState();
-    createCircles();
-    recomputeSpeciesEntries();
+      circleEls.forEach(function (c) { if (c.parentNode) c.parentNode.removeChild(c); });
+      circleEls = [];
 
-    // createCircles() rebuilt every circle at the base look (radius,
-    // stroke, opacity) -- reapply whichever of these two states was
-    // active before the rebuild wiped it out.
-    if (speciesHighlightIdx !== null) {
-      var hc = circleEls[speciesHighlightIdx];
-      hc.setAttribute("data-base-r", BASE_RADIUS * 2.2);
-      hc.setAttribute("stroke", "#F5A623");
-      hc.classList.add("species-highlighted");
-      rotatableGroup.appendChild(hc); // draw on top, same as highlightSpecies
-    }
-    if (activeGos.length && activeCounts) {
-      applyIllumination(activeCounts);
-    } else {
-      applyBaseStyles();
-    }
+      recomputeGroupState();
+      createCircles();
+      recomputeSpeciesEntries();
 
-    rebuildHulls();
-    buildSidebarLegend();
-    applyVisibility();
-    updateMarkerScale();
-  }
+      // createCircles() rebuilt every circle at the base look (radius,
+      // stroke, opacity) -- reapply whichever of these two states was
+      // active before the rebuild wiped it out.
+      if (speciesHighlightIdx !== null) {
+        var hc = circleEls[speciesHighlightIdx];
+        hc.setAttribute("data-base-r", BASE_RADIUS * 2.2);
+        hc.setAttribute("stroke", "#F5A623");
+        hc.classList.add("species-highlighted");
+        rotatableGroup.appendChild(hc); // draw on top, same as highlightSpecies
+      }
+      if (activeGos.length && activeCounts) {
+        applyIllumination(activeCounts);
+      } else {
+        applyBaseStyles();
+      }
 
-  if (DATA.meta.has_metazoa_subgroups) {
-    document.getElementById("metazoa-subdivide-row").style.display = "";
-    document.getElementById("metazoa-subdivide-toggle").addEventListener("change", function (evt) {
-      setMetazoaSubdivided(evt.target.checked);
-    });
+      rebuildHulls();
+      buildSidebarLegend();
+      applyVisibility();
+      updateMarkerScale();
+    }, 0);
   }
 
   buildSidebarLegend();
