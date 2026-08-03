@@ -275,13 +275,14 @@
   .legend .count {
     color: #94a3b8;
   }
-  /* Metazoa's expand-into-phyla row: a <details> styled to look like a
-     plain .legend-row when collapsed, with a custom disclosure arrow
-     (native ::marker hidden). Deliberately NOT display:flex on the
-     <details> itself -- that would lay its summary and revealed content
-     out as side-by-side flex items instead of stacked. See
-     buildMetazoaAccordionRow / buildGroupRowContent for how checkbox/
-     swatch/label clicks are kept from also toggling the disclosure. */
+  /* A taxonomic group's expand-into-subdivisions row: a <details> styled
+     to look like a plain .legend-row when collapsed, with a custom
+     disclosure arrow (native ::marker hidden). Deliberately NOT
+     display:flex on the <details> itself -- that would lay its summary
+     and revealed content out as side-by-side flex items instead of
+     stacked. See buildExpandableGroupRow / buildGroupRowContent for how
+     checkbox/swatch/label clicks are kept from also toggling the
+     disclosure. */
   .legend-accordion {
     border-radius: 4px;
   }
@@ -666,6 +667,14 @@
     pointer-events: none;
     opacity: 0.6;
   }
+  .lineage-rank-select {
+    font-size: 11.5px;
+    padding: 1px 4px;
+    border-radius: 4px;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    margin-left: auto;
+  }
   #tooltip {
     position: fixed;
     pointer-events: none;
@@ -715,6 +724,10 @@
       <button id="sidebar-select-all" class="legend-action">Select all</button>
       <button id="sidebar-select-none" class="legend-action">Select none</button>
     </div>
+    <label class="ellipse-toggle-label" id="lineage-rank-row" style="display:none;">
+      Subdivide by
+      <select id="lineage-rank-select" class="lineage-rank-select"></select>
+    </label>
     <label class="ellipse-toggle-label">
       <input type="checkbox" id="ellipse-toggle"> Show group ellipses
     </label>
@@ -780,11 +793,13 @@
     " GO terms used (" + DATA.meta.mode_label + ")";
 
   // ALL_GROUPS is the *live* set of distinct DATA.species[i].group values --
-  // recomputed whenever the Metazoa accordion is expanded/collapsed (see
-  // setMetazoaExpanded), since expanding swaps every Metazoa species' group
-  // from "Metazoa" to its own phylum. It drives per-group hull building and
-  // the "select all/none" buttons -- reassigned in place (not re-declared
-  // with var) so those closures keep seeing the current grouping.
+  // recomputed whenever a group's accordion is expanded/collapsed or the
+  // subdivide-by rank changes (see setGroupExpanded/setCurrentRank), since
+  // expanding a group swaps its species' .group from the group's own name
+  // to whichever lineage label they have at the current rank. Drives
+  // per-group hull building and the "select all/none" buttons --
+  // reassigned in place (not re-declared with var) so those closures keep
+  // seeing the current grouping.
   var ALL_GROUPS;
   function recomputeGroupState() {
     var present = {};
@@ -796,10 +811,10 @@
   // GROUP_ORDER/GROUP_COUNTS, by contrast, are keyed by base_group and
   // computed once -- they're the legend's top-level rows (and drag order),
   // which stay fixed at e.g. "Asgard, Fungi, Metazoa, Protists, ..." no
-  // matter whether Metazoa's row is expanded into phyla or not, so a
-  // manually dragged order survives toggling it. See buildMetazoaAccordionRow
-  // for where the "Metazoa" entry nests its live phyla instead of just
-  // being one more flat row.
+  // matter which (if any) group is expanded or which rank it's expanded by,
+  // so a manually dragged order survives toggling any of that. See
+  // buildExpandableGroupRow for where an expandable group's entry nests its
+  // live subdivisions instead of just being one more flat row.
   var GROUP_ORDER = (function () {
     var present = {};
     DATA.species.forEach(function (s) { present[s.base_group] = true; });
@@ -811,23 +826,39 @@
     return counts;
   })();
 
-  // Metazoa-phylum accordion state (see buildMetazoaAccordionRow /
-  // setMetazoaExpanded below) -- computed once, since which phyla exist
-  // and how many species each has never changes, only whether they're
-  // currently shown.
-  var METAZOA_HAS_SUBGROUPS = !!DATA.meta.has_metazoa_subgroups;
-  var METAZOA_PHYLA = [];
-  var METAZOA_PHYLUM_COUNTS = {};
-  if (METAZOA_HAS_SUBGROUPS) {
-    var phylumCounts = {};
+  // ---- Taxonomy-rank subdivision (see buildExpandableGroupRow / setGroupExpanded / setCurrentRank) ----
+  // Any base group can be expanded into its species' values at whichever
+  // NCBI lineage rank is currently selected (kingdom/phylum/class/order/
+  // family/genus -- see build_species_lineage.py). A species with no value
+  // at that rank (no resolved taxid at all -- currently all of Asgard --
+  // or just a gap in that particular rank) is bucketed under a synthesized
+  // "<group> — sin dato" label when its group is expanded, rather than
+  // silently vanishing or being merged into some other label.
+  var LINEAGE_RANKS = DATA.meta.lineage_ranks || [];
+  var HAS_LINEAGE_DATA = !!DATA.meta.has_lineage_data && LINEAGE_RANKS.length > 0;
+  var currentRank = HAS_LINEAGE_DATA
+    ? (LINEAGE_RANKS.indexOf("phylum") !== -1 ? "phylum" : LINEAGE_RANKS[0])
+    : null;
+  var expandedGroups = {}; // base_group -> true while its accordion is open
+  var UNCLASSIFIED_SUFFIX = " — sin dato";
+
+  // {labels: [sorted subdivision labels], counts: {label: n}} for baseGroup's
+  // species at the given rank. Purely a function of base_group/lineage
+  // fields (both immutable), never of the currently-active .group, so it's
+  // safe to call before or after mutating species' .group.
+  function subdivisionsFor(baseGroup, rank) {
+    var counts = {};
     DATA.species.forEach(function (s) {
-      if (s.base_group !== "Metazoa") return;
-      phylumCounts[s.metazoa_subgroup] = (phylumCounts[s.metazoa_subgroup] || 0) + 1;
+      if (s.base_group !== baseGroup) return;
+      var val = s[rank] || (baseGroup + UNCLASSIFIED_SUFFIX);
+      counts[val] = (counts[val] || 0) + 1;
     });
-    METAZOA_PHYLA = Object.keys(phylumCounts).sort();
-    METAZOA_PHYLUM_COUNTS = phylumCounts;
+    return { labels: Object.keys(counts).sort(), counts: counts };
   }
-  var metazoaExpanded = false;
+
+  function isExpandable(baseGroup, rank) {
+    return !!rank && subdivisionsFor(baseGroup, rank).labels.length > 1;
+  }
 
   var xs = DATA.species.map(function (s) { return s.pc1; });
   var ys = DATA.species.map(function (s) { return s.pc2; });
@@ -1323,17 +1354,17 @@
     }
   }
 
-  // GROUP_ORDER's "Metazoa" slot is a stand-in for whichever labels are
-  // actually painted right now -- either the single "Metazoa" group
-  // (collapsed) or its ~30 phyla (expanded, see setMetazoaExpanded). This
-  // expands that slot into the real paint-order list, so dragging the
-  // Metazoa row still moves its species as one block without the drag
-  // order itself needing to know about phyla.
+  // Each GROUP_ORDER slot is a stand-in for whichever labels are actually
+  // painted right now -- either the group's own name (collapsed) or its
+  // live subdivisions at the current rank (expanded, see setGroupExpanded).
+  // This expands any such slot into the real paint-order list, so dragging
+  // an expanded group's row still moves its species as one block without
+  // the drag order itself needing to know about subdivisions.
   function paintOrderGroups() {
     var order = [];
     GROUP_ORDER.forEach(function (g) {
-      if (g === "Metazoa" && METAZOA_HAS_SUBGROUPS && metazoaExpanded) {
-        order = order.concat(METAZOA_PHYLA);
+      if (expandedGroups[g]) {
+        order = order.concat(subdivisionsFor(g, currentRank).labels);
       } else {
         order.push(g);
       }
@@ -1397,8 +1428,8 @@
     }
 
     var label = document.createElement("label");
-    // Only meaningful when this row is nested in the Metazoa accordion's
-    // <summary> (see buildMetazoaAccordionRow): a plain click bubbling out
+    // Only meaningful when this row is nested in an expandable group's
+    // <summary> (see buildExpandableGroupRow): a plain click bubbling out
     // of the label would otherwise also trigger <summary>'s native
     // toggle-the-details behavior, expanding/collapsing it just from
     // checking the box or picking a color. Harmless on a normal top-level
@@ -1430,9 +1461,10 @@
     return frag;
   }
 
-  // A plain top-level row (any group except an expandable Metazoa) or one
-  // of Metazoa's nested phylum rows (draggable=false, no data-legend-group
-  // -- see syncGroupOrderFromDom, which must only ever see top-level rows).
+  // A plain top-level row (any group not currently expandable at the
+  // active rank) or one of an expanded group's nested subdivision rows
+  // (draggable=false, no data-legend-group -- see syncGroupOrderFromDom,
+  // which must only ever see top-level rows).
   function buildGroupRow(g, count, draggable) {
     var row = document.createElement("div");
     row.className = "legend-row";
@@ -1454,22 +1486,24 @@
     return row;
   }
 
-  // Metazoa's legend entry: a native <details> that looks like a plain row
-  // when collapsed (own checkbox/swatch/count, draggable like any other
-  // top-level group) and reveals one row per phylum when expanded -- each
-  // with its own checkbox/swatch/count, exactly like a normal group.
-  // Clicking the drag handle, the arrow, or empty row space expands/
-  // collapses it (native <summary> behavior); clicking the checkbox,
-  // swatch, or name does not, and keeps behaving exactly like a plain
-  // row's (see buildGroupRowContent's label click handler).
-  function buildMetazoaAccordionRow() {
+  // A group's expandable legend entry: a native <details> that looks like
+  // a plain row when collapsed (own checkbox/swatch/count, draggable like
+  // any other top-level group) and reveals one row per subdivision at the
+  // current rank when expanded -- each with its own checkbox/swatch/count,
+  // exactly like a normal group. Clicking the drag handle, the arrow, or
+  // empty row space expands/collapses it (native <summary> behavior);
+  // clicking the checkbox, swatch, or name does not, and keeps behaving
+  // exactly like a plain row's (see buildGroupRowContent's label click
+  // handler). Only ever called for a baseGroup that isExpandable() at
+  // currentRank -- see buildSidebarLegend.
+  function buildExpandableGroupRow(baseGroup) {
     var details = document.createElement("details");
     // Not .legend-row -- that class is display:flex, which would lay
     // summary and .legend-nested out as flex-item siblings (side by side)
     // instead of stacked (summary, then its revealed content below).
     details.className = "legend-accordion";
-    details.setAttribute("data-legend-group", "Metazoa");
-    details.open = metazoaExpanded;
+    details.setAttribute("data-legend-group", baseGroup);
+    details.open = !!expandedGroups[baseGroup];
 
     var summary = document.createElement("summary");
     summary.className = "legend-accordion-summary";
@@ -1482,10 +1516,10 @@
 
     var toggleBtn = document.createElement("span");
     toggleBtn.className = "legend-accordion-toggle";
-    toggleBtn.textContent = metazoaExpanded ? "▾" : "▸"; // ▾ expanded, ▸ collapsed
-    toggleBtn.title = "Click this row to expand and show Metazoa's phyla individually";
+    toggleBtn.textContent = expandedGroups[baseGroup] ? "▾" : "▸"; // ▾ expanded, ▸ collapsed
+    toggleBtn.title = "Click this row to expand and show " + baseGroup + "'s " + currentRank + " individually";
     summary.appendChild(toggleBtn);
-    summary.appendChild(buildGroupRowContent("Metazoa", GROUP_COUNTS["Metazoa"] || 0, true, details));
+    summary.appendChild(buildGroupRowContent(baseGroup, GROUP_COUNTS[baseGroup] || 0, true, details));
     details.appendChild(summary);
 
     details.addEventListener("dragover", function (evt) {
@@ -1499,14 +1533,15 @@
 
     var nested = document.createElement("div");
     nested.className = "legend-nested";
-    METAZOA_PHYLA.forEach(function (p) {
-      nested.appendChild(buildGroupRow(p, METAZOA_PHYLUM_COUNTS[p] || 0, false));
+    var sub = subdivisionsFor(baseGroup, currentRank);
+    sub.labels.forEach(function (label) {
+      nested.appendChild(buildGroupRow(label, sub.counts[label], false));
     });
     details.appendChild(nested);
 
     details.addEventListener("toggle", function () {
       toggleBtn.textContent = details.open ? "▾" : "▸";
-      setMetazoaExpanded(details.open);
+      setGroupExpanded(baseGroup, details.open);
     });
 
     return details;
@@ -1519,10 +1554,10 @@
     selectNoneBtn.onclick = function () { setAllGroupsHidden(true); };
 
     var legend = document.getElementById("sidebar-legend");
-    legend.innerHTML = ""; // safe to call this more than once (e.g. after setMetazoaExpanded)
+    legend.innerHTML = ""; // safe to call this more than once (e.g. after setGroupExpanded/setCurrentRank)
     GROUP_ORDER.forEach(function (g) {
-      var el = (g === "Metazoa" && METAZOA_HAS_SUBGROUPS)
-        ? buildMetazoaAccordionRow()
+      var el = isExpandable(g, currentRank)
+        ? buildExpandableGroupRow(g)
         : buildGroupRow(g, GROUP_COUNTS[g] || 0, true);
       legend.appendChild(el);
     });
@@ -2224,10 +2259,11 @@
     updateEllipseVisibility();
   };
 
-  // Called once at initial load and again from setMetazoaExpanded (after
-  // clearing circleEls) -- so a regroup rebuilds every circle's fill/
-  // data-group from the newly active DATA.species[i].group instead of
-  // trying to patch existing elements in place.
+  // Called once at initial load and again from setGroupExpanded /
+  // setCurrentRank (after clearing circleEls) -- so a regroup rebuilds
+  // every circle's fill/data-group from the newly active
+  // DATA.species[i].group instead of trying to patch existing elements
+  // in place.
   function createCircles() {
     DATA.species.forEach(function (s, i) {
       var c = document.createElementNS(svgNS, "circle");
@@ -3121,27 +3157,61 @@
     });
   }
 
-  // ---- Metazoa phylum subdivision ----
-  // Collapsed by default -- DATA.species[i].group starts out equal to
-  // base_group (set server-side). Expanding the legend's Metazoa row (see
-  // buildMetazoaAccordionRow) swaps every Metazoa species' *displayed*
-  // group between "Metazoa" and its metazoa_subgroup (a phylum, e.g.
-  // "MOLLUSCA"); species outside Metazoa have metazoa_subgroup ===
-  // base_group, so the swap is a no-op for them and needs no per-species
-  // special-casing here. Species order/count never changes across a
-  // toggle, so anything keyed by species *index* (activeCounts,
-  // activeGoCounts, activeMatchMask, speciesHighlightIdx, the go-count/
-  // total_prots rail thresholds) stays valid and is deliberately left
-  // untouched -- only what's keyed by *group name* (hiddenGroups for
-  // "Metazoa"/its phyla, hull colors) needs rebuilding; every other
-  // group's hidden/shown state and the legend's drag order are untouched.
-  function setMetazoaExpanded(expand) {
-    if (expand === metazoaExpanded) return;
+  // ---- Taxonomy-rank subdivision ----
+  // Every group is collapsed by default -- DATA.species[i].group starts out
+  // equal to base_group (set server-side). Expanding a group's legend row
+  // (see buildExpandableGroupRow) swaps its species' *displayed* group
+  // between the group's own name and their value at currentRank (e.g.
+  // "MOLLUSCA" for Metazoa species at rank=phylum) -- species outside that
+  // group are untouched, so nothing here needs per-species special-casing.
+  // Species order/count never changes across any of this, so anything keyed
+  // by species *index* (activeCounts, activeGoCounts, activeMatchMask,
+  // speciesHighlightIdx, the go-count/total_prots rail thresholds) stays
+  // valid and is deliberately left untouched -- only what's keyed by
+  // *group name* (hiddenGroups, hull colors) needs rebuilding.
+
+  // Shared tail of setGroupExpanded/setCurrentRank: once DATA.species[i]
+  // .group has been updated for whichever species changed, everything else
+  // that's derived from it (circles, hulls, legend, search index,
+  // highlight/illumination styling wiped out by recreating the circles)
+  // gets rebuilt the same way regardless of which triggered it.
+  function rebuildAfterGroupingChange() {
+    circleEls.forEach(function (c) { if (c.parentNode) c.parentNode.removeChild(c); });
+    circleEls = [];
+
+    recomputeGroupState();
+    createCircles();
+    recomputeSpeciesEntries();
+
+    // createCircles() rebuilt every circle at the base look (radius,
+    // stroke, opacity) -- reapply whichever of these two states was
+    // active before the rebuild wiped it out.
+    if (speciesHighlightIdx !== null) {
+      var hc = circleEls[speciesHighlightIdx];
+      hc.setAttribute("data-base-r", BASE_RADIUS * 2.2);
+      hc.setAttribute("stroke", "#F5A623");
+      hc.classList.add("species-highlighted");
+      rotatableGroup.appendChild(hc); // draw on top, same as highlightSpecies
+    }
+    if (activeGos.length && activeCounts) {
+      applyIllumination(activeCounts);
+    } else {
+      applyBaseStyles();
+    }
+
+    rebuildHulls();
+    buildSidebarLegend();
+    applyVisibility();
+    updateMarkerScale();
+  }
+
+  function setGroupExpanded(baseGroup, expand) {
+    if (expand === !!expandedGroups[baseGroup]) return;
     // Flip the flag synchronously so a re-entrant "toggle" event -- fired
-    // when buildSidebarLegend() below re-appends an already-open <details>,
-    // see the deferral note just below -- hits this guard and no-ops
-    // instead of recursing.
-    metazoaExpanded = expand;
+    // when buildSidebarLegend() (inside rebuildAfterGroupingChange, below)
+    // re-appends an already-open <details>, see the deferral note just
+    // below -- hits this guard and no-ops instead of recursing.
+    expandedGroups[baseGroup] = expand;
 
     // Rebuilding the legend recreates (destroys + re-appends) this exact
     // <details> element, which is the one whose native "toggle" is what
@@ -3153,42 +3223,67 @@
     // processing). Deferring one tick sidesteps it -- this only delays the
     // (already debounced-feeling) full rebuild by a frame, imperceptible.
     setTimeout(function () {
+      var rank = currentRank;
       DATA.species.forEach(function (s) {
-        if (s.base_group !== "Metazoa") return;
-        s.group = expand ? s.metazoa_subgroup : s.base_group;
+        if (s.base_group !== baseGroup) return;
+        s.group = expand ? (s[rank] || (baseGroup + UNCLASSIFIED_SUFFIX)) : s.base_group;
       });
 
-      delete hiddenGroups["Metazoa"];
-      METAZOA_PHYLA.forEach(function (p) { delete hiddenGroups[p]; });
-
-      circleEls.forEach(function (c) { if (c.parentNode) c.parentNode.removeChild(c); });
-      circleEls = [];
-
-      recomputeGroupState();
-      createCircles();
-      recomputeSpeciesEntries();
-
-      // createCircles() rebuilt every circle at the base look (radius,
-      // stroke, opacity) -- reapply whichever of these two states was
-      // active before the rebuild wiped it out.
-      if (speciesHighlightIdx !== null) {
-        var hc = circleEls[speciesHighlightIdx];
-        hc.setAttribute("data-base-r", BASE_RADIUS * 2.2);
-        hc.setAttribute("stroke", "#F5A623");
-        hc.classList.add("species-highlighted");
-        rotatableGroup.appendChild(hc); // draw on top, same as highlightSpecies
-      }
-      if (activeGos.length && activeCounts) {
-        applyIllumination(activeCounts);
-      } else {
-        applyBaseStyles();
+      // Only this group's own name and (if expanding) its subdivision
+      // labels are reset to visible -- every other group's hidden/shown
+      // state is untouched.
+      delete hiddenGroups[baseGroup];
+      if (expand) {
+        subdivisionsFor(baseGroup, rank).labels.forEach(function (l) { delete hiddenGroups[l]; });
       }
 
-      rebuildHulls();
-      buildSidebarLegend();
-      applyVisibility();
-      updateMarkerScale();
+      rebuildAfterGroupingChange();
     }, 0);
+  }
+
+  // Changing the subdivide-by rank re-derives every *currently expanded*
+  // group's grouping under the new rank in place (still expanded, just
+  // finer/coarser) -- except a group that no longer has >1 distinct value
+  // at the new rank, which auto-collapses back to its own name rather than
+  // being left "expanded" into a single meaningless sub-row. Collapsed
+  // groups are untouched either way; they'll just pick up the new rank
+  // next time they're expanded.
+  function setCurrentRank(newRank) {
+    if (newRank === currentRank || LINEAGE_RANKS.indexOf(newRank) === -1) return;
+    currentRank = newRank;
+    setTimeout(function () {
+      Object.keys(expandedGroups).forEach(function (g) {
+        if (!expandedGroups[g]) return;
+        if (!isExpandable(g, currentRank)) {
+          expandedGroups[g] = false;
+          DATA.species.forEach(function (s) { if (s.base_group === g) s.group = s.base_group; });
+          return;
+        }
+        DATA.species.forEach(function (s) {
+          if (s.base_group !== g) return;
+          s.group = s[currentRank] || (g + UNCLASSIFIED_SUFFIX);
+        });
+      });
+      // A rank-wide change can touch several expanded groups' label sets
+      // at once -- simplest predictable behavior is resetting all
+      // visibility state, same as a fresh page load, rather than trying to
+      // carry over a per-label selection that may not even exist anymore.
+      hiddenGroups = {};
+      rebuildAfterGroupingChange();
+    }, 0);
+  }
+
+  if (HAS_LINEAGE_DATA) {
+    document.getElementById("lineage-rank-row").style.display = "";
+    var rankSelect = document.getElementById("lineage-rank-select");
+    LINEAGE_RANKS.forEach(function (rank) {
+      var opt = document.createElement("option");
+      opt.value = rank;
+      opt.textContent = rank.charAt(0).toUpperCase() + rank.slice(1);
+      if (rank === currentRank) opt.selected = true;
+      rankSelect.appendChild(opt);
+    });
+    rankSelect.addEventListener("change", function () { setCurrentRank(rankSelect.value); });
   }
 
   buildSidebarLegend();

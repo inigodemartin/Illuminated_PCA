@@ -6,7 +6,6 @@ results/
 
 # Bundled reference data (small, static, shipped with the repo)
 !data/All_GOs_ic.tsv
-!data/merged_taxons_belen_metazoa_phyllum.tsv
 !data/species_taxid.tsv
 !data/species_lineage.tsv
 

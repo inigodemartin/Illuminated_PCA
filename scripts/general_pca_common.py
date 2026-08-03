@@ -18,9 +18,16 @@ DEFAULT_IC_PATH = Path(__file__).parent.parent / "data" / "All_GOs_ic.tsv"
 DEFAULT_FUNGI_STRUCTURE_PATH = Path(__file__).parent.parent / "fungi_structure.txt"
 DEFAULT_VIRIDIPLANTAE_STRUCTURE_PATH = Path(__file__).parent.parent / "viridiplantae_structure.txt"
 DEFAULT_SPECIES_ACCESSION_PATH = Path(__file__).parent.parent / "data" / "species_ncbi_accession.tsv"
-DEFAULT_METAZOA_TAXONOMY_PATH = Path(__file__).parent.parent / "data" / "merged_taxons_belen_metazoa_phyllum.tsv"
+DEFAULT_SPECIES_LINEAGE_PATH = Path(__file__).parent.parent / "data" / "species_lineage.tsv"
 DATA_MARKER = "__GENERAL_PCA_DATA__"
 TITLE_MARKER = "__GENERAL_PCA_TITLE__"
+
+# NCBI ranks species_lineage.tsv carries (see build_species_lineage.py) that
+# are useful to subdivide a taxonomic group by in the browser -- superkingdom
+# excluded, since every species in this dataset except Asgard (no taxid at
+# all, see build_ncbi_taxid_lookup.py) is Eukaryota, so it never has more
+# than one distinct value within any of our groups.
+LINEAGE_RANKS = ["kingdom", "phylum", "class", "order", "family", "genus"]
 
 
 def load_species_ncbi_accessions(path):
@@ -43,35 +50,41 @@ def rgb_to_hex(rgb):
     return "#{:02x}{:02x}{:02x}".format(int(r * 255), int(g * 255), int(b * 255))
 
 
-def load_metazoa_subgroups(taxon_dict, metazoa_taxonomy_path=DEFAULT_METAZOA_TAXONOMY_PATH):
+def load_species_lineage(path=DEFAULT_SPECIES_LINEAGE_PATH):
     """
-    species -> phylum/subgroup label, for every species whose base Group (in
-    taxon_dict) is "Metazoa" -- lets the browser page offer a "subdivide
-    Metazoa into phyla" toggle without a separate HTML build. Species missing
-    from the phylum file (or the file itself missing) just keep their base
-    group as their own "subgroup", so the toggle is a no-op for them instead
-    of erroring out.
+    species -> {rank: value, ...} for each rank in LINEAGE_RANKS the species
+    has a value for (blank/missing ranks -- e.g. kingdom is commonly blank
+    for algae/protists in NCBI's tree, and every rank is blank for a species
+    with no resolved taxid at all, currently all of Asgard -- are simply
+    omitted from that species' dict rather than stored as ""). Missing file,
+    or a species absent from it entirely, both just mean {} for that
+    species: lets the browser's "subdivide by rank" control treat "no
+    lineage data for this species" uniformly as "not part of any
+    subdivision", without a separate has-data check downstream.
     """
-    path = Path(metazoa_taxonomy_path)
+    path = Path(path)
     if not path.exists():
         return {}
-    phylum_df = pd.read_csv(path, sep="\t")
-    phylum_dict = dict(zip(phylum_df["Species"], phylum_df["Group"]))
-    return {
-        sp: phylum_dict.get(sp, base_group)
-        for sp, base_group in taxon_dict.items()
-        if base_group == "Metazoa"
-    }
+    df = pd.read_csv(path, sep="\t")
+    out = {}
+    for _, row in df.iterrows():
+        lineage = {rank: row[rank] for rank in LINEAGE_RANKS if pd.notna(row.get(rank))}
+        if lineage:
+            out[row["Species"]] = lineage
+    return out
 
 
-def build_metazoa_subgroup_colors(metazoa_subgroups):
+def build_lineage_label_colors(species_lineage):
     """
-    Stable, distinct colors for each Metazoa phylum label -- offset into a
-    hue range starting opposite build_global_color_map's (which starts at
-    hue 0), so a phylum's color reads as visually distinct from the existing
-    taxon-group palette instead of coincidentally landing near one of them.
+    Stable, distinct colors for every lineage label that appears at any rank
+    for any species (a phylum name, a class name, ...) -- offset into a hue
+    range starting opposite build_global_color_map's (which starts at hue
+    0), so a lineage label's color reads as visually distinct from the
+    existing taxon-group palette instead of coincidentally landing near one
+    of them. One shared palette across all ranks (not one per rank) since
+    only one rank's worth of labels is ever shown at a time in the legend.
     """
-    labels = sorted(set(metazoa_subgroups.values()))
+    labels = sorted({value for lineage in species_lineage.values() for value in lineage.values()})
     n = len(labels)
     colors = {}
     for i, label in enumerate(labels):
@@ -262,3 +275,43 @@ def build_go_search_payload(raw_full, species, go_desc):
         "overrides": overrides,
         "counts_gzip_b64": base64.b64encode(compressed).decode("ascii"),
     }
+
+
+def decode_go_search_payload(go_search):
+    """
+    Python-side inverse of build_go_search_payload: reconstructs the raw
+    species x GO-term counts matrix from the payload embedded in an already-
+    generated general-PCA HTML page.
+
+    Lets a follow-up analysis (e.g. go_group_diff.py) recover the exact
+    counts a given plot was built from, without needing the original raw
+    matrix file on disk -- the matrix behind a given HTML page may have come
+    from a since-changed merge/filter step, so the page itself is the only
+    reliably-consistent source once it exists.
+
+    Returns (counts, go_ids): counts is an (n_species, n_go) uint32 ndarray,
+    species-major, in the same row order as go_search's own species list
+    (i.e. the order the caller's species records were built in); go_ids is
+    the column label for each column.
+    """
+    go_ids = go_search["go_ids"]
+    n_go = go_search["n_go"]
+    n_species = go_search["n_species"]
+    mask_bytes_len = go_search["mask_bytes"]
+
+    raw = gzip.decompress(base64.b64decode(go_search["counts_gzip_b64"]))
+    mask_part = raw[:mask_bytes_len]
+    values_part = raw[mask_bytes_len:]
+
+    total = n_go * n_species
+    nonzero_mask = np.unpackbits(np.frombuffer(mask_part, dtype=np.uint8))[:total].astype(bool)
+    values = np.frombuffer(values_part, dtype=np.uint16)
+
+    flat = np.zeros(total, dtype=np.uint32)
+    flat[nonzero_mask] = values
+    for pos, val in go_search["overrides"]:
+        flat[pos] = val
+
+    by_go = flat.reshape(n_go, n_species)  # GO-major, matches the encode-side layout
+    counts = np.ascontiguousarray(by_go.T)  # species-major (n_species, n_go)
+    return counts, go_ids
