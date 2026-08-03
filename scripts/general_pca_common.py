@@ -7,6 +7,7 @@ search/illumination payload, just fit on different PCA inputs.
 
 from pathlib import Path
 import base64
+import colorsys
 import gzip
 
 import numpy as np
@@ -17,6 +18,7 @@ DEFAULT_IC_PATH = Path(__file__).parent.parent / "data" / "All_GOs_ic.tsv"
 DEFAULT_FUNGI_STRUCTURE_PATH = Path(__file__).parent.parent / "fungi_structure.txt"
 DEFAULT_VIRIDIPLANTAE_STRUCTURE_PATH = Path(__file__).parent.parent / "viridiplantae_structure.txt"
 DEFAULT_SPECIES_ACCESSION_PATH = Path(__file__).parent.parent / "data" / "species_ncbi_accession.tsv"
+DEFAULT_METAZOA_TAXONOMY_PATH = Path(__file__).parent.parent / "merged_taxons_belen_metazoa_phyllum.tsv"
 DATA_MARKER = "__GENERAL_PCA_DATA__"
 TITLE_MARKER = "__GENERAL_PCA_TITLE__"
 
@@ -39,6 +41,44 @@ def load_species_ncbi_accessions(path):
 def rgb_to_hex(rgb):
     r, g, b = rgb
     return "#{:02x}{:02x}{:02x}".format(int(r * 255), int(g * 255), int(b * 255))
+
+
+def load_metazoa_subgroups(taxon_dict, metazoa_taxonomy_path=DEFAULT_METAZOA_TAXONOMY_PATH):
+    """
+    species -> phylum/subgroup label, for every species whose base Group (in
+    taxon_dict) is "Metazoa" -- lets the browser page offer a "subdivide
+    Metazoa into phyla" toggle without a separate HTML build. Species missing
+    from the phylum file (or the file itself missing) just keep their base
+    group as their own "subgroup", so the toggle is a no-op for them instead
+    of erroring out.
+    """
+    path = Path(metazoa_taxonomy_path)
+    if not path.exists():
+        return {}
+    phylum_df = pd.read_csv(path, sep="\t")
+    phylum_dict = dict(zip(phylum_df["Species"], phylum_df["Group"]))
+    return {
+        sp: phylum_dict.get(sp, base_group)
+        for sp, base_group in taxon_dict.items()
+        if base_group == "Metazoa"
+    }
+
+
+def build_metazoa_subgroup_colors(metazoa_subgroups):
+    """
+    Stable, distinct colors for each Metazoa phylum label -- offset into a
+    hue range starting opposite build_global_color_map's (which starts at
+    hue 0), so a phylum's color reads as visually distinct from the existing
+    taxon-group palette instead of coincidentally landing near one of them.
+    """
+    labels = sorted(set(metazoa_subgroups.values()))
+    n = len(labels)
+    colors = {}
+    for i, label in enumerate(labels):
+        hue = ((i / n) + 0.5) % 1.0 if n else 0.0
+        saturation = 0.65 + (i % 3) * 0.1
+        colors[label] = rgb_to_hex(colorsys.hsv_to_rgb(hue, saturation, 0.9))
+    return colors
 
 
 def load_go_ic_and_descriptions(ic_file):

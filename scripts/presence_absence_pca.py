@@ -22,11 +22,14 @@ from general_pca_common import (
     TEMPLATE_PATH,
     DEFAULT_IC_PATH,
     DEFAULT_SPECIES_ACCESSION_PATH,
+    DEFAULT_METAZOA_TAXONOMY_PATH,
     DATA_MARKER,
     TITLE_MARKER,
     rgb_to_hex,
     load_go_descriptions,
     load_species_ncbi_accessions,
+    load_metazoa_subgroups,
+    build_metazoa_subgroup_colors,
     top_loadings_by_pc,
     write_top_loadings_tsv,
     write_full_loadings_tsv,
@@ -80,6 +83,11 @@ def parse_args():
                               "(default: bundled data/species_ncbi_accession.tsv, see "
                               "scripts/build_ncbi_accession_lookup.py; species missing from it fall back "
                               "to a text search)")
+    parser.add_argument("--metazoa-taxonomy", default=str(DEFAULT_METAZOA_TAXONOMY_PATH),
+                         help="TSV with Species and Group columns subdividing Metazoa into phyla (default: "
+                              "bundled merged_taxons_belen_metazoa_phyllum.tsv), used to add a client-side "
+                              "'Subdivide Metazoa into phyla' toggle to the page -- pass a nonexistent path "
+                              "to omit the toggle entirely")
     parser.add_argument("--top-loadings-n", type=int, default=10,
                          help="Number of GO terms to report per direction (positive/negative) per PC (default: 10)")
     parser.add_argument("--loadings-output", default=None,
@@ -132,6 +140,13 @@ def main():
     groups_used = sorted({rec["group"] for rec in species_records})
     groups_hex = {g: rgb_to_hex(color_map[g]) for g in groups_used}
 
+    metazoa_subgroups = load_metazoa_subgroups(taxon_dict, args.metazoa_taxonomy)
+    for rec in species_records:
+        rec["base_group"] = rec["group"]
+        rec["metazoa_subgroup"] = metazoa_subgroups.get(rec["name"], rec["group"])
+    groups_hex.update(build_metazoa_subgroup_colors(metazoa_subgroups))
+    has_metazoa_subgroups = any(rec["metazoa_subgroup"] != rec["base_group"] for rec in species_records)
+
     go_desc = load_go_descriptions(args.ic_file)
     top_loadings = top_loadings_by_pc(loadings, go_desc, args.top_loadings_n)
     go_search = build_go_search_payload(raw_full, species, go_desc)
@@ -147,6 +162,7 @@ def main():
             "title": "General PCA: GO term presence/absence",
             "mode_label": "presence/absence, not abundance",
             "filename_base": "general_pca_presence_absence",
+            "has_metazoa_subgroups": has_metazoa_subgroups,
         },
     }
 

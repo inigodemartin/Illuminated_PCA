@@ -666,6 +666,9 @@
       <button id="sidebar-select-all" class="legend-action">Select all</button>
       <button id="sidebar-select-none" class="legend-action">Select none</button>
     </div>
+    <label class="ellipse-toggle-label" id="metazoa-subdivide-row" style="display:none;">
+      <input type="checkbox" id="metazoa-subdivide-toggle"> Subdivide Metazoa into phyla
+    </label>
     <label class="ellipse-toggle-label">
       <input type="checkbox" id="ellipse-toggle"> Show group ellipses
     </label>
@@ -730,23 +733,30 @@
     DATA.species.length + " species, " + DATA.meta.n_go_terms_used +
     " GO terms used (" + DATA.meta.mode_label + ")";
 
-  var ALL_GROUPS = (function () {
+  // Recomputed from DATA.species[i].group whenever grouping changes (see
+  // setMetazoaSubdivided below), not just once at load -- reassigned in
+  // place (not re-declared with var) so every function that closes over
+  // these three names -- hiddenGroups toggling, legend rows, hull colors --
+  // keeps seeing the current grouping without needing its own update path.
+  var ALL_GROUPS, GROUP_ORDER, GROUP_COUNTS;
+  function recomputeGroupState() {
     var present = {};
     DATA.species.forEach(function (s) { present[s.group] = true; });
-    return Object.keys(present).sort();
-  })();
+    ALL_GROUPS = Object.keys(present).sort();
 
-  // Legend display order, top-to-bottom; also the plot z-order, front-to-back
-  // (drag rows in the sidebar to change which taxon group's points sit on
-  // top when they overlap -- same idea as reordering layers in a photo/video
-  // editor).
-  var GROUP_ORDER = ALL_GROUPS.slice();
+    // Legend display order, top-to-bottom; also the plot z-order, front-to-back
+    // (drag rows in the sidebar to change which taxon group's points sit on
+    // top when they overlap -- same idea as reordering layers in a photo/video
+    // editor). Reset to alphabetical whenever the group set itself changes --
+    // a manually dragged order for the old label set doesn't carry meaning
+    // for a different one.
+    GROUP_ORDER = ALL_GROUPS.slice();
 
-  var GROUP_COUNTS = (function () {
     var counts = {};
     DATA.species.forEach(function (s) { counts[s.group] = (counts[s.group] || 0) + 1; });
-    return counts;
-  })();
+    GROUP_COUNTS = counts;
+  }
+  recomputeGroupState();
 
   var xs = DATA.species.map(function (s) { return s.pc1; });
   var ys = DATA.species.map(function (s) { return s.pc2; });
@@ -1273,6 +1283,7 @@
     selectNoneBtn.onclick = function () { setAllGroupsHidden(true); };
 
     var legend = document.getElementById("sidebar-legend");
+    legend.innerHTML = ""; // safe to call this more than once (e.g. after setMetazoaSubdivided)
     GROUP_ORDER.forEach(function (g) {
       var row = document.createElement("div");
       row.className = "legend-row";
@@ -2034,25 +2045,32 @@
     updateEllipseVisibility();
   };
 
-  DATA.species.forEach(function (s, i) {
-    var c = document.createElementNS(svgNS, "circle");
-    c.setAttribute("cx", scaleX(s.pc1));
-    c.setAttribute("cy", scaleY(s.pc2));
-    c.setAttribute("r", BASE_RADIUS);
-    c.setAttribute("data-base-r", BASE_RADIUS);
-    c.setAttribute("fill", DATA.groups[s.group] || "#999");
-    c.setAttribute("opacity", 0.85);
-    c.setAttribute("stroke", "black");
-    c.setAttribute("stroke-width", BASE_STROKE_WIDTH);
-    c.setAttribute("data-group", s.group);
-    c.style.display = hiddenGroups[s.group] ? "none" : "";
-    c.addEventListener("mouseenter", function (evt) { if (!isPanning) showTooltip(evt, s, i); });
-    c.addEventListener("mousemove", function (evt) { if (!isPanning) moveTooltip(evt); });
-    c.addEventListener("mouseleave", hideTooltip);
-    c.addEventListener("mouseup", function () { if (!panMoved) openNcbiGenome(s); });
-    rotatableGroup.appendChild(c);
-    circleEls.push(c);
-  });
+  // Called once at initial load and again from setMetazoaSubdivided (after
+  // clearing circleEls) -- so a regroup rebuilds every circle's fill/
+  // data-group from the newly active DATA.species[i].group instead of
+  // trying to patch existing elements in place.
+  function createCircles() {
+    DATA.species.forEach(function (s, i) {
+      var c = document.createElementNS(svgNS, "circle");
+      c.setAttribute("cx", scaleX(s.pc1));
+      c.setAttribute("cy", scaleY(s.pc2));
+      c.setAttribute("r", BASE_RADIUS);
+      c.setAttribute("data-base-r", BASE_RADIUS);
+      c.setAttribute("fill", DATA.groups[s.group] || "#999");
+      c.setAttribute("opacity", 0.85);
+      c.setAttribute("stroke", "black");
+      c.setAttribute("stroke-width", BASE_STROKE_WIDTH);
+      c.setAttribute("data-group", s.group);
+      c.style.display = hiddenGroups[s.group] ? "none" : "";
+      c.addEventListener("mouseenter", function (evt) { if (!isPanning) showTooltip(evt, s, i); });
+      c.addEventListener("mousemove", function (evt) { if (!isPanning) moveTooltip(evt); });
+      c.addEventListener("mouseleave", hideTooltip);
+      c.addEventListener("mouseup", function () { if (!panMoved) openNcbiGenome(s); });
+      rotatableGroup.appendChild(c);
+      circleEls.push(c);
+    });
+  }
+  createCircles();
 
   // ---- illumination state transitions ----
   // Radius is never touched here -- data-base-r stays at BASE_RADIUS for
@@ -2292,10 +2310,14 @@
   // else -- it just marks the matching dot (bigger radius, amber stroke,
   // brought to front) so it's easy to spot among ~1000+ points, while every
   // other point keeps its normal color/opacity/visibility.
-  var SPECIES_ENTRIES = DATA.species.map(function (s, i) {
-    var displayName = formatSpeciesName(s.name);
-    return { name: s.name, displayName: displayName, group: s.group, idx: i, key: (displayName + " " + s.group).toLowerCase() };
-  });
+  var SPECIES_ENTRIES;
+  function recomputeSpeciesEntries() {
+    SPECIES_ENTRIES = DATA.species.map(function (s, i) {
+      var displayName = formatSpeciesName(s.name);
+      return { name: s.name, displayName: displayName, group: s.group, idx: i, key: (displayName + " " + s.group).toLowerCase() };
+    });
+  }
+  recomputeSpeciesEntries();
   var speciesHighlightIdx = null;
   var speciesSearchInput = document.getElementById("species-search-input");
   var speciesSearchSuggestions = document.getElementById("species-search-suggestions");
@@ -2917,6 +2939,67 @@
     // otherwise leave a key "stuck" held forever, since no keyup ever fires.
     window.addEventListener("blur", function () {
       heldRotateKeys = Object.create(null);
+    });
+  }
+
+  // ---- Metazoa phylum subdivision ----
+  // Off by default -- DATA.species[i].group starts out equal to base_group
+  // (set server-side). Toggling swaps every species' *displayed* group
+  // between its coarse taxon (e.g. "Metazoa") and its metazoa_subgroup (a
+  // phylum, e.g. "MOLLUSCA"); species outside Metazoa have metazoa_subgroup
+  // === base_group, so the swap is a no-op for them and needs no
+  // per-species special-casing here. Species order/count never changes
+  // across a toggle, so anything keyed by species *index* (activeCounts,
+  // activeGoCounts, activeMatchMask, speciesHighlightIdx, the go-count/
+  // total_prots rail thresholds) stays valid and is deliberately left
+  // untouched -- only what's keyed by *group name* (hiddenGroups, the
+  // legend, hull colors) needs rebuilding.
+  var metazoaSubdivided = false;
+  function setMetazoaSubdivided(subdivide) {
+    if (subdivide === metazoaSubdivided) return;
+    metazoaSubdivided = subdivide;
+
+    DATA.species.forEach(function (s) {
+      s.group = subdivide ? s.metazoa_subgroup : s.base_group;
+    });
+
+    // Group labels just changed wholesale, so a per-group hidden/shown
+    // selection from before can't carry over meaningfully -- reset to
+    // everything visible, same as a fresh page load.
+    hiddenGroups = {};
+    circleEls.forEach(function (c) { if (c.parentNode) c.parentNode.removeChild(c); });
+    circleEls = [];
+
+    recomputeGroupState();
+    createCircles();
+    recomputeSpeciesEntries();
+
+    // createCircles() rebuilt every circle at the base look (radius,
+    // stroke, opacity) -- reapply whichever of these two states was
+    // active before the rebuild wiped it out.
+    if (speciesHighlightIdx !== null) {
+      var hc = circleEls[speciesHighlightIdx];
+      hc.setAttribute("data-base-r", BASE_RADIUS * 2.2);
+      hc.setAttribute("stroke", "#F5A623");
+      hc.classList.add("species-highlighted");
+      rotatableGroup.appendChild(hc); // draw on top, same as highlightSpecies
+    }
+    if (activeGos.length && activeCounts) {
+      applyIllumination(activeCounts);
+    } else {
+      applyBaseStyles();
+    }
+
+    rebuildHulls();
+    buildSidebarLegend();
+    applyVisibility();
+    updateMarkerScale();
+  }
+
+  if (DATA.meta.has_metazoa_subgroups) {
+    document.getElementById("metazoa-subdivide-row").style.display = "";
+    document.getElementById("metazoa-subdivide-toggle").addEventListener("change", function (evt) {
+      setMetazoaSubdivided(evt.target.checked);
     });
   }
 
