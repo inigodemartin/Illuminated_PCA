@@ -69,7 +69,7 @@ def parse_args():
                               "to a text search)")
     parser.add_argument("--metazoa-taxonomy", default=str(DEFAULT_METAZOA_TAXONOMY_PATH),
                          help="TSV with Species and Group columns subdividing Metazoa into phyla (default: "
-                              "bundled merged_taxons_belen_metazoa_phyllum.tsv), used to add a client-side "
+                              "bundled data/merged_taxons_belen_metazoa_phyllum.tsv), used to add a client-side "
                               "'Subdivide Metazoa into phyla' toggle to the page -- pass a nonexistent path "
                               "to omit the toggle entirely")
     parser.add_argument("--ic-threshold", type=float, default=None,

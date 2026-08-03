@@ -18,7 +18,7 @@ DEFAULT_IC_PATH = Path(__file__).parent.parent / "data" / "All_GOs_ic.tsv"
 DEFAULT_FUNGI_STRUCTURE_PATH = Path(__file__).parent.parent / "fungi_structure.txt"
 DEFAULT_VIRIDIPLANTAE_STRUCTURE_PATH = Path(__file__).parent.parent / "viridiplantae_structure.txt"
 DEFAULT_SPECIES_ACCESSION_PATH = Path(__file__).parent.parent / "data" / "species_ncbi_accession.tsv"
-DEFAULT_METAZOA_TAXONOMY_PATH = Path(__file__).parent.parent / "merged_taxons_belen_metazoa_phyllum.tsv"
+DEFAULT_METAZOA_TAXONOMY_PATH = Path(__file__).parent.parent / "data" / "merged_taxons_belen_metazoa_phyllum.tsv"
 DATA_MARKER = "__GENERAL_PCA_DATA__"
 TITLE_MARKER = "__GENERAL_PCA_TITLE__"
 
