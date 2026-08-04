@@ -9,10 +9,7 @@ needs a taxid per species to look the lineage up from.
 
 Three sources, tried in order, each species resolved by exactly one:
 
-  1. Metazoa: data/metadata_metazoa.txt already has an NCBI taxon id
-     (ID_NCBI) per species -- no API call needed at all.
-
-  2. Any species with a resolved genome accession in
+  1. Any species with a resolved genome accession in
      data/species_ncbi_accession.tsv (built by build_ncbi_accession_lookup.py
      -- mostly Fungi/Viridiplantae, plus whichever Metazoa/Protists/
      Rhodophyta happened to get one too): the accession's dataset report
@@ -22,8 +19,17 @@ Three sources, tried in order, each species resolved by exactly one:
      see BATCH_SIZE) instead of one request per species, so this whole step
      is under 30 HTTP requests for ~2700 species.
 
+  2. Metazoa: data/metadata_metazoa.txt already has an NCBI taxon id
+     (ID_NCBI) per species -- no API call needed at all. Only used as a
+     fallback for Metazoa species step 1 couldn't resolve (no accession),
+     not tried first, because that file has at least one confirmed wrong
+     ID_NCBI (Synaphobranchus_kaupii -> 1862, which is actually the
+     bacterial genus Dermatophilus, not the fish -- caught downstream via
+     its "Bacillati" kingdom in species_lineage.tsv). An accession-verified
+     taxid is trusted over this file's ID_NCBI whenever both are available.
+
   3. Everything else: NCBI Taxonomy name search (E-utils esearch, db=
-     taxonomy), one request per species (rate-limited same as step 2). Tries
+     taxonomy), one request per species (rate-limited same as step 1). Tries
      the species' full display name first (catches strain-level "Candidatus"-
      style taxa where the strain suffix is actually part of the accepted
      name), then falls back to just the leading two tokens (genus + species)
@@ -322,10 +328,10 @@ def main():
         _log(f"  Accessions        : {'skip' if args.skip_accessions else args.accessions}")
         _log(f"  Output            : {args.output}")
         _log("  Steps that would run:")
-        if not args.skip_metazoa:
-            _log("    [1] Metazoa metadata lookup     → in-memory species->taxid (no API calls)")
         if not args.skip_accessions:
-            _log("    [2] Accession-based NCBI API    → checkpointed to " + args.accession_cache.name)
+            _log("    [1] Accession-based NCBI API    → checkpointed to " + args.accession_cache.name)
+        if not args.skip_metazoa:
+            _log("    [2] Metazoa metadata lookup     → in-memory species->taxid (no API calls)")
         if not args.skip_name_search:
             _log("    [3] Taxonomy name-search fallback → checkpointed to " + args.name_search_cache.name)
         _log("    [4] Write merged lookup TSV     → " + str(args.output))
@@ -335,16 +341,8 @@ def main():
     t_start = time.monotonic()
     resolved = {}  # species -> (taxid, source)
 
-    if not args.skip_metazoa:
-        _banner("Paso 1 — Metazoa (metadata_metazoa.txt, sin llamadas a la API)")
-        taxon_ids = load_metazoa_taxon_ids(args.metazoa_metadata)
-        for species, taxid in taxon_ids.items():
-            if species in all_species:
-                resolved[species] = (taxid, "metazoa_metadata")
-        _log(f"  {len(resolved)} especies resueltas directamente desde metadata_metazoa.txt")
-
     if not args.skip_accessions:
-        _banner("Paso 2 — Especies con accession NCBI (vía NCBI Datasets API, en lotes)")
+        _banner("Paso 1 — Especies con accession NCBI (vía NCBI Datasets API, en lotes)")
         accessions_all = load_accessions(args.accessions)
         pending_accessions = {sp: acc for sp, acc in accessions_all.items()
                                if sp in all_species and sp not in resolved}
@@ -352,6 +350,17 @@ def main():
              f"(de {len(accessions_all)} con accession en total)")
         for species, taxid in resolve_accession_taxids(pending_accessions, args.accession_cache, args.force).items():
             resolved[species] = (taxid, "accession_api")
+        _log(f"  {len(resolved)} especies resueltas vía accession")
+
+    if not args.skip_metazoa:
+        _banner("Paso 2 — Metazoa sin accession (metadata_metazoa.txt, sin llamadas a la API)")
+        taxon_ids = load_metazoa_taxon_ids(args.metazoa_metadata)
+        n_before = len(resolved)
+        for species, taxid in taxon_ids.items():
+            if species in all_species and species not in resolved:
+                resolved[species] = (taxid, "metazoa_metadata")
+        _log(f"  {len(resolved) - n_before} especies adicionales resueltas desde metadata_metazoa.txt "
+             f"({n_before} ya resueltas vía accession en el paso 1, sin sobreescribir)")
 
     if not args.skip_name_search:
         _banner("Paso 3 — Búsqueda por nombre en NCBI Taxonomy (resto de especies)")

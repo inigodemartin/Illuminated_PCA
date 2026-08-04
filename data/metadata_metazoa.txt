@@ -1,0 +1,962 @@
+ID	SCIENTIFIC_NAME	ID_NCBI	Phylum
+NFUS1	Neochildia fusca	66402	ACOELA
+CSUB1	Childia submaculatum	243778	ACOELA
+CNAI1	Convoluta (Praesagittifera) naikaiensis	31270	ACOELA
+DLON1	Diopisthoporus longitubus	996724	ACOELA
+HMIA1	Hofstenia miamia	442651	ACOELA
+IPUL1	Isodiametra pulchra	504439	ACOELA
+PRUB1	Paratomella rubra	90914	ACOELA
+SYRO2	Symsagittifera roscoffensis	84072	ACOELA
+HCAR1	Hermodice carunculata	259844	ANNELIDA
+PCAL1	Pareurythoe californica	1633897	ANNELIDA
+GVUL1	Golfingia vulgaris	210797	ANNELIDA
+PGOU1	Phascolopsis gouldii	6442	ANNELIDA
+PAGA1	Phascolosoma agassizii	360543	ANNELIDA
+PHGR1	Phascolosoma granulatum	41797	ANNELIDA
+SNUD1	Sipunculus nudus	6446	ANNELIDA
+PBAL1	Psammodrilus balanoglossoides	1977847	ANNELIDA
+CHAE1	Chaetopterus sp. SL-2014	1570313	ANNELIDA
+CVAR1	Chaetopterus variopedatus	34590	ANNELIDA
+MMIN1	Mesochaetopterus minutus	1723709	ANNELIDA
+PHYL1	Phyllochaetopterus sp. KMH-2014	1490214	ANNELIDA
+DGYR1	Dimorphilus gyrociliatus	2664684	ANNELIDA
+TAXI1	Trilobodrilus axi	188474	ANNELIDA
+MPIT1	Magelona pitelkai	1653079	ANNELIDA
+MHEE1	Myriochele heeri	1977846	ANNELIDA
+OFUS1	Owenia fusiformis	6347	ANNELIDA
+HRPE1	Hrabeiella periglandulata	152469	ANNELIDA
+AEOL1	Aeolosoma sp.	55817	ANNELIDA
+CMAT1	Carpetania elisae	452200	ANNELIDA
+NNAJ1	Norana najaformis	991102	ANNELIDA
+EAND1	Eisenia andrei	168636	ANNELIDA
+MVUL1	Metaphire vulgaris	1196096	ANNELIDA
+ECRY2	Enchytraeus crypticus	913645	ANNELIDA
+PVOL1	Propappus volki	251477	ANNELIDA
+DLER1	Delaya leruthi	1963245	ANNELIDA
+PELO1	Pelodrilus sp. HAPS2	1963180	ANNELIDA
+CYCO1	Cylicobdellidae sp. DSW-2020	2705382	ANNELIDA
+HROB1	Helobdella robusta	6412	ANNELIDA
+WPIG1	Whitmania pigra	486152	ANNELIDA
+HMED1	Hirudo medicinalis 	6421	ANNELIDA
+PHAG1	Phagodrilus sp. DSW-2020	2705235	ANNELIDA
+SHER1	Stylodrilus heringianus	77571	ANNELIDA
+TSTR1	Trichodrilus strandi	1736119	ANNELIDA
+DRAW1	Drawida sp. KH-2017	1963188	ANNELIDA
+PMEY1	Parvidrilus meyssonnieri	1171980	ANNELIDA
+RAND1	Randiella sp. DSW-2020	2705241	ANNELIDA
+AUJA1	Aulodrilus japonicus	2020002	ANNELIDA
+BASP1	Bathydrilus sp. DSW-2020	2705229	ANNELIDA
+BVEJ1	Bothrioneurum vejdovskyanum	188204	ANNELIDA
+CDIA1	Chaetogaster diaphanus	212246	ANNELIDA
+OLAV1	Olavius sp. CE14538	2562122	ANNELIDA
+PASP1	Paranais sp. DSW-2020	2705234	ANNELIDA
+RPIG1	Rhyacodrilus pigueti	1348610	ANNELIDA
+TJUG1	Troglodrilus jugeti	2507403	ANNELIDA
+PHRC1	Phreodrilidae sp. C DSW-2020	2705238	ANNELIDA
+PHRE1	Phreodrilidae sp. A DSW-2020	2705236	ANNELIDA
+MEGA1	Megadrilus sp. A5911	1654982	ANNELIDA
+PCHA1	Protodriloides chaetifer	254032	ANNELIDA
+PSYM1	Protodriloides symbioticus	205111	ANNELIDA
+OXIA1	Ophryotrocha xiamen	2741705	ANNELIDA
+HIST1	Histriobdella sp. ET-2021	2863089	ANNELIDA
+NNIG1	Ninoe nigripes	318790	ANNELIDA
+LIOC1	Laetmonice cf. iocasica ET-2021	2863094	ANNELIDA
+COCC1	Chrysopetalum occidentale	2859446	ANNELIDA
+AFUS1	Amphiduros fuscescens	1209993	ANNELIDA
+LACY1	Lacydonia sp. ET-2021	2863088	ANNELIDA
+LOPA1	Lopadorrhynchus sp. ET-2021	2863092	ANNELIDA
+SCAM1	Struwela camposi 	2859449	ANNELIDA
+NEPH1	Nephtys sp. ET-2021	2863093	ANNELIDA
+AVIR1	Alitta virens	880429	ANNELIDA
+PAIB1	Perinereis aibuhitensis	126650	ANNELIDA
+PDUM1	Platynereis dumerilii	6359	ANNELIDA
+PMED1	Phyllodoce medipapillata	868040	ANNELIDA
+PVER1	Pilargis verrucosa	1818081	ANNELIDA
+LEYZ1	Lepidonotopodium sp. YZ-2016	1899226	ANNELIDA
+PHBA1	Pholoe baltica	318818	ANNELIDA
+SGRA1	Sphaerodorum gracilis	2576333	ANNELIDA
+SYGR1	Syllis gracilis	418370	ANNELIDA
+TOMO1	Tomopteris sp. ET-2021	2863090	ANNELIDA
+TRAV1	Travisiopsis sp. ET-2021	2863091	ANNELIDA
+APAC1	Abarenicola pacifica	273052	ANNELIDA
+COCO1	Arenicola marina 	6344	ANNELIDA
+CTEL1	Capitella teleta	283909	ANNELIDA
+HFIL1	Heteromastus filiformis	397554	ANNELIDA
+OACU1	Ophelina acuminata	190468	ANNELIDA
+TMUC1	Thoracophelia mucronata	1280055	ANNELIDA
+SINF1	Scalibregma inflatum	195275	ANNELIDA
+DSUB1	Diurodrilus subterraneus	1318637	ANNELIDA
+LROB1	Leitoscoloplos robustus	645995	ANNELIDA
+NDEN1	Naineris dendritica	273009	ANNELIDA
+PHEI1	Parergodrilus heideri	152569	ANNELIDA
+SPIN1	Spinther sp. SA-2015	1649661	ANNELIDA
+MOCC1	Manayunkia occidentalis	2704156	ANNELIDA
+AORS1	Anamobaea orstedii	2733422	ANNELIDA
+MINF1	Myxicola infundibulum	76264	ANNELIDA
+LSAT1	Lamellibrachia satsuma	104711	ANNELIDA
+OALV1	Oasisia alvinae	53619	ANNELIDA
+OFRA1	Osedax frankpressi	283776	ANNELIDA
+PECH1	Paraescarpia echinospica	2080241	ANNELIDA
+RPAC1	Riftia pachyptila	6426	ANNELIDA
+BWEL1	Boccardia wellingtonensis	2584083	ANNELIDA
+CCIR1	Cirratulus cirratus	394749	ANNELIDA
+FMUN1	Flabegraviera mundata	2507406	ANNELIDA
+SSCU1	Sternaspis scutata	36133	ANNELIDA
+APOM1	Alvinella pompejana	6376	ANNELIDA
+HINV1	Hypania invalida	1977848	ANNELIDA
+MOCU1	Melinna oculata	2716577	ANNELIDA
+NROB1	Neoamphitrite robusta	868091	ANNELIDA
+TEST1	Terebellides stroemi	1037239	ANNELIDA
+TROS1	Trichobranchus roseus	2248427	ANNELIDA
+CROT1	Carcinoscorpius rotundicauda	6848	ARTHROPODA
+LPOL1	Limulus polyphemus	6850	ARTHROPODA
+TGIG1	Tachypleus gigas	6852	ARTHROPODA
+TTRI1	Tachypleus tridentatus	6853	ARTHROPODA
+RROB1	Rhizoglyphus robini	223528	ARTHROPODA
+PPEL1	Platynothrus peltifer	128015	ARTHROPODA
+BTRO1	Blomia tropicalis	40697	ARTHROPODA
+HRUF1	Hypochthonius rufulus	66581	ARTHROPODA
+NPAL1	Nothrus palustris	198293	ARTHROPODA
+SASC1	Sarcoptes scabiei	52283	ARTHROPODA
+SMAG1	Steganacarus magnus	52000	ARTHROPODA
+HDES1	Halotydeus destructor	2874060	ARTHROPODA
+PCIT1	Panonychus citri	50023	ARTHROPODA
+TCIN1	Tetranychus cinnabarinus	93129	ARTHROPODA
+TURT1	Tetranychus urticae	32264	ARTHROPODA
+LDEL1	Leptotrombidium deliense	299467	ARTHROPODA
+DTIN1	Dinothrombium tinctorium	1965070	ARTHROPODA
+CIOA1	Charinus ioanniticus	1938788	ARTHROPODA
+CISR1	Charinus israelensis	2760776	ARTHROPODA
+DAMO1	Damon sp. Maynooth	2508655	ARTHROPODA
+PMAR1	Phrynus marginemaculatus	118542	ARTHROPODA
+NOVA1	Novanapis sp. RK-2018	2080923	ARTHROPODA
+ABRU1	Argiope bruennichi	94029	ARTHROPODA
+NARA1	Neoscona arabesca	336594	ARTHROPODA
+SRUF1	Sphodros rufipes	1203468	ARTHROPODA
+MENN1	Menneus sp. RK-2018	2080916	ARTHROPODA
+PARA1	Paramatachia sp. RK-2018	2080958	ARTHROPODA
+ARAQ1	Argyroneta aquatica	375087	ARTHROPODA
+SDUM1	Stegodyphus dumicola	202533	ARTHROPODA
+KHIB1	Kukulcania hibernalis	268415	ARTHROPODA
+SCAP1	Sergiolus capulatus	1506255	ARTHROPODA
+POTW1	Progradungula otwayensis	2080872	ARTHROPODA
+HTHE1	Homalonychus theologus	320780	ARTHROPODA
+ARCH1	Archoleptoneta schusteri	1002511	ARTHROPODA
+LTHA1	Liphistius thaleban	1905330	ARTHROPODA
+SROV1	Schizocosa rovneri	128042	ARTHROPODA
+MFUL1	Megahexura fulva	389833	ARTHROPODA
+ELEO1	Ero leonina	1506261	ARTHROPODA
+MGUT1	Microdipoena guttata	709022	ARTHROPODA
+MLEI1	Mysmena leichhardti	926011	ARTHROPODA
+NICO1	Nicodamidae sp. 2 RK-2018	2080922	ARTHROPODA
+OCHY1	Ochyrocera sp. RK-2018	2080925	ARTHROPODA
+OECO1	Oecobius cellariorum	198414	ARTHROPODA
+OPOP1	Opopaea sp. RK-2018	2080926	ARTHROPODA
+ORSO1	Orsolobidae sp. RK-2018	2080927	ARTHROPODA
+PALB1	Pararchaea alba	1654964	ARTHROPODA
+PMAN1	Pholcus manueli	393849	ARTHROPODA
+HUST1	Habronattus ustulatus	158281	ARTHROPODA
+SEGE1	Segestria sp. NG-2016	1794826	ARTHROPODA
+LDES1	Loxosceles deserta	424440	ARTHROPODA
+PTEP1	Parasteatoda tepidariorum	114398	ARTHROPODA
+TSAV1	Theridiosoma savannum	2080868	ARTHROPODA
+TRAD1	Tengella radiata	389058	ARTHROPODA
+DAMP1	Dampetrus sp. RF-2017	1955546	ARTHROPODA
+ANEO1	Acropsopilio neozelandiae	1954383	ARTHROPODA
+THER1	Theromaster sp. RF-2017	1955777	ARTHROPODA
+FMAR1	Fissiphallius martensi	1955530	ARTHROPODA
+SLUC1	Saramacia lucasae	1955541	ARTHROPODA
+NDUB1	Nemastomella dubia	43287	ARTHROPODA
+MAME1	Metasiro americanus	397056	ARTHROPODA
+TGUL1	Thrasychirus gulosus	1160271	ARTHROPODA
+PSCH1	Petrobunus schwendingeri	1007617	ARTHROPODA
+ADEN1	Aoraki denticulata	526530	ARTHROPODA
+RMIN1	Rakaia minutissima	526538	ARTHROPODA
+POPI2	Phalangium opilio	118624	ARTHROPODA
+SLOB1	Sitalcina lobata	1454760	ARTHROPODA
+PELL1	Pellobunus sp. RF-2017	1955543	ARTHROPODA
+HREM1	Homalenotus remyi	1954382	ARTHROPODA
+PSIN1	Protolophus singularis	409368	ARTHROPODA
+SBOY1	Siro boyerae	385973	ARTHROPODA
+PLON1	Protimesius longipalpis	1955539	ARTHROPODA
+INOD1	Ischyropsalis nodifera	1348668	ARTHROPODA
+FDEP1	Fumontana deprehendor	476021	ARTHROPODA
+TMAR1	Trogulus martensi	591623	ARTHROPODA
+EZAR1	Eukoenenia zariquieyi	129188	ARTHROPODA
+PWHE1	Prokoenenia wheeleri	681542	ARTHROPODA
+OROS1	Ornithodoros rostratus	360320	ARTHROPODA
+AAME1	Amblyomma americanum	6943	ARTHROPODA
+DAND1	Dermacentor andersoni	34620	ARTHROPODA
+HEXC1	Hyalomma excavatum	257692	ARTHROPODA
+ISCA1	Ixodes scapularis	6945	ARTHROPODA
+RSAN1	Rhipicephalus sanguineus	34632	ARTHROPODA
+DGAL1	Dermanyssus gallinae	34641	ARTHROPODA
+TMER1	Tropilaelaps mercedesae	418985	ARTHROPODA
+GOCC1	Galendromus occidentalis	34638	ARTHROPODA
+VDES1	Varroa destructor	109461	ARTHROPODA
+VJAC1	Varroa jacobsoni	62625	ARTHROPODA
+NEOC1	Neocarus sp. MCZ IZ 162194	2900495	ARTHROPODA
+OPSP1	Opilioacaridae sp. CSL-2018	2480684	ARTHROPODA
+OTEX1	Opilioacarus texanus	91343	ARTHROPODA
+BWIT1	Bochica withi	2590525	ARTHROPODA
+PAPE1	Parachelifer persimilis	2590497	ARTHROPODA
+PROT2	Protochelifer sp. MCZ 49984	2590517	ARTHROPODA
+CGEL1	Cybella gelanggi	2590503	ARTHROPODA
+SAPI1	Synsphyronus apimelus	534689	ARTHROPODA
+GYMN1	Gymnobisium sp. MCZ 139238	2590512	ARTHROPODA
+APOL1	Apolpium sp. MCZ 144360	2590504	ARTHROPODA
+PSUB1	Parahya submersa	534673	ARTHROPODA
+PSSP1	Pseudotyrannochthonius sp. B LB-2019	2590520	ARTHROPODA
+STSP1	Sternophoridae sp. MCZ 133496	2590522	ARTHROPODA
+ICRA1	Ideobisium crassimanum	2590493	ARTHROPODA
+CSEG1	Cacodemonius sp. MCZ 144363	2590505	ARTHROPODA
+CBEC1	Cryptocellus becki	1642531	ARTHROPODA
+CRYP1	Cryptocellus sp. n. RF-2015	1643398	ARTHROPODA
+RATE1	Ricinoides atewa	1046921	ARTHROPODA
+SPOR1	Stenochrus portoricensis	2080935	ARTHROPODA
+CSCU1	Centruroides sculpturatus	218467	ARTHROPODA
+BGRA1	Brotheas granulatus	311986	ARTHROPODA
+UMOR1	Uroctonus mordax	507508	ARTHROPODA
+CCEL1	Chaerilus celebensis	1577633	ARTHROPODA
+MGER1	Megacormus gertschi	1843536	ARTHROPODA
+SCOR1	Scorpiops sp. PPS-2014	1588039	ARTHROPODA
+TSTE1	Troglokhammouanus steineri	1577154	ARTHROPODA
+PIMP1	Pandinus imperator	55084	ARTHROPODA
+UELO1	Urodacus elongatus	2341116	ARTHROPODA
+SDON1	Superstitionia donensis	311983	ARTHROPODA
+KACA1	Konetontli acapulco	1532980	ARTHROPODA
+PBAE1	Paruroctonus baergi	1897136	ARTHROPODA
+UHUA1	Uroctonites huachuca	2511127	ARTHROPODA
+VMEX1	Vaejovis mexicanus	993612	ARTHROPODA
+GALE2	Galeodes sp. JLF-2018	2126959	ARTHROPODA
+SOLP1	Solpugema sp. MCZ 49525	2590529	ARTHROPODA
+MGIG1	Mastigoproctus giganteus	58767	ARTHROPODA
+PFLA1	Pallenella flava	2138384	ARTHROPODA
+SCHE1	Stylopallene cheilorhynchus	1216044	ARTHROPODA
+NMOL1	Nymphon molleri	2138377	ARTHROPODA
+NYGR1	Nymphon gracile	136195	ARTHROPODA
+ANIN1	Anoplodactylus insignis	1842456	ARTHROPODA
+PFEM1	Phoxichilidium cf. femoratum JB-2020	2792819	ARTHROPODA
+PLIT1	Pycnogonum litorale	261975	ARTHROPODA
+TORB1	Tanystylum orbiculare	88027	ARTHROPODA
+CTAS1	Craterostigmus tasmanianus	60162	ARTHROPODA
+HBRE1	Henia brevis	1816497	ARTHROPODA
+HILL1	Henia illyrica	1428161	ARTHROPODA
+CFLA1	Clinopodes flavidus	511797	ARTHROPODA
+SLIN1	Stenotaenia linearis	1569481	ARTHROPODA
+HGAB1	Himantarium gabrielis	241672	ARTHROPODA
+SACU1	Strigamia acuminata	1255758	ARTHROPODA
+SMAR2	Strigramia maritima	126957	ARTHROPODA
+MGUI1	Mecistocephalus guildingii	126915	ARTHROPODA
+TJAV1	Tygarrup javanicus	863634	ARTHROPODA
+NGRA1	Notiphilides grandis	1816494	ARTHROPODA
+HSUB1	Hydroschendyla submarina	1428152	ARTHROPODA
+SCAR1	Schendyla carniolensis	1820143	ARTHROPODA
+AGIR1	Anopsobius giribeti	269517	ARTHROPODA
+PVAL1	Paralamyctes validus	126942	ARTHROPODA
+LINI1	Lithobius niger	981152	ARTHROPODA
+CANO1	Cryptops anomalans	1418174	ARTHROPODA
+CHOR1	Cryptops hortensis	1268897	ARTHROPODA
+TSPI1	Theatops spinicaudus	1816096	ARTHROPODA
+AGRA1	Alipes grandidieri	1257097	ARTHROPODA
+RIMM1	Rhysida immarginata	984703	ARTHROPODA
+RLON1	Rhysida longipes	984702	ARTHROPODA
+SBAH1	Scolopendropsis bahiensis	1816098	ARTHROPODA
+SCIN1	Scolopendra cingulata	41365	ARTHROPODA
+NADI1	Newportia adisi	1418190	ARTHROPODA
+SRUB1	Scolopocryptops rubiginosus	987050	ARTHROPODA
+SSEX1	Scolopocryptops sexspinosus	118499	ARTHROPODA
+SCOL3	Scutigera coleoptrata	29022	ARTHROPODA
+TTUB1	Thereuonema tuberculata	353554	ARTHROPODA
+SWEB1	Scutigerina weberi	241666	ARTHROPODA
+CRAS1	Craspedosoma sp. AD-2016	1820136	ARTHROPODA
+GMAE1	Glomeris maerens	2116692	ARTHROPODA
+HMUL1	Haploglomeris multistriata	1820151	ARTHROPODA
+GMIN1	Glomeridella minima	1173034	ARTHROPODA
+GLOM1	Glomeridesmus sp. MITS489	2099817	ARTHROPODA
+ATON1	Anaulaciulus tonginus	2850401	ARTHROPODA
+CYLI1	Cylindroiulus sp. RF-2016	1816490	ARTHROPODA
+BLEC1	Brachycybe lecontii	1176341	ARTHROPODA
+NNOD1	Niponia nodulosa	1325555	ARTHROPODA
+HHOL2	Helicorthomorpha holstii	1325552	ARTHROPODA
+PCOM1	Polydesmus complanatus	510027	ARTHROPODA
+PSEU1	Pseudopolydesmus sp. MB-2013	1348323	ARTHROPODA
+ETAI1	Eudigraphis taiwanensis	1816489	ARTHROPODA
+ETAK1	Eudigraphis takakuwai	1366109	ARTHROPODA
+PLAG1	Polyxenus lagurus	52428	ARTHROPODA
+PGER1	Polyzonium germanicum	118488	ARTHROPODA
+TCOR2	Trigoniulus corallinus	1366115	ARTHROPODA
+AORN1	Acopauropus ornatus	1820145	ARTHROPODA
+PHUX1	Pauropus huxleyi	2043368	ARTHROPODA
+SYMP1	Symphylella sp. AD-2014	1519114	ARTHROPODA
+HANS2	Hanseniella sp. RF-2016	1816491	ARTHROPODA
+HNIV1	Hanseniella nivea	1820138	ARTHROPODA
+ASAL1	Artemia salina	85549	ARTHROPODA
+BLIN1	Branchinecta lindahli	91573	ARTHROPODA
+AEMA1	Anchistropus emarginatus	423250	ARTHROPODA
+CHIS1	Cyclestheria hislopi	77743	ARTHROPODA
+OPIL1	Ozestheria pilosa	1930649	ARTHROPODA
+ORUB1	Ozestheria rubra	1897130	ARTHROPODA
+CCFQ1	Ceriodaphnia quadrangula	302196	ARTHROPODA
+DMAG2	Daphnia magna	35525	ARTHROPODA
+SMUC1	Scapholeberis cf. mucronata	202097	ARTHROPODA
+SVET1	Simocephalus vetulus	77651	ARTHROPODA
+EOCY1	Eocyzicus sp. MCZ IZ 50104	1930652	ARTHROPODA
+ETIC1	Eoleptestheria cf. ticinensis MCZ IZ 50108	1930653	ARTHROPODA
+EULI1	Eulimnadia sp. MCZ IZ 50085	1930639	ARTHROPODA
+PURU1	Paralimnadia urukhai	1747217	ARTHROPODA
+LYNC1	Lynceus sp. MCZ IZ 141354	1930659	ARTHROPODA
+MACR1	Macrotrichidae	77757	ARTHROPODA
+MOIN1	Moina sp. MCZ IZ 74079	1930661	ARTHROPODA
+ENOR1	Evadne cf. nordmanni MCZ IZ 68046	1930655	ARTHROPODA
+SCRY1	Sida crystallina	77656	ARTHROPODA
+LAPU1	Lepidurus apus apus	217955	ARTHROPODA
+LCOU1	Lepidurus couessii	63726	ARTHROPODA
+LCRY1	Lepidurus cryptus	1930656	ARTHROPODA
+TCAN1	Triops cancriformis	194544	ARTHROPODA
+TGRA1	Triops granarius	109777	ARTHROPODA
+TNEW1	Triops newberryi	1048741	ARTHROPODA
+TRIL2	Triops longicaudatus	58777	ARTHROPODA
+LDAH1	Leptestheria dahalacensis	202083	ARTHROPODA
+HMAC1	Hutchinsoniella macracantha	84335	ARTHROPODA
+LINC1	Lightiella incisa	703591	ARTHROPODA
+CFIN1	Calanus finmarchicus	6837	ARTHROPODA
+EAFF1	Eurytemora affinis	88015	ARTHROPODA
+ESER1	Eucyclops serrulatus	84317	ARTHROPODA
+AROY1	Apocyclops royi	298420	ARTHROPODA
+LCYP1	Lernaea cyprinacea	342429	ARTHROPODA
+TICA2	Tigriopus californicus	6832	ARTHROPODA
+TJAP1	Tigriopus japonicus	158387	ARTHROPODA
+ASIA1	Argulus siamensis	1167309	ARTHROPODA
+GJAP1	Grandidierella japonica	429032	ARTHROPODA
+EBER1	Echinogammarus berilloni	889313	ARTHROPODA
+GLOC1	Gammarus locusta	65426	ARTHROPODA
+HAZT1	Hyalella azteca	294128	ARTHROPODA
+PHAW1	Parhyale hawaiensis	317513	ARTHROPODA
+NHRA1	Niphargus hrabei	556197	ARTHROPODA
+HQUA1	Halice quarta	2692165	ARTHROPODA
+BSCH1	Bathycallisoma schellenbergi	228744	ARTHROPODA
+OGRI1	Orchestia grillus	1859082	ARTHROPODA
+PLSP1	Platorchestia sp.	2950139	ARTHROPODA
+TASA1	Talitrus saltator	191375	ARTHROPODA
+TRLO1	Trinorchestia longiramus	1923959	ARTHROPODA
+AAST1	Astacus astacus	6715	ARTHROPODA
+HALR1	Halocaridina rubra	373956	ARTHROPODA
+NDAV1	Neocaridina davidi	1592667	ARTHROPODA
+NEDE1	Neocaridina denticulata	274642	ARTHROPODA
+PARU1	Paratya australiensis	159741	ARTHROPODA
+PRCL1	Procambarus clarkii	6728	ARTHROPODA
+CHAN1	Chorismus antarcticus	442697	ARTHROPODA
+HINE1	Hippolyte inermis	575566	ARTHROPODA
+LWUR1	Lysmata wurdemanni	338206	ARTHROPODA
+HAME2	Homarus americanus	6706	ARTHROPODA
+MNIP2	Macrobrachium nipponense	159736	ARTHROPODA
+PORN1	Panulirus ornatus	150431	ARTHROPODA
+CQUA2	Cherax quadricarinatus	27406	ARTHROPODA
+FCHI1	Fenneropenaeus chinensis	139456	ARTHROPODA
+PMON2	Penaeus monodon	6687	ARTHROPODA
+PVAN1	Penaeus vannamei	6689	ARTHROPODA
+ACHI1	Acetes chinensis	439396	ARTHROPODA
+ESIM1	Eusergestes similis	2841602	ARTHROPODA
+LULU1	Lucensosergia lucens	2849048	ARTHROPODA
+PARM1	Parasergestes armatus	2283577	ARTHROPODA
+BLAT1	Birgus latro	177283	ARTHROPODA
+CCLY1	Coenobita clypeatus	474045	ARTHROPODA
+PCAM1	Paralithodes camtschaticus	6741	ARTHROPODA
+PLAM1	Petrolisthes lamarckii	2545256	ARTHROPODA
+CARM1	Cardisoma armatum	556312	ARTHROPODA
+GLAT1	Gecarcinus lateralis	6769	ARTHROPODA
+GALB1	Grapsus albolineatus	156079	ARTHROPODA
+MFRO1	Metopograpsus frontalis	1036996	ARTHROPODA
+PAMA1	Pachygrapsus marmoratus	135190	ARTHROPODA
+COPI1	Chionoecetes opilio	41210	ARTHROPODA
+MSCU1	Mithraculus sculptus	504429	ARTHROPODA
+OCER1	Ocypode ceratophthalmus	373423	ARTHROPODA
+PSQU1	Plagusia squamosa	157785	ARTHROPODA
+POTR1	Portunus trituberculatus	210409	ARTHROPODA
+CHHA1	Chiromantes haematocheir	151164	ARTHROPODA
+NIND1	Neosarmatium indicum	2870673	ARTHROPODA
+PAFF1	Parasesarma affine	1550548	ARTHROPODA
+ESIN1	Eriocheir sinensis	95602	ARTHROPODA
+GDEP1	Gaetice depressus	156504	ARTHROPODA
+MELO1	Metaplax longipes	1550546	ARTHROPODA
+LNTO1	Leptodius sp. NTOU-LMT-BRA0070	2545259	ARTHROPODA
+UAFR1	Upogebia africana	1792266	ARTHROPODA
+EPAC1	Euphausia pacifica	102976	ARTHROPODA
+MNOR1	Meganyctiphanes norvegica	48144	ARTHROPODA
+TINE1	Thysanoessa inermis	210626	ARTHROPODA
+ANAS1	Armadillidium nasatum	96803	ARTHROPODA
+AVUL2	Armadillidium vulgare	13347	ARTHROPODA
+AAQU1	Asellus aquaticus	92525	ARTHROPODA
+LCUL1	Lirceus culveri	2742979	ARTHROPODA
+PJAL1	Proasellus jaloniacus	1281986	ARTHROPODA
+GANT1	Glyptonotus antarcticus	104130	ARTHROPODA
+BJAM1	Bathynomus jamesi	1955234	ARTHROPODA
+LEXO1	Ligia exotica	142080	ARTHROPODA
+MISO1	Ligia oceanica 	96856	ARTHROPODA
+PASU1	Paraplatyarthrus subterraneus	1778624	ARTHROPODA
+PPRU1	Porcellionides pruinosus	96870	ARTHROPODA
+STER1	Sphaeroma terebrans	180402	ARTHROPODA
+NBIP1	Nebalia bipes	1032909	ARTHROPODA
+LMAC1	Lysiosquilla maculata	344752	ARTHROPODA
+ORAT1	Oratosquilla oratoria	337810	ARTHROPODA
+AMIS1	Agathotanais misakiensis	2823062	ARTHROPODA
+PQUI1	Pseudosphyrapus quintolongus	992968	ARTHROPODA
+TKOM1	Tanaella kommritzia	2823073	ARTHROPODA
+CSPM1	Cylindroleberidinae sp. MS-2016	1897137	ARTHROPODA
+VHIL1	Vargula hilgendorfii	6674	ARTHROPODA
+PHAN1	Photeros annecohenae	2696923	ARTHROPODA
+HINC1	Heterocypris incongruens	425018	ARTHROPODA
+NMON1	Notodromas monacha	399045	ARTHROPODA
+CTOR1	Cyprideis torosa	163714	ARTHROPODA
+DSTE1	Darwinula stevensoni 	69355	ARTHROPODA
+PAVE1	Pontocypris avena	509935	ARTHROPODA
+GFRO1	Godzilliognomus frondosus	588423	ARTHROPODA
+PAPL1	Pleomothra apletocheles	588424	ARTHROPODA
+MWIL1	Morlockia williamsi	1017258	ARTHROPODA
+XTUL1	Xibalbanus tulumensis	1519145	ARTHROPODA
+AAMP1	Amphibalanus amphitrite	1232801	ARTHROPODA
+TEJA1	Tetraclita japonica	240496	ARTHROPODA
+PPOL3	Pollicipes pollicipes	41117	ARTHROPODA
+FCAN1	Folsomia candida	158441	ARTHROPODA
+OCIN1	Orchesella cincta	48709	ARTHROPODA
+POGO1	Pogonognathellus sp. AD-2013	1323567	ARTHROPODA
+TQIN1	Tomocerus qinae	1765738	ARTHROPODA
+AMAR1	Anurida maritima	64695	ARTHROPODA
+LWEB1	Lepidocampa weberi	165470	ARTHROPODA
+OJAP1	Occasjapyx japonicus	289462	ARTHROPODA
+OCSI1	Octostigma sinensis	211997	ARTHROPODA
+ACER1	Acerentomon sp. AD-2013	1323558	ARTHROPODA
+BAMO1	Baculentulus morikawai	1314696	ARTHROPODA
+FTAK1	Filientomon takanawanum	533279	ARTHROPODA
+NNIP1	Nipponentomon nippon	1314697	ARTHROPODA
+ESAK1	Eosentomon sakura	289450	ARTHROPODA
+MHRA1	Machilis hrabei	438506	ARTHROPODA
+BATR1	Blaberus atropos	36942	ARTHROPODA
+PAME3	Periplaneta americana	6978	ARTHROPODA
+BGER4	Blattella germanica	6973	ARTHROPODA
+CSEC1	Cryptotermes secundus	105785	ARTHROPODA
+PSIM1	Prorhinotermes simplex	1312446	ARTHROPODA
+ZNEV1	Zootermopsis nevadensis	136037	ARTHROPODA
+AINS1	Amphizoa insolens	107775	ARTHROPODA
+CJAP1	Cybister japonicus	398594	ARTHROPODA
+GMAR2	Gyrinus marinus	1323538	ARTHROPODA
+PPYR3	Photinus pyralis	7054	ARTHROPODA
+LEPI1	Lepicerus sp. AD-2013	1323565	ARTHROPODA
+OTAU1	Onthophagus taurus	166361	ARTHROPODA
+TCAS1	Tribolium castaneum	7070	ARTHROPODA
+ACHA1	Apachyus charteceus	1323532	ARTHROPODA
+FAUR1	Forficula auricularia	13068	ARTHROPODA
+LLUC1	Lipara lucens	1323540	ARTHROPODA
+AAEG1	Aedes aegypti	7159	ARTHROPODA
+AGAM1	Anopheles gambiae	7165	ARTHROPODA
+AMER1	Anopheles merus	30066	ARTHROPODA
+DMEL1	Drosophila melanogaster	7227	ARTHROPODA
+DPSE1	Drosophila pseudoobscura	7237	ARTHROPODA
+EHIA1	Cirrula hians	1577616	ARTHROPODA
+SSTA1	Scatella stagnalis	1690357	ARTHROPODA
+BCOP1	Bradysia coprophila	38358	ARTHROPODA
+AJAP1	Aposthonia japonica	911381	ARTHROPODA
+BAET1	Baetis sp. AD-2013	1476881	ARTHROPODA
+CDIP1	Cloeon dipterum	197152	ARTHROPODA
+APIS1	Acyrthosiphon pisum	7029	ARTHROPODA
+CVUL1	Cercopis vulnerata	279269	ARTHROPODA
+CLEC1	Cimex lectularius	79782	ARTHROPODA
+TRCA1	Trichocorixa calva	1585305	ARTHROPODA
+NLUG1	Nilaparvata lugens	108931	ARTHROPODA
+GBUE1	Gerris buenoi	56086	ARTHROPODA
+NELO1	Notostira elongata	537464	ARTHROPODA
+RPRO1	Rhodnius prolixus	13249	ARTHROPODA
+AMEL1	Apis mellifera	7460	ARTHROPODA
+CVIR1	Chrysis viridula	212616	ARTHROPODA
+NFUL1	Nylanderia fulva	613905	ARTHROPODA
+NVIT1	Nasonia vitripennis	7425	ARTHROPODA
+NDEG1	Nemophora degeerella	233164	ARTHROPODA
+BMOR1	Bombyx mori	7091	ARTHROPODA
+SFRU1	Spodoptera frugiperda	7108	ARTHROPODA
+DPLE1	Danaus plexippus plexippus	278856	ARTHROPODA
+PEUR1	Parides eurimedes	299019	ARTHROPODA
+ZCES1	Zerene cesonia	33412	ARTHROPODA
+HFOR1	Hierodula formosana	940208	ARTHROPODA
+BHYE1	Boreus hyemalis	185833	ARTHROPODA
+CCOR1	Corydalus cornutus	559164	ARTHROPODA
+CSIM1	Ctenochauliodes similis	1890692	ARTHROPODA
+CNIP1	Chrysoperla nipponensis	413239	ARTHROPODA
+ISEL1	Ischnura elegans	197161	ARTHROPODA
+ISEN1	Ischnura senegalensis	126660	ARTHROPODA
+CBOL1	Cordulegaster boltonii	126173	ARTHROPODA
+LMIG1	Locusta migratoria manilensis	229990	ARTHROPODA
+GRYL1	Gryllotalpa sp. AD-2013	1323563	ARTHROPODA
+TSUB1	Tetrix subulata	288127	ARTHROPODA
+AASP1	Aretaon asperrimus	173775	ARTHROPODA
+TCAL1	Timema californicum	61474	ARTHROPODA
+MGAL1	Menopon gallinae	328185	ARTHROPODA
+PHUM1	Pediculus humanus	121225	ARTHROPODA
+FLAV1	Flavoperla sp. YW-2014	1471781	ARTHROPODA
+EBRI1	Ectopsocus briggsi	322492	ARTHROPODA
+LIPO1	Liposcelis sp. PH-2016	1924920	ARTHROPODA
+CGAL1	Ceratophyllus gallinae	217689	ARTHROPODA
+CFEL1	Ctenocephalides felis	7515	ARTHROPODA
+XVES1	Xenos vesparum	31928	ARTHROPODA
+TPAL2	Thrips palmi	161013	ARTHROPODA
+HYDR1	Hydroptila sp. AD-2013	1325438	ARTHROPODA
+TGER1	Tricholepidion gertschi	89825	ARTHROPODA
+TDOM1	Thermobia domestica	89055	ARTHROPODA
+AFOR1	Atelura formicaria	459531	ARTHROPODA
+NANO1	Novocrania anomala	317945	BRACHIOPODA
+GPYR1	Glottidia pyramidata	34515	BRACHIOPODA
+LANA1	Lingula anatina	7574	BRACHIOPODA
+HPSI1	Hemithiris psittacea	763142	BRACHIOPODA
+LCAL1	Laqueus californianus	33478	BRACHIOPODA
+TTRA1	Terebratalia transversa	34513	BRACHIOPODA
+MVEN1	Magellania venosa	406290	BRACHIOPODA
+BNER1	Bugula neritina	10212	BRYOZOA
+DFRU1	Dendrobeania fruticosa	2893298	BRYOZOA
+TMEM1	Terminoflustra membranaceotruncata	2718619	BRYOZOA
+WSUB1	Watersipora subtorquata	193294	BRYOZOA
+ALCY1	Alcyonidium sp. KMK-2022	2969545	BRYOZOA
+CMUC1	Cristatella mucedo	67896	BRYOZOA
+FSUL1	Fredericella sultana	349672	BRYOZOA
+PMAG1	Pectinatella magnifica	350071	BRYOZOA
+BBEL1	Branchiostoma belcheri	7741	CEPHALOCHORDATA
+BFLO1	Branchiostoma floridae	7739	CEPHALOCHORDATA
+BLAN1	Branchiostoma lanceolatum	7740	CEPHALOCHORDATA
+KSUB1	Krohnitta subtilis	1120154	CHAETOGNATHA
+PDRA1	Pterosagitta draco	366433	CHAETOGNATHA
+FHEX1	Flaccisagitta hexaptera	1562707	CHAETOGNATHA
+PGAZ1	Pseudosagitta gazellae	1562710	CHAETOGNATHA
+PSET1	Parasagitta setosa	366441	CHAETOGNATHA
+SSER1	Serratosagitta serratodentata	1562712	CHAETOGNATHA
+PAEL1	Parasagitta elegans	1562708	CHAETOGNATHA
+EHAM1	Eukrohnia hamata	58920	CHAETOGNATHA
+PGOT1	Paraspadella gotoi	34758	CHAETOGNATHA
+SCEP1	Spadella cephaloptera	52888	CHAETOGNATHA
+ATEN1	Actinia tenebrosa	6105	CNIDARIA
+NVEC1	Nematostella vectensis	45351	CNIDARIA
+DCRI1	Dendrophyllia cribrosa	1140371	CNIDARIA
+MVIR1	Morbakka virulenta	686327	CNIDARIA
+HVUL1	Hydra vulgaris	6087	CNIDARIA
+RESC1	Rhopilema esculentum	499914	CNIDARIA
+EBUR1	Eptatretus burgeri	7764	CRANIATA
+PETM1	Petromyzon marinus	7757	CRANIATA
+ARUT1	Acipenser ruthenus	7906	CRANIATA
+PSPA1	Polyodon spathula	7913	CRANIATA
+AMCA1	Amia calva	7924	CRANIATA
+ATES1	Anabas testudineus	64144	CRANIATA
+BSPL1	Betta splendens	158456	CRANIATA
+ANGU1	Anguilla anguilla	7936	CRANIATA
+SKAU1	Synaphobranchus kaupii	118154	CRANIATA
+MMEN1	Menidia menidia	238744	CRANIATA
+ENAU1	Echeneis naucrates	173247	CRANIATA
+AMEX1	Astyanax mexicanus	7994	CRANIATA
+DCLU1	Denticeps clupeoides	299321	CRANIATA
+DRER1	Danio rerio	7955	CRANIATA
+XCOU1	Xiphophorus couchianus	32473	CRANIATA
+KMAR1	Kryptolebias marmoratus	37003	CRANIATA
+NWHI1	Nematolebias whitei	451745	CRANIATA
+MCYP1	Megalops cyprinoides	118141	CRANIATA
+ELUC1	Esox lucius	8010	CRANIATA
+GMOR1	Gadus morhua	8049	CRANIATA
+BSIN1	Bostrychus sinensis	86224	CRANIATA
+BPEC1	Boleophthalmus pectinirostris	150288	CRANIATA
+PERM1	Periophthalmus magnuspinnatus	409849	CRANIATA
+CCHA1	Chanos chanos	29144	CRANIATA
+EELE1	Electrophorus electricus	8005	CRANIATA
+EIVI1	Eigenmannia virescens	749526	CRANIATA
+MMUR1	Myripristis murdjan	586833	CRANIATA
+SORB1	Sphaeramia orbicularis	375764	CRANIATA
+LESA1	Lepidogalaxias salamandroides	89578	CRANIATA
+ASPA1	Atractosteus spatula	7917	CRANIATA
+LOCU1	Lepisosteus oculatus	7918	CRANIATA
+AGIG1	Arapaima gigas	113544	CRANIATA
+SFOR1	Scleropages formosus	113540	CRANIATA
+CLUM1	Cyclopterus lumpus	8103	CRANIATA
+SUMB1	Sebastes umbrosus	72105	CRANIATA
+SMAX1	Scophthalmus maximus	52904	CRANIATA
+ECAL1	Erpetoichthys calabaricus	27687	CRANIATA
+POSE1	Polypterus senegalus	1819745	CRANIATA
+CLMA1	Clarias magur	1594786	CRANIATA
+AMME1	Ameiurus melas	219545	CRANIATA
+MARM1	Mastacembelus armatus	205130	CRANIATA
+MALB1	Monopterus albus	43700	CRANIATA
+LCHA1	Latimeria chalumnae	7897	CRANIATA
+LMEN1	Latimeria menadoensis	106881	CRANIATA
+LPRA1	Lepisdosiren pradoxa	7883	CRANIATA
+PAET1	Protopterus aethiopicus	7886	CRANIATA
+PANN1	Protopterus annectens	7888	CRANIATA
+BBOM1	Bombina bombina	8345	CRANIATA
+ATRU1	Ascaphus truei	8439	CRANIATA
+BROT1	Brachycephalus rotenbergae	2731235	CRANIATA
+BGAR1	Bufo gargarizans	30331	CRANIATA
+ECOQ1	Eleutherodactylus coqui	57060	CRANIATA
+ENPU1	Engystomops pustulosus	76066	CRANIATA
+LLEI1	Leptobrachium leishanense	445787	CRANIATA
+MFIS1	Microhyla fissipes	387934	CRANIATA
+UMAH1	Uperoleia mahonyi	1855665	CRANIATA
+XLAE1	Xenopus laevis	8355	CRANIATA
+XTRO1	Xenopus tropicalis	8364	CRANIATA
+RTEM1	Rana temporaria	8407	CRANIATA
+GSER1	Geotrypetes seraphini	260995	CRANIATA
+RBIV1	Rhinatrema bivittatum	194408	CRANIATA
+MUNI1	Microcaecilia unicolor	1415580	CRANIATA
+BYEN1	Batrachuperus yenyuanensis	156990	CRANIATA
+HRET1	Hynobius retardatus	36312	CRANIATA
+HSTR1	Hydromantes strinatii	482143	CRANIATA
+PLCI1	Plethodon cinereus	141976	CRANIATA
+SSAL1	Salamandra salamandra	57571	CRANIATA
+CHLA1	Chiroxiphia lanceolata	296741	CRANIATA
+DNOV1	Dromaius novaehollandiae	8790	CRANIATA
+HSAP1	Homo sapiens	9606	CRANIATA
+MICE1	Mus musculus	10090	CRANIATA
+CDID1	Choloepus didactylus	27675	CRANIATA
+DGLI1	Dromiciops gliroides	33562	CRANIATA
+OANA1	Ornithorhynchus anatinus	9258	CRANIATA
+TACU1	Tachyglossus aculeatus	9261	CRANIATA
+ASIN1	Alligator sinensis	38654	CRANIATA
+CPOR1	Crocodylus porosus	8502	CRANIATA
+SPUN1	Sphenodon punctatus	8508	CRANIATA
+PMUR1	Podarcis muralis	64176	CRANIATA
+CMYD1	Chelonia mydas	8469	CRANIATA
+GEVG1	Gopherus evgoodei	1825980	CRANIATA
+CPLA1	Chiloscyllium plagiosum	36176	CRANIATA
+AMRA1	Amblyraja radiata	386614	CRANIATA
+CMIL1	Callorhinchus milii	7868	CRANIATA
+LAMP1	Lampea sp. Ct11R	2584719	CTENOPHORA
+SPAN1	Symbion pandora	69817	CYCLIOPHORA
+DICY1	Dicyemida sp. 4 KMK-2022	2969543	DICYEMIDA
+DIKM1	Dicyemida sp. 5 KMK-2022	2969544	DICYEMIDA
+ARUB1	Asterias rubens	7604	ECHINODERMATA
+ANJA1	Anneissia japonica	1529436	ECHINODERMATA
+LVAR1	Lytechinus variegatus	7654	ECHINODERMATA
+CHEH1	Chiridota heheva	2743191	ECHINODERMATA
+BAGR2	Barentsia gracilis	232741	ENTOPROCTA
+LNOR1	Loxosomella nordgaardi	2718616	ENTOPROCTA
+LOKK1	Loxomitra sp. KK-2020	2718617	ENTOPROCTA
+PCER1	Pedicellina cernua	43123	ENTOPROCTA
+DASP1	Diuronotus aspetos	1681188	GASTROTRICHA
+MLAT1	Mesodasys laticaudatus	233130	GASTROTRICHA
+SKOW1	Saccoglossus kowalevskii	10224	HEMICHORDATA
+PTFL1	Ptychodera flava	63121	HEMICHORDATA
+CEPH1	Cephalodiscus	117498	HEMICHORDATA
+RANN1	Rhabdopleura annulata	1443232	HEMICHORDATA
+CYUS1	Cristaphyes yushini	2835549	KINORHYNCHA
+PGIG1	Pycnophyes giganteus	2835550	KINORHYNCHA
+PILY1	Pycnophyes ilyocryptus	2835551	KINORHYNCHA
+CSTY1	Cateria styx	2835554	KINORHYNCHA
+FKAL1	Franciscideres kalenesos	1415231	KINORHYNCHA
+PQUA1	Paracentrophyes quadridentatus	1564076	KINORHYNCHA
+EOHT1	Echinoderes ohtsukai	1755667	KINORHYNCHA
+TSEM1	Tubulideres seminoli	1564091	KINORHYNCHA
+CSPI1	Centroderes spinosus	1415222	KINORHYNCHA
+SARM1	Semnoderes armiger	1415233	KINORHYNCHA
+APAU1	Antygomonas paulae	1564067	KINORHYNCHA
+ZBRI1	Zelinkaderes brightae	1564080	KINORHYNCHA
+ZYON1	Zelinkaderes yong	2835552	KINORHYNCHA
+CVAN1	Campyloderes vanhoeffeni	1564068	KINORHYNCHA
+LMAE1	Limnognathia maerski	195507	MICROGNATHOZOA
+SCON2	Sinonovacula constricta	98310	MOLLUSCA
+SBRO1	Scapharca (Anadara) broughtonii	148819	MOLLUSCA
+DROS1	Dreissena rostriformis	205083	MOLLUSCA
+MARE1	Mya arenaria	6604	MOLLUSCA
+BPLA1	Bathymodiolus/Gigantidas platifrons	220390	MOLLUSCA
+MCOR2	Mytilus unguiculatus	42192	MOLLUSCA
+NTUM1	Nucula tumidula	437803	MOLLUSCA
+CGIG2	Magallana gigas	29159	MOLLUSCA
+CRVI2	Crassostrea virginica	6565	MOLLUSCA
+MHON1	Magallana hongkongensis	2653900	MOLLUSCA
+OEDU1	Ostrea edulis	37623	MOLLUSCA
+SGLO1	Saccostrea glomerata	157728	MOLLUSCA
+APUR1	Argopecten purpuratus	228297	MOLLUSCA
+MYES2	Mizuhopecten (Patinopecten) yessoensis	6573	MOLLUSCA
+PMAX1	Pecten maximus	6579	MOLLUSCA
+MMAR2	Margaritifera margaritifera	2505931	MOLLUSCA
+CPLI1	Cristaria plicata	165446	MOLLUSCA
+CNIT1	Chaetoderma nitidulum	256131	MOLLUSCA
+FCAU1	Falcidens caudatus	2049293	MOLLUSCA
+FSAG1	Falcidens sagittiferus	2136975	MOLLUSCA
+SVEN1	Scutopus ventrolineatus	52922	MOLLUSCA
+ADUX1	Architeuthis dux	256136	MOLLUSCA
+CCAL1	Chiroteuthis calyx	559536	MOLLUSCA
+IPYG1	Idiosepius pygmaeus	55281	MOLLUSCA
+NPOM2	Nautilus pompilius	34573	MOLLUSCA
+OBAN1	Onychoteuthis banksii	392296	MOLLUSCA
+OBIM1	Octopus bimaculoides	37653	MOLLUSCA
+ODEL1	Octopoteuthis deletron	1582096	MOLLUSCA
+OSIN2	Octopus sinensis	2607531	MOLLUSCA
+PHOY1	Pterygioteuthis hoylei	559549	MOLLUSCA
+VINF1	Vampyroteuthis infernalis	55288	MOLLUSCA
+BATT1	Batillaria attramentaria	370345	MOLLUSCA
+HBRA1	Hinea brasiliana	1514958	MOLLUSCA
+SECO1	Semisulcospira coreana	364284	MOLLUSCA
+LNYA2	Lanistes nyassanus	500758	MOLLUSCA
+MACO1	Marisa cornuarietis	75126	MOLLUSCA
+PCAN2	Pomacea canaliculata	400727	MOLLUSCA
+PMAC2	Pomacea maculata	1245466	MOLLUSCA
+BSIA1	Bithynia siamensis goniomphalos	479249	MOLLUSCA
+CNAV1	Crepidula navicella	1707815	MOLLUSCA
+PELE1	Pomatias elegans	145640	MOLLUSCA
+OHUP1	Oncomelania hupensis	56141	MOLLUSCA
+CLAM1	Charonia lampas	500097	MOLLUSCA
+AHEL1	Anentome helena	1912881	MOLLUSCA
+HPHY1	Hydatina physis	259632	MOLLUSCA
+RCAR1	Rissoella caribaea	57639	MOLLUSCA
+HANT1	Haminoea antillarum	163905	MOLLUSCA
+LSTA1	Lymnaea stagnalis	6523	MOLLUSCA
+PCOL1	Pseudosuccinea columella	31228	MOLLUSCA
+PACU1	Physella acuta	109671	MOLLUSCA
+BGLA2	Biomphalaria glabrata	6526	MOLLUSCA
+MLEO1	Melibe leonina	76178	MOLLUSCA
+ERUS1	Eubranchus rustyus	763125	MOLLUSCA
+HCRA1	Hermissenda crassicornis - Hermissenda opalescens	1840525	MOLLUSCA
+PBUC1	Phylliroe bucephala	1903125	MOLLUSCA
+CARY1	Carychium sp.	145634	MOLLUSCA
+ECHI1	Ellobium chinense	1628040	MOLLUSCA
+PPAC1	Pythia pachyodon	157724	MOLLUSCA
+AIMM1	Achatina/Lissachatina immaculata	2605667	MOLLUSCA
+DRET1	Deroceras reticulatum	145610	MOLLUSCA
+ARVU2	Arion vulgaris	1028688	MOLLUSCA
+ACHE1	Aegista chejuensis	1399158	MOLLUSCA
+BSIM1	Bradybaena similaris	145626	MOLLUSCA
+FKUR1	Fruticicola (Koreanohadra) kurodana	1738606	MOLLUSCA
+PQUE1	Plectotropis quelpartensis	1399213	MOLLUSCA
+ABIP1	Alinda biplicata	1290020	MOLLUSCA
+CUNI3	Candidula unifasciata	100452	MOLLUSCA
+CASP1	Cornu aspersum	6535	MOLLUSCA
+HLUC1	Helix lucorum	31229	MOLLUSCA
+TPIS1	Theba pisana	145622	MOLLUSCA
+AVAL1	Ambigolimax valentianus	1338344	MOLLUSCA
+LFLA1	Limacus flavus	36461	MOLLUSCA
+LMAX1	Limax maximus	146086	MOLLUSCA
+OFLO1	Onchidella floridana	259645	MOLLUSCA
+OREE1	Onchidium reevesii	2547651	MOLLUSCA
+MBIL1	Meghimatium bilineatum	318265	MOLLUSCA
+MFRU1	Meghimatium fruhstorferi	414506	MOLLUSCA
+OVER1	Onchidium verrucosum	259646	MOLLUSCA
+PLCA1	Pleurobranchaea californica	404816	MOLLUSCA
+CLAN1	Clione antarctica	672780	MOLLUSCA
+PSOL1	Phallomedusa solida	929610	MOLLUSCA
+CNON1	Costasiella nonatoi - Panderevela nonatoi	698695	MOLLUSCA
+COCE1	Costasiella ocellifera	380564	MOLLUSCA
+COST1	Costasiella sp.1	380552	MOLLUSCA
+CALI1	Caliphylla sp.4	749954	MOLLUSCA
+CANT1	Cyerce aff. antillensis	483961	MOLLUSCA
+CBEA1	Cylindrobulla beauii	431608	MOLLUSCA
+MOUR1	Mourgona sp.5	2916548	MOLLUSCA
+AMOD1	Alderia modesta	369574	MOLLUSCA
+APLY1	Aplysiopsis enteromorphae	649608	MOLLUSCA
+EBOO1	Ercolania boodleae	2720088	MOLLUSCA
+OHAN1	Olea hansineensis	1522364	MOLLUSCA
+PKIN1	Placida kingstoni	749936	MOLLUSCA
+SSMA1	Sacoproteus smaragdinus	2282303	MOLLUSCA
+LNEV1	Lobiger nevilli	2916554	MOLLUSCA
+ECHL1	Elysia chlorotica	188477	MOLLUSCA
+ECRI1	Elysia crispata	231223	MOLLUSCA
+EHED1	Elysia hedgpethi	1522333	MOLLUSCA
+ERUF1	Elysia rufescens	380559	MOLLUSCA
+ETIM1	Elysia timida	154625	MOLLUSCA
+EVEL1	Elysia velutinus	2136272	MOLLUSCA
+PIAN1	Plakobranchus ianthobapsus	2050001	MOLLUSCA
+THGR1	Thuridilla gracilis	483958	MOLLUSCA
+SIPH1	Siphonaria sp.2	2916551	MOLLUSCA
+SNOR1	Siphonaria normalis	981058	MOLLUSCA
+SPEC1	Siphonaria pectinata	57642	MOLLUSCA
+WPEL1	Williamia peltoides	1522360	MOLLUSCA
+COJA1	Cocculina japonica	2905118	MOLLUSCA
+GAEG2	Gigantopelta aegis	1735272	MOLLUSCA
+CSQU2	Chrysomallon squamiferum	216257	MOLLUSCA
+AOSU1	Aphanoconia osumiense	2950572	MOLLUSCA
+CLRE1	Clithon retropictum	2094009	MOLLUSCA
+NALB1	Nerita albicilla	52928	MOLLUSCA
+NPUL1	Neritina pulligera	537799	MOLLUSCA
+TLIM1	Titiscania limacina	200181	MOLLUSCA
+EOPU1	Eoacmaea pustulata	2494650	MOLLUSCA
+LGIG1	Lottia gigantea	225164	MOLLUSCA
+NIFU1	Nipponacmea fuscoviridis	225302	MOLLUSCA
+PSAC1	Patelloida saccharina	72694	MOLLUSCA
+CGRA1	Cellana grata	157699	MOLLUSCA
+CRAD1	Cellana radiata	351208	MOLLUSCA
+PULY1	Patella ulyssiponensis	334708	MOLLUSCA
+FNAT1	Fissurella natalensis	2497952	MOLLUSCA
+BMID1	Bayerotrochus midas	702825	MOLLUSCA
+PVEN1	Phasianella ventricosa	335755	MOLLUSCA
+MLAB1	Monodonta labio	74046	MOLLUSCA
+OTAB1	Oxystele tabularis	336183	MOLLUSCA
+PTUR1	Phorcus turbinatus	43341	MOLLUSCA
+TNIG1	Trochus nigropunctatus	2950569	MOLLUSCA
+LHYA1	Laevipilina hyalina	651133	MOLLUSCA
+ACGR1	Acanthopleura granulata	61363	MOLLUSCA
+ACRI1	Acanthochitona crinita	126420	MOLLUSCA
+AGEM1	Acanthopleura gemmata	167016	MOLLUSCA
+CAPI1	Chaetopleura apiculata	58794	MOLLUSCA
+CLAR1	Cryptoplax larvaeformis	2732484	MOLLUSCA
+COLI1	Chiton olivaceus (Rhyssoplax olivaceus)	256108	MOLLUSCA
+CTUB1	Chiton tuberculatus	1539881	MOLLUSCA
+KTUN1	Katharina tunicata	34587	MOLLUSCA
+LRUG1	Leptochiton rugatus	413421	MOLLUSCA
+MMUS1	Mopalia muscosa	256104	MOLLUSCA
+NMIR1	Nuttallochiton mirandus	256062	MOLLUSCA
+TLIN1	Tonicella lineata	256058	MOLLUSCA
+AENT2	Antalis entalis	211836	MOLLUSCA
+GEBO1	Graptacme eborea	55752	MOLLUSCA
+GTOL1	Gadila tolmiei	1077242	MOLLUSCA
+ACRA1	Alexandromenia crassa	1638916	MOLLUSCA
+AENI1	Apodomenia enigmatica	2138613	MOLLUSCA
+AMSP1	Amphimeniidae sp.	2137300	MOLLUSCA
+ENTR1	Entonomenia tricarinata	1541969	MOLLUSCA
+GPEL1	Gymnomenia pellucida	1918950	MOLLUSCA
+HAEG1	Helluoherpia aegiri	1541971	MOLLUSCA
+MFOD1	Micromenia fodiens	669226	MOLLUSCA
+MSCH1	Macellomenia schanderi	1500390	MOLLUSCA
+MSWE1	Meiomenia swedmarki	1500384	MOLLUSCA
+PCUS1	Proneomenia custodiens	1500391	MOLLUSCA
+SIMA1	Simrothiella margaritacea	669227	MOLLUSCA
+SSUL1	Stylomenia sulcodoryata	2137292	MOLLUSCA
+DORY1	Dorylaimopsis sp. T63	2879815	NEMATODA
+EUCH1	Euchromadora sp. MIHIF	2490274	NEMATODA
+HADO1	Halichoanolaimus dolichurus	373650	NEMATODA
+LINH1	Linhomoeidae	319958	NEMATODA
+GAMM1	Gammarinema sp. T79	2879816	NEMATODA
+HHER1	Halomonhystera hermesi	1573192	NEMATODA
+SPSP1	Sphaerolaimus sp. T62	2881408	NEMATODA
+ANGR1	Anaplectus granulosus	2072756	NEMATODA
+PSAM1	Plectus sambesii	2011161	NEMATODA
+DIMA1	Diplogasteroides magnus	560213	NEMATODA
+LETE1	Levipalatum texanum	1486449	NEMATODA
+PAGI1	Parapristionchus giblindavisi	1187980	NEMATODA
+PRPA1	Pristionchus pacificus	54126	NEMATODA
+CELE1	Caenorhabditis elegans	6239	NEMATODA
+DPAC1	Diploscapter pachys	2018661	NEMATODA
+OTIP1	Oscheius tipulae	141969	NEMATODA
+AAVE1	Aphelenchus avenae	70226	NEMATODA
+BOKI1	Bursaphelenchus okinawaensis	465554	NEMATODA
+ANAN1	Acrobeloides nanus	290746	NEMATODA
+HALI1	Halicephalobus sp. NKZ332	2598192	NEMATODA
+HMEP2	Halicephalobus mephisto	2559892	NEMATODA
+PRED1	Panagrellus redivivus	6233	NEMATODA
+PROP1	Propanagrolaimus sp. JU765	591449	NEMATODA
+TACE1	Turbatrix aceti	114909	NEMATODA
+ALDO1	Allodorylaimus	288449	NEMATODA
+EBRE1	Enoplus brevis	57292	NEMATODA
+PVUL1	Pontonema vulgare	73929	NEMATODA
+PPUN2	Prionchulus punctatus	293874	NEMATODA
+TOBR1	Tobrilus sp.	2490278	NEMATODA
+GOKK1	Gordius sp. KK-2019	2571181	NEMATOMORPHA
+GORD1	Gordionus montsenyensis	3053472	NEMATOMORPHA
+NMUN2	Nectonema munidae	2528854	NEMATOMORPHA
+PVAR2	Paragordius varius	190579	NEMATOMORPHA
+LEPN3	Leptonemertes chalicophora	980089	NEMERTEA
+ALAC1	Amphiporus lactifloreus	187594	NEMERTEA
+MGRO1	Malacobdella grossa	166027	NEMERTEA
+TLON1	Tetrastemma longissimum 	307676	NEMERTEA
+TMEL1	Tetrastemma melanocephalum 	307678	NEMERTEA
+CEHO1	Cephalothrix hongkongiensis	937758	NEMERTEA
+CESI1	Cephalothrix simula	187810	NEMERTEA
+TPOL1	Tubulanus polymorphus	672921	NEMERTEA
+CEMA1	Cerebratulus marginatus	187795	NEMERTEA
+CERE1	Cerebratulus sp. BE-2015	1612428	NEMERTEA
+LLON1	Lineus longissimus	88925	NEMERTEA
+LSAN2	Lineus sanguineus	187800	NEMERTEA
+NGEN1	Notospermus geniculatus	416868	NEMERTEA
+ROCC1	Riseriellus occultus	88934	NEMERTEA
+BUNI1	Baseodiscus unicolor	547255	NEMERTEA
+HIJI1	Hubrechtella ijimai	1519031	NEMERTEA
+MSTI1	Meara stichopi	84115	NEMERTODERMATIDA
+NWES2	Nemertoderma westbladi	172109	NEMERTODERMATIDA
+EBRO2	Epiperipatus broadwayi	2448278	ONYCHOPHORA
+EPPA1	Epiperipatus sp. CB-2018 / Epiperipatus sp. (Panama) MCZ-141126	2497346	ONYCHOPHORA
+EPTR1	Epiperipatus trinidadensis	2448280	ONYCHOPHORA
+ETOT1	Eoperipatus totoro	1385931	ONYCHOPHORA
+EVAG1	Epiperipatus vagans	2448281	ONYCHOPHORA
+MTOR1	Macroperipatus torquatus	1454321	ONYCHOPHORA
+PERS1	Peripatidae sp. Panama MCZ IZ 141128 / Epiperipatus bernali	2806636	ONYCHOPHORA
+PESO1	Peripatus (Epiperipatus) solorzanoi	1633879	ONYCHOPHORA
+EROW2	Euperipatoides rowelli	49087	ONYCHOPHORA
+KOCC1	Kumbadjena occidentalis	1454319	ONYCHOPHORA
+MINA1	Metaperipatus inae	444703	ONYCHOPHORA
+OGIL1	Occiperipatoides gilesii	1454325	ONYCHOPHORA
+OKWA1	Opisthopatus kwazululandi	2448284	ONYCHOPHORA
+PBOL1	Peripatopsis bolandi	2448286	ONYCHOPHORA
+CCIN1	Coprinopsis cinerea	240176	Outgroup
+MBRE2	Monosiga brevicollis	431895	Outgroup
+SROS1	Salpingoeca rosetta	946362	Outgroup
+CLIM1	Corallochytrium limacisporum	98351	Outgroup
+NDEL1	Nuclearia delicatula	154968	Outgroup
+SDES1	Sphaerothecum destruens	42893	Outgroup
+COWC1	Capsaspora owczarzaki	192875	Outgroup
+PCHI1	Pigoraptor chileana	2006546	Outgroup
+CRFR1	Creolimax fragrantissima	470921	Outgroup
+PAUS1	Phoronis australis	115415	PHORONIDA
+PHAR1	Phoronopsis harmeri	490051	PHORONIDA
+PIJI1	Phoronis ijimai	672013	PHORONIDA
+PPSA1	Phoronis psammophila	67897	PHORONIDA
+HHON1	Hoilungia hongkongensis	1964320	PLACOZOA
+TRIC1	Trichoplax sp. H2	287889	PLACOZOA
+SLEU1	Stenostomum leucops	52061	PLATYHELMINTHES
+SSTH1	Stenostomum sthenum	1611831	PLATYHELMINTHES
+BSEM1	Bothrioplana semperi	79787	PLATYHELMINTHES
+GNOS1	Gnosonesimida sp. IV CEL-2015	1628690	PLATYHELMINTHES
+MLIG1	Macrostomum lignano	282301	PLATYHELMINTHES
+MLIN1	Microstomum lineare	52057	PLATYHELMINTHES
+PJNB1	Psammomacrostomum sp. 2 JNB-2019	2614406	PLATYHELMINTHES
+PCRO1	Prostheceraeus crozieri	2291463	PLATYHELMINTHES
+ECEL1	Echinoplana celerrima	983673	PLATYHELMINTHES
+LETR1	Leptoplana tremellaris	107733	PLATYHELMINTHES
+PSIP1	Prosthiostomum siphunculus	983679	PLATYHELMINTHES
+GAPP1	Geocentrophora applanata	1468192	PLATYHELMINTHES
+PSTA1	Prorhynchus stagnalis	1468201	PLATYHELMINTHES
+MILE1	Minona ileanae	60013	PLATYHELMINTHES
+NCOE1	Nematoplana coelogynoporoides	66743	PLATYHELMINTHES
+IHEL1	Itaspiella helgolandica	1611829	PLATYHELMINTHES
+MELI1	Mesostoma lingua	99405	PLATYHELMINTHES
+RHYN1	Rhynchomesostoma sp. ER-2019	2527674	PLATYHELMINTHES
+RROS1	Rhynchomesostoma rostratum	1311950	PLATYHELMINTHES
+DRYU1	Dugesia ryukyuensis	79738	PLATYHELMINTHES
+DUJA1	Dugesia japonica	6161	PLATYHELMINTHES
+GIDO1	Girardia dorotocephala	135777	PLATYHELMINTHES
+GIRA1	Girardia sp. n. ER-2019	2592332	PLATYHELMINTHES
+SMED2	Schmidtea mediterranea	79327	PLATYHELMINTHES
+SPOL1	Schmidtea polychroa	50054	PLATYHELMINTHES
+BKEW1	Bipalium kewense	66750	PLATYHELMINTHES
+CBIC1	Caenoplana variegata	1520502	PLATYHELMINTHES
+GQUA1	Geoplana quagga	934997	PLATYHELMINTHES
+IREZ1	Issoca rezendei	1334141	PLATYHELMINTHES
+KVEN1	Kontikia ventrolineata	1520482	PLATYHELMINTHES
+LERN1	Luteostriata ernesti	1334170	PLATYHELMINTHES
+MIGR1	Microplana groga	1520483	PLATYHELMINTHES
+MIPL1	Microplana plurioculata	1820961	PLATYHELMINTHES
+MISC1	Microplana scharffi	391273	PLATYHELMINTHES
+MNAN1	Microplana nana	69517	PLATYHELMINTHES
+MTER1	Microplana terrestris	138674	PLATYHELMINTHES
+OBRA1	Obama braunsi	1336527	PLATYHELMINTHES
+OCAR1	Obama carinata	1336530	PLATYHELMINTHES
+ONUN1	Obama nungara	1826298	PLATYHELMINTHES
+RSYL1	Rhynchodemus sylvaticus	1520503	PLATYHELMINTHES
+PFEL1	Polycelis felina	39785	PLATYHELMINTHES
+PGRA1	Phagocata gracilis	1354672	PLATYHELMINTHES
+PMOR1	Phagocata morgani	1820202	PLATYHELMINTHES
+PONI1	Polycelis nigra	39786	PLATYHELMINTHES
+PTEN1	Polycelis tenuis	66754	PLATYHELMINTHES
+PTOR1	Planaria torva	2066000	PLATYHELMINTHES
+PVEL1	Phagocata velata	1969971	PLATYHELMINTHES
+SCIL1	Sycon ciliatum	27933	PORIFERA
+AQUE1	Amphimedon queenslandica	400682	PORIFERA
+EMUE1	Ephydatia muelleri	6052	PORIFERA
+OMIN1	Oopsacas minuta	111878	PORIFERA
+HSPI1	Halicryptus spinulosus	160677	PRIAPULIDA
+PCAU1	Priapulus caudatus	37621	PRIAPULIDA
+AVAG1	Adineta vaga	104782	ROTIFERA
+RSOC1	Rotaria socialis	392032	ROTIFERA
+DCAR1	Didymodactylos carnosus	1234261	ROTIFERA
+BPLI1	Brachionus plicatilis	10195	ROTIFERA
+HEXE1	Hypsibius exemplaris	2072580	TARDIGRADA
+MEPH1	Mesobiotus philippinicus	1867265	TARDIGRADA
+PMET1	Paramacrobiotus metropolitanus	2943436	TARDIGRADA
+PRIC1	Paramacrobiotus richtersi	697321	TARDIGRADA
+RVAR1	Ramazzottius varieornatus	947166	TARDIGRADA
+RCOR1	Richtersius coronifer	245088	TARDIGRADA
+ETES1	Echiniscus testudo	399800	TARDIGRADA
+ESIG1	Echiniscoides sigismundi	500494	TARDIGRADA
+ODIO1	Oikopleura dioica	34765	UROCHORDATA
+CINT1	Ciona intestinalis	7719	UROCHORDATA
+XBOC1	Xenoturbella bocki	242395	XENOTURBELLIDA
+XPRO1	Xenoturbella profunda	1736633	XENOTURBELLIDA

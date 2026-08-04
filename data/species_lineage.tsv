@@ -888,7 +888,7 @@ Bathelium_mastoideum	Fungi	2939407	Bathelium mastoideum	Eukaryota	Fungi	Ascomyco
 Bathycallisoma_schellenbergi	Metazoa	228744	Scopelocheirus schellenbergi	Eukaryota	Metazoa	Arthropoda	Malacostraca	Amphipoda	Lysianassidae	Scopelocheirus
 Bathycoccus_prasinos	chlorophyta	41875	Bathycoccus prasinos	Eukaryota	Viridiplantae	Chlorophyta	Mamiellophyceae	Mamiellales	Bathycoccaceae	Bathycoccus
 Bathydrilus_sp._DSW-2020	Metazoa	2705229	Bathydrilus sp. DSW-2020	Eukaryota	Metazoa	Annelida	Clitellata	Tubificida	Naididae	Bathydrilus
-Bathymodiolus/Gigantidas_platifrons	Metazoa	220390	Gigantidas platifrons	Eukaryota	Metazoa	Mollusca	Bivalvia	Mytilida	Modiolidae	Gigantidas
+Bathymodiolus/Gigantidas_platifrons	Metazoa	2830794	Gigantidas platifrons	Eukaryota	Metazoa	Mollusca	Bivalvia	Mytilida	Modiolidae	Gigantidas
 Bathynomus_jamesi	Metazoa	1955234	Bathynomus jamesi	Eukaryota	Metazoa	Arthropoda	Malacostraca	Isopoda	Cirolanidae	Bathynomus
 Batillaria_attramentaria	Metazoa	370345	Batillaria attramentaria	Eukaryota	Metazoa	Mollusca	Gastropoda		Batillariidae	Batillaria
 Batrachochytrium_dendrobatidis_JAM81	Fungi	684364	Batrachochytrium dendrobatidis JAM81	Eukaryota	Fungi	Chytridiomycota	Chytridiomycetes	Rhizophydiales		Batrachochytrium
@@ -1073,7 +1073,7 @@ Cantharellus_anzutake	Fungi	1750568	Cantharellus anzutake	Eukaryota	Fungi	Basidi
 Capitella_teleta	Metazoa	283909	Capitella teleta	Eukaryota	Metazoa	Annelida	Polychaeta		Capitellidae	Capitella
 Capronia_coronata_CBS_617.96	Fungi	1182541	Capronia coronata CBS 617.96	Eukaryota	Fungi	Ascomycota	Eurotiomycetes	Chaetothyriales	Herpotrichiellaceae	Capronia
 Capronia_epimyces_CBS_606.96	Fungi	1182542	Capronia epimyces CBS 606.96	Eukaryota	Fungi	Ascomycota	Eurotiomycetes	Chaetothyriales	Herpotrichiellaceae	Capronia
-Capsaspora_owczarzaki	Protists	192875	Capsaspora owczarzaki	Eukaryota			Filasterea			Capsaspora
+Capsaspora_owczarzaki	Protists	595528	Capsaspora owczarzaki ATCC 30864	Eukaryota			Filasterea			Capsaspora
 Capsella_rubella	angiosperms	81985	Capsella rubella	Eukaryota	Viridiplantae	Streptophyta	Magnoliopsida	Brassicales	Brassicaceae	Capsella
 Capsicum_annuum	angiosperms	4072	Capsicum annuum	Eukaryota	Viridiplantae	Streptophyta	Magnoliopsida	Solanales	Solanaceae	Capsicum
 Capsicum_chacoense	angiosperms	107817	Capsicum chacoense	Eukaryota	Viridiplantae	Streptophyta	Magnoliopsida	Solanales	Solanaceae	Capsicum
@@ -1393,7 +1393,7 @@ Corynascus_sepedonium	Fungi	190048	Corynascus sepedonium	Eukaryota	Fungi	Ascomyc
 Corynascus_similis_CBS_632.67	Fungi	1403191	Corynascus similis CBS 632.67	Eukaryota	Fungi	Ascomycota	Sordariomycetes	Sordariales	Chaetomiaceae	Corynascus
 Costasiella_nonatoi_-_Panderevela_nonatoi	Metazoa	698695	Costasiella nonatoi	Eukaryota	Metazoa	Mollusca	Gastropoda		Costasiellidae	Costasiella
 Costasiella_ocellifera	Metazoa	380564	Costasiella ocellifera	Eukaryota	Metazoa	Mollusca	Gastropoda		Costasiellidae	Costasiella
-Costasiella_sp.1	Metazoa	380552	Costasiella	Eukaryota	Metazoa	Mollusca	Gastropoda		Costasiellidae	
+Costasiella_sp.1	Metazoa	380564	Costasiella ocellifera	Eukaryota	Metazoa	Mollusca	Gastropoda		Costasiellidae	Costasiella
 Craigia_yunnanensis	angiosperms	197121	Craigia yunnanensis	Eukaryota	Viridiplantae	Streptophyta	Magnoliopsida	Malvales	Malvaceae	Craigia
 Craspedida_sp_UC1	Protists	2812018	Craspedida sp.	Eukaryota			Choanoflagellata	Craspedida		
 Craspedosoma_sp._AD-2016	Metazoa	1820136	Craspedosoma sp. AD-2016	Eukaryota	Metazoa	Arthropoda	Diplopoda	Chordeumatida	Craspedosomatidae	Craspedosoma
@@ -1630,7 +1630,7 @@ Dovyalis_caffra	angiosperms	77055	Dovyalis caffra	Eukaryota	Viridiplantae	Strept
 Drawida_sp._KH-2017	Metazoa	1963188	Drawida sp. KH-2017	Eukaryota	Metazoa	Annelida	Clitellata	Moniligastrida	Moniligastridae	Drawida
 Drechmeria_coniospora	Fungi	98403	Drechmeria coniospora	Eukaryota	Fungi	Ascomycota	Sordariomycetes	Hypocreales	Ophiocordycipitaceae	Drechmeria
 Drechslerella_stenobrocha_248	Fungi	1043628	Drechslerella stenobrocha 248	Eukaryota	Fungi	Ascomycota	Orbiliomycetes	Orbiliales	Orbiliaceae	Drechslerella
-Dreissena_rostriformis	Metazoa	205083	Dreissena rostriformis	Eukaryota	Metazoa	Mollusca	Bivalvia	Myida	Dreissenidae	Dreissena
+Dreissena_rostriformis	Metazoa	427924	Dreissena rostriformis bugensis	Eukaryota	Metazoa	Mollusca	Bivalvia	Myida	Dreissenidae	Dreissena
 Drepanopeziza_brunnea_f._sp._'multigermtubi'	Fungi	698441	Drepanopeziza brunnea f. sp. 'multigermtubi'	Eukaryota	Fungi	Ascomycota	Leotiomycetes	Helotiales	Drepanopezizaceae	Drepanopeziza
 Dromaius_novaehollandiae	Metazoa	8790	Dromaius novaehollandiae	Eukaryota	Metazoa	Chordata	Aves	Casuariiformes	Dromaiidae	Dromaius
 Dromiciops_gliroides	Metazoa	33562	Dromiciops gliroides	Eukaryota	Metazoa	Chordata	Mammalia	Microbiotheria	Microbiotheriidae	Dromiciops
@@ -2995,7 +2995,7 @@ Paxillus_rubicundulus_Ve08.2h10	Fungi	930991	Paxillus rubicundulus Ve08.2h10	Euk
 Pecten_maximus	Metazoa	6579	Pecten maximus	Eukaryota	Metazoa	Mollusca	Bivalvia	Pectinida	Pectinidae	Pecten
 Pectinatella_magnifica	Metazoa	350071	Pectinatella magnifica	Eukaryota	Metazoa	Bryozoa	Phylactolaemata		Pectinatellidae	Pectinatella
 Pedicellina_cernua	Metazoa	43123	Pedicellina cernua	Eukaryota	Metazoa	Entoprocta			Pedicellinidae	Pedicellina
-Pediculus_humanus	Metazoa	121225	Pediculus humanus	Eukaryota	Metazoa	Arthropoda	Insecta	Psocodea	Pediculidae	Pediculus
+Pediculus_humanus	Metazoa	121224	Pediculus humanus corporis	Eukaryota	Metazoa	Arthropoda	Insecta	Psocodea	Pediculidae	Pediculus
 Pelagomonas_calceolata	Protists	35677	Pelagomonas calceolata	Eukaryota			Pelagophyceae	Pelagomonadales	Pelagomonadaceae	Pelagomonas
 Pellobunus_sp._RF-2017	Metazoa	1955543	Pellobunus sp. RF-2017	Eukaryota	Metazoa	Arthropoda	Arachnida	Opiliones	Samoidae	Pellobunus
 Pelodrilus_sp._HAPS2	Metazoa	1963180	Pelodrilus sp. HAPS2	Eukaryota	Metazoa	Annelida	Clitellata	Haplotaxida	Haplotaxidae	Pelodrilus
@@ -3337,7 +3337,7 @@ Polyxenus_lagurus	Metazoa	52428	Polyxenus lagurus	Eukaryota	Metazoa	Arthropoda	D
 Polyzonium_germanicum	Metazoa	118488	Polyzonium germanicum	Eukaryota	Metazoa	Arthropoda	Diplopoda	Polyzoniida	Polyzoniidae	Polyzonium
 Pomacea_canaliculata	Metazoa	400727	Pomacea canaliculata	Eukaryota	Metazoa	Mollusca	Gastropoda	Architaenioglossa	Ampullariidae	Pomacea
 Pomacea_maculata	Metazoa	1245466	Pomacea maculata	Eukaryota	Metazoa	Mollusca	Gastropoda	Architaenioglossa	Ampullariidae	Pomacea
-Pomatias_elegans	Metazoa	145640	Cochlostoma elegans	Eukaryota	Metazoa	Mollusca	Gastropoda	Architaenioglossa	Cochlostomatidae	Cochlostoma
+Pomatias_elegans	Metazoa	928741	Cochlostoma elegans	Eukaryota	Metazoa	Mollusca	Gastropoda	Architaenioglossa	Cochlostomatidae	Cochlostoma
 Pompholyxophrys_punicea	Protists	2510583	Pompholyxophrys punicea	Eukaryota				Rotosphaerida		Pompholyxophrys
 Pompholyxophrys_sp_LG126	Protists	2511779	Pompholyxophrys sp.	Eukaryota				Rotosphaerida		Pompholyxophrys
 Pontocypris_avena	Metazoa	509935	Pontocypris mytiloides	Eukaryota	Metazoa	Arthropoda	Ostracoda	Podocopida	Pontocyprididae	Pontocypris
@@ -3909,7 +3909,7 @@ Symbion_pandora	Metazoa	69817	Symbion pandora	Eukaryota	Metazoa	Cycliophora				S
 Symphylella_sp._AD-2014	Metazoa	1519114	Symphylella sp. AD-2014	Eukaryota	Metazoa	Arthropoda	Symphyla		Scolopendrellidae	Symphylella
 Sympodiomycopsis_kandeliae	Fungi	574677	Sympodiomycopsis kandeliae	Eukaryota	Fungi	Basidiomycota	Exobasidiomycetes	Microstromatales		Sympodiomycopsis
 Symsagittifera_roscoffensis	Metazoa	84072	Symsagittifera roscoffensis	Eukaryota	Metazoa	Xenacoelomorpha		Acoela	Convolutidae	Symsagittifera
-Synaphobranchus_kaupii	Metazoa	1862	Dermatophilus	Bacteria	Bacillati	Actinomycetota	Actinomycetes	Micrococcales	Dermatophilaceae	
+Synaphobranchus_kaupii	Metazoa	118154	Synaphobranchus kaupii	Eukaryota	Metazoa	Chordata	Actinopteri	Anguilliformes	Synaphobranchidae	Synaphobranchus
 Syncephalastrum_racemosum	Fungi	13706	Syncephalastrum racemosum	Eukaryota	Fungi	Mucoromycota	Mucoromycetes	Mucorales	Syncephalastraceae	Syncephalastrum
 Syncephalis_fuscata	Fungi	1851187	Syncephalis fuscata	Eukaryota	Fungi	Zoopagomycota	Zoopagomycetes	Zoopagales	Piptocephalidaceae	Syncephalis
 Syncephalis_plumigaleata	Fungi	1851185	Syncephalis plumigaleata	Eukaryota	Fungi	Zoopagomycota	Zoopagomycetes	Zoopagales	Piptocephalidaceae	Syncephalis
