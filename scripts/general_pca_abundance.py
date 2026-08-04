@@ -12,6 +12,7 @@ step, instead of binarized presence/absence.
 from pathlib import Path
 import argparse
 import json
+import time
 
 import pandas as pd
 
@@ -90,7 +91,14 @@ def parse_args():
 def main():
     args = parse_args()
 
+    # No output at all can print for a couple of minutes right here on the
+    # real ~191MB matrix (species x ~29,700 GO columns) -- pandas.read_csv
+    # itself has no progress indicator. Printed before/after so a slow-but-
+    # working run is distinguishable from an actually-frozen one.
+    print(f"Reading matrix {args.matrix} ...")
+    t0 = time.monotonic()
     raw_full = pd.read_csv(args.matrix, sep="\t", index_col=0).fillna(0)
+    print(f"  {raw_full.shape[0]} species x {raw_full.shape[1]} GO columns ({time.monotonic() - t0:.0f}s)")
     total_prots = load_species_stats(args.species_stats)
     taxon_dict = load_taxonomy(args.taxonomy)
 
@@ -148,9 +156,12 @@ def main():
     # normalized_df isn't used here (it only fed the now-removed per-species
     # contributions modal) -- discarded immediately, it's the single biggest
     # in-memory array in this pipeline (n_species x n_go floats).
+    print(f"Fitting PCA on {raw_full.shape[0]} species ...")
+    t0 = time.monotonic()
     pca_df, explained_variance, loadings_3d, normalized_df = run_pca_on_relative_abundance(
         raw_full, total_prots, n_components=3
     )
+    print(f"  done ({time.monotonic() - t0:.0f}s)")
     del normalized_df
     loadings = loadings_3d
     n_go_used = loadings.shape[0]
