@@ -29,6 +29,11 @@ TITLE_MARKER = "__GENERAL_PCA_TITLE__"
 # than one distinct value within any of our groups.
 LINEAGE_RANKS = ["kingdom", "phylum", "class", "order", "family", "genus"]
 
+# Ranks offered by the browser's "Subdivide by" control -- kingdom excluded
+# since assign_kingdom_grouping() already uses it as the legend's top level,
+# where subdividing a kingdom bucket by kingdom would always be a no-op.
+SUBDIVIDE_RANKS = [rank for rank in LINEAGE_RANKS if rank != "kingdom"]
+
 
 def load_species_ncbi_accessions(path):
     """
@@ -72,6 +77,31 @@ def load_species_lineage(path=DEFAULT_SPECIES_LINEAGE_PATH):
         if lineage:
             out[row["Species"]] = lineage
     return out
+
+
+def assign_kingdom_grouping(species_records, species_lineage):
+    """
+    Repoints each record's group/base_group from the hand-curated taxonomy
+    Group column to its real NCBI kingdom, so the legend's top-level rows
+    are the real kingdom and the existing per-rank accordion (see
+    SUBDIVIDE_RANKS) subdivides those kingdom buckets exactly as it already
+    subdivided the curated groups. A species with no kingdom value (no
+    resolved taxid at all -- currently all of Asgard -- or a kingdom-less
+    lineage, e.g. several algae/protist groups in NCBI's tree) keeps its
+    curated Group name as a fallback top-level bucket instead of being
+    merged into a single meaningless "no data" catch-all that would mix
+    unrelated lineages together. The original curated value survives in
+    "original_group" for anything downstream that still wants it (e.g.
+    go_group_diff.py's --group-a/--group-b).
+    """
+    for rec in species_records:
+        lineage = species_lineage.get(rec["name"], {})
+        for rank in LINEAGE_RANKS:
+            if rank in lineage:
+                rec[rank] = lineage[rank]
+        rec["original_group"] = rec["group"]
+        rec["base_group"] = lineage.get("kingdom") or rec["group"]
+        rec["group"] = rec["base_group"]
 
 
 def build_lineage_label_colors(species_lineage):

@@ -23,7 +23,8 @@ from general_pca_common import (
     DEFAULT_IC_PATH,
     DEFAULT_SPECIES_ACCESSION_PATH,
     DEFAULT_SPECIES_LINEAGE_PATH,
-    LINEAGE_RANKS,
+    SUBDIVIDE_RANKS,
+    assign_kingdom_grouping,
     DATA_MARKER,
     TITLE_MARKER,
     rgb_to_hex,
@@ -141,12 +142,7 @@ def main():
     groups_hex = {g: rgb_to_hex(color_map[g]) for g in groups_used}
 
     species_lineage = load_species_lineage(args.species_lineage)
-    for rec in species_records:
-        rec["base_group"] = rec["group"]
-        lineage = species_lineage.get(rec["name"], {})
-        for rank in LINEAGE_RANKS:
-            if rank in lineage:
-                rec[rank] = lineage[rank]
+    assign_kingdom_grouping(species_records, species_lineage)
     groups_hex.update(build_lineage_label_colors(species_lineage))
     has_lineage_data = any(
         species_lineage.get(rec["name"]) for rec in species_records
@@ -168,7 +164,7 @@ def main():
             "mode_label": "presence/absence, not abundance",
             "filename_base": "general_pca_presence_absence",
             "has_lineage_data": has_lineage_data,
-            "lineage_ranks": LINEAGE_RANKS,
+            "lineage_ranks": SUBDIVIDE_RANKS,
         },
     }
 
