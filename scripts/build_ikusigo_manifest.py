@@ -10,31 +10,32 @@ was run on directly) only -- Asgard/Metazoa/Protists annotations were run by
 someone else and handed over already organized, so this script doesn't touch
 them (see the user's own framing: "no les tenemos que hacer nada").
 
+Scans --viridiplantae-root / --non-viridiplantae-root directly on disk --
+these are the real filesystem directories containing each species' folder
+(e.g. /data/.../FANTASIA_project/, NOT bundled with this repo). No auxiliary
+tree-listing file needed; the two *_structure.txt files in this repo were
+only ever a reference for exploring the layout while writing this script,
+never a runtime input.
+
 Two modules:
 
-  1. Resolve  -- parses viridiplantae_structure.txt / non_viridiplantae_
-                 structure.txt (`tree`-style listings of the FANTASIA run
-                 directory, see build_ncbi_accession_lookup.py for the same
-                 tree format) to find each species' 04_FunctionalAnnotation/
-                 FANTASIA_2025* folder(s) and, inside it, a file matching
-                 "{prefix}_GOs_merged.tsv". A species can have more than one
-                 FANTASIA_2025* folder with a valid annotation inside (e.g.
-                 Arabidopsis_thaliana has 16 -- different gene-model sources:
-                 Araport11, TAIR10, BRAKER, ...) -- prompts interactively
-                 which one to use in that case (--non_interactive skips
-                 those instead of prompting). No real file access needed for
-                 this module; pure text parsing plus (optionally) your input.
+  1. Resolve  -- walks each species' <root>/<species>/04_FunctionalAnnotation/
+                 for FANTASIA_2025* folder(s) and, inside each, a file
+                 matching "{prefix}_GOs_merged.tsv". A species can have more
+                 than one FANTASIA_2025* folder with a valid annotation
+                 inside (e.g. Arabidopsis_thaliana has 16 -- different
+                 gene-model sources: Araport11, TAIR10, BRAKER, ...) --
+                 prompts interactively which one to use in that case
+                 (--non_interactive skips those instead of prompting).
 
-  2. Copy + manifest -- for every species Module 1 resolved, copies its real
-                 annotation file (found under --viridiplantae-root /
-                 --non-viridiplantae-root, the actual filesystem root(s)
-                 containing each species' folder -- NOT bundled with this
-                 repo) into results/annotations/, looks up its NCBI taxid in
-                 --species-taxid (default: bundled data/species_taxid.tsv),
-                 and writes results/manifest_{prefix}.tsv. Species with no
-                 resolved TaxID are copied but excluded from the manifest
-                 (logged in results/skipped_species_{prefix}.tsv) since
-                 IkusiGO requires one.
+  2. Copy + manifest -- for every species Module 1 resolved, copies its
+                 chosen annotation file into results/annotations/, looks up
+                 its NCBI taxid in --species-taxid (default: bundled
+                 data/species_taxid.tsv), and writes
+                 results/manifest_{prefix}.tsv. Species with no resolved
+                 TaxID are copied but excluded from the manifest (logged in
+                 results/skipped_species_{prefix}.tsv) since IkusiGO
+                 requires one.
 """
 
 VERSION = "v0.1.0"
@@ -53,11 +54,6 @@ from pathlib import Path
 
 import pandas as pd
 
-sys.path.insert(0, str(Path(__file__).parent))
-from build_ncbi_accession_lookup import _depth_and_name  # noqa: E402 -- reuses the tested tree-line parser
-
-DEFAULT_VIRIDIPLANTAE_STRUCTURE = Path(__file__).parent.parent / "viridiplantae_structure.txt"
-DEFAULT_NON_VIRIDIPLANTAE_STRUCTURE = Path(__file__).parent.parent / "non_viridiplantae_structure.txt"
 DEFAULT_SPECIES_TAXID = Path(__file__).parent.parent / "data" / "species_taxid.tsv"
 
 FANTASIA_DIR_RE = re.compile(r"^FANTASIA_2025(_.+)?$")
@@ -90,37 +86,27 @@ def _checkpoint(path: Path, label: str, force: bool) -> bool:
 
 
 # --------------------------------------------------------- Module 1: resolve
-def collect_fantasia_dirs(tree_path: Path) -> dict:
+def collect_fantasia_dirs(root: Path) -> dict:
     """
-    species -> {FANTASIA_2025* dir name: [filenames directly inside]}, for
-    every FANTASIA_2025 (or FANTASIA_2025_<suffix>) folder found directly
-    under a species' 04_FunctionalAnnotation/ -- other FANTASIA-ish folders
-    (plain "FANTASIA", "FANTASIAv4", ...) are deliberately not matched, only
-    the 2025 reruns.
+    species -> {FANTASIA_2025* dir name: [filenames directly inside]}, read
+    straight off disk under <root>/<species>/04_FunctionalAnnotation/ --
+    other FANTASIA-ish folders (plain "FANTASIA", "FANTASIAv4", ...) are
+    deliberately not matched, only the 2025 reruns. A species folder with no
+    04_FunctionalAnnotation/ subdirectory at all is silently skipped (not
+    every entry under --root need be a species with annotation, e.g. stray
+    logs/scratch dirs).
     """
-    species = None
-    depth2 = None
-    depth3 = None
     result = {}
-    with open(tree_path, encoding="utf-8") as fh:
-        for line in fh:
-            parsed = _depth_and_name(line.rstrip("\n"))
-            if parsed is None:
-                continue
-            depth, name = parsed
-            if depth == 1:
-                species = name
-                depth2 = depth3 = None
-            elif depth == 2:
-                depth2 = name
-                depth3 = None
-            elif depth == 3 and depth2 == "04_FunctionalAnnotation" and FANTASIA_DIR_RE.match(name):
-                depth3 = name
-                result.setdefault(species, {})[depth3] = []
-            elif depth == 3:
-                depth3 = None
-            elif depth == 4 and depth3 is not None:
-                result[species][depth3].append(name)
+    for species_dir in sorted(p for p in root.iterdir() if p.is_dir()):
+        func_annot_dir = species_dir / "04_FunctionalAnnotation"
+        if not func_annot_dir.is_dir():
+            continue
+        dirs = {}
+        for candidate in sorted(p for p in func_annot_dir.iterdir() if p.is_dir()):
+            if FANTASIA_DIR_RE.match(candidate.name):
+                dirs[candidate.name] = [p.name for p in candidate.iterdir()]
+        if dirs:
+            result[species_dir.name] = dirs
     return result
 
 
@@ -151,8 +137,8 @@ def prompt_choice(species: str, candidates: dict):
         print("  invalid choice, try again")
 
 
-def resolve_group(tree_path: Path, group_label: str, non_interactive: bool) -> list:
-    dirs_by_species = collect_fantasia_dirs(tree_path)
+def resolve_group(root: Path, group_label: str, non_interactive: bool) -> list:
+    dirs_by_species = collect_fantasia_dirs(root)
     rows = []
     n_auto = n_multi = n_zero = 0
     for species in sorted(dirs_by_species):
@@ -179,12 +165,12 @@ def resolve_group(tree_path: Path, group_label: str, non_interactive: bool) -> l
             dirname, filename = choice
         rows.append({"Species": species, "Group": group_label, "FantasiaDir": dirname,
                      "AnnotationFilename": filename, "Status": "resolved"})
-    _log(f"  {group_label} ({tree_path.name}): {len(dirs_by_species)} species with a FANTASIA_2025* folder — "
+    _log(f"  {group_label} ({root}): {len(dirs_by_species)} species with a FANTASIA_2025* folder — "
          f"{n_auto} auto-resolved, {n_multi} ambiguous, {n_zero} with no valid annotation")
     return rows
 
 
-def run_module1(resolved_path: Path, viridiplantae_structure: Path, non_viridiplantae_structure: Path,
+def run_module1(resolved_path: Path, viridiplantae_root: Path, non_viridiplantae_root: Path,
                  skip_viridiplantae: bool, skip_non_viridiplantae: bool, non_interactive: bool, force: bool) -> pd.DataFrame:
     if _checkpoint(resolved_path, "resolved annotation paths", force):
         return pd.read_csv(resolved_path, sep="\t")
@@ -192,10 +178,10 @@ def run_module1(resolved_path: Path, viridiplantae_structure: Path, non_viridipl
     rows = []
     ran_groups = set()
     if not skip_viridiplantae:
-        rows += resolve_group(viridiplantae_structure, "viridiplantae", non_interactive)
+        rows += resolve_group(viridiplantae_root, "viridiplantae", non_interactive)
         ran_groups.add("viridiplantae")
     if not skip_non_viridiplantae:
-        rows += resolve_group(non_viridiplantae_structure, "non_viridiplantae", non_interactive)
+        rows += resolve_group(non_viridiplantae_root, "non_viridiplantae", non_interactive)
         ran_groups.add("non_viridiplantae")
 
     df = pd.DataFrame(rows, columns=["Species", "Group", "FantasiaDir", "AnnotationFilename", "Status"])
@@ -273,27 +259,21 @@ def run_module2(resolved_df: pd.DataFrame, roots: dict, species_taxid_path: Path
 # ---------------------------------------------------------------- CLI / main
 def parse_args():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--viridiplantae-structure", type=Path, default=DEFAULT_VIRIDIPLANTAE_STRUCTURE,
-                     help="tree listing of the Viridiplantae FANTASIA run dir (default: bundled viridiplantae_structure.txt)")
-    ap.add_argument("--non-viridiplantae-structure", type=Path, default=DEFAULT_NON_VIRIDIPLANTAE_STRUCTURE,
-                     help="tree listing of the non_viridiplantae FANTASIA run dir (default: bundled non_viridiplantae_structure.txt)")
     ap.add_argument("--species-taxid", type=Path, default=DEFAULT_SPECIES_TAXID,
                      help="Species -> TaxID lookup TSV (default: bundled data/species_taxid.tsv)")
     ap.add_argument("--viridiplantae-root", type=Path, default=None,
                      help="Real filesystem directory containing each Viridiplantae species' folder "
-                          "(required for Module 2 unless --skip_viridiplantae or --skip_module2)")
+                          "(required unless --skip_viridiplantae)")
     ap.add_argument("--non-viridiplantae-root", type=Path, default=None,
                      help="Real filesystem directory containing each non_viridiplantae species' folder "
-                          "(required for Module 2 unless --skip_non_viridiplantae or --skip_module2)")
+                          "(required unless --skip_non_viridiplantae)")
     ap.add_argument("--output", type=Path, required=True, help="Run output directory")
     ap.add_argument("--skip_viridiplantae", action="store_true", help="Skip the Viridiplantae group entirely")
     ap.add_argument("--skip_non_viridiplantae", action="store_true", help="Skip the non_viridiplantae group entirely")
     ap.add_argument("--skip_module1", action="store_true",
                      help="Skip Module 1 — reuse the existing workdir/mod01_resolved_*.tsv (no re-parsing/re-prompting)")
     ap.add_argument("--skip_module2", action="store_true",
-                     help="Skip Module 2 — resolve and report only, don't copy files or write the manifest "
-                          "(useful for a first pass to see ambiguous species/counts before the real "
-                          "--viridiplantae-root/--non-viridiplantae-root are available)")
+                     help="Skip Module 2 — resolve and report only, don't copy files or write the manifest")
     ap.add_argument("--non_interactive", action="store_true",
                      help="Skip ambiguous species (>1 valid FANTASIA_2025* folder) instead of prompting")
     ap.add_argument("--force", action="store_true",
@@ -307,8 +287,6 @@ def parse_args():
 def main():
     args = parse_args()
 
-    args.viridiplantae_structure = args.viridiplantae_structure.resolve()
-    args.non_viridiplantae_structure = args.non_viridiplantae_structure.resolve()
     args.species_taxid = args.species_taxid.resolve()
     args.output = args.output.resolve()
     if args.viridiplantae_root:
@@ -317,12 +295,12 @@ def main():
         args.non_viridiplantae_root = args.non_viridiplantae_root.resolve()
 
     missing = []
-    if not args.skip_viridiplantae and not args.viridiplantae_structure.exists():
-        missing.append(("--viridiplantae-structure", args.viridiplantae_structure))
-    if not args.skip_non_viridiplantae and not args.non_viridiplantae_structure.exists():
-        missing.append(("--non-viridiplantae-structure", args.non_viridiplantae_structure))
     if not args.skip_module2 and not args.species_taxid.exists():
         missing.append(("--species-taxid", args.species_taxid))
+    if args.viridiplantae_root is not None and not args.viridiplantae_root.is_dir():
+        missing.append(("--viridiplantae-root", args.viridiplantae_root))
+    if args.non_viridiplantae_root is not None and not args.non_viridiplantae_root.is_dir():
+        missing.append(("--non-viridiplantae-root", args.non_viridiplantae_root))
     if missing:
         for flag, p in missing:
             print(f"ERROR: {flag} not found: {p}", file=sys.stderr)
@@ -351,10 +329,8 @@ def main():
 
     if args.dry_run:
         _banner("Dry run — no steps will be executed")
-        _log(f"  Viridiplantae structure     : {'skip' if args.skip_viridiplantae else args.viridiplantae_structure}")
-        _log(f"  non_viridiplantae structure : {'skip' if args.skip_non_viridiplantae else args.non_viridiplantae_structure}")
-        _log(f"  Viridiplantae root          : {args.viridiplantae_root}")
-        _log(f"  non_viridiplantae root      : {args.non_viridiplantae_root}")
+        _log(f"  Viridiplantae root          : {'skip' if args.skip_viridiplantae else args.viridiplantae_root}")
+        _log(f"  non_viridiplantae root      : {'skip' if args.skip_non_viridiplantae else args.non_viridiplantae_root}")
         _log(f"  Output                      : {args.output}/")
         _log("  Steps that would run:")
         if not args.skip_module1:
@@ -364,15 +340,13 @@ def main():
         _log("  Exiting (--dry_run).")
         sys.exit(0)
 
-    if not args.skip_module2:
-        if not args.skip_viridiplantae and args.viridiplantae_root is None:
-            print("ERROR: --viridiplantae-root is required for Module 2 (or pass --skip_viridiplantae / --skip_module2)",
-                  file=sys.stderr)
-            sys.exit(1)
-        if not args.skip_non_viridiplantae and args.non_viridiplantae_root is None:
-            print("ERROR: --non-viridiplantae-root is required for Module 2 "
-                  "(or pass --skip_non_viridiplantae / --skip_module2)", file=sys.stderr)
-            sys.exit(1)
+    root_needed = not (args.skip_module1 and args.skip_module2)
+    if root_needed and not args.skip_viridiplantae and args.viridiplantae_root is None:
+        print("ERROR: --viridiplantae-root is required (or pass --skip_viridiplantae)", file=sys.stderr)
+        sys.exit(1)
+    if root_needed and not args.skip_non_viridiplantae and args.non_viridiplantae_root is None:
+        print("ERROR: --non-viridiplantae-root is required (or pass --skip_non_viridiplantae)", file=sys.stderr)
+        sys.exit(1)
 
     if args.force:
         _log("--force set: all steps will rerun regardless of existing outputs")
@@ -392,7 +366,7 @@ def main():
         resolved_df = pd.read_csv(resolved_path, sep="\t")
     else:
         resolved_df = run_module1(
-            resolved_path, args.viridiplantae_structure, args.non_viridiplantae_structure,
+            resolved_path, args.viridiplantae_root, args.non_viridiplantae_root,
             args.skip_viridiplantae, args.skip_non_viridiplantae, args.non_interactive, args.force,
         )
 
