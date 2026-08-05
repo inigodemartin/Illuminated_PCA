@@ -22,15 +22,14 @@ from general_pca_common import (
     TEMPLATE_PATH,
     DEFAULT_IC_PATH,
     DEFAULT_SPECIES_ACCESSION_PATH,
-    DEFAULT_SPECIES_LINEAGE_PATH,
-    SUBDIVIDE_RANKS,
-    assign_kingdom_grouping,
+    DEFAULT_METAZOA_TAXONOMY_PATH,
+    METAZOA_SUBDIVIDE_RANKS,
     DATA_MARKER,
     TITLE_MARKER,
     rgb_to_hex,
     load_go_ic_and_descriptions,
     load_species_ncbi_accessions,
-    load_species_lineage,
+    load_metazoa_phylum_lineage,
     build_lineage_label_colors,
     top_loadings_by_pc,
     write_top_loadings_tsv,
@@ -70,10 +69,10 @@ def parse_args():
                               "(default: bundled data/species_ncbi_accession.tsv, see "
                               "scripts/build_ncbi_accession_lookup.py; species missing from it fall back "
                               "to a text search)")
-    parser.add_argument("--species-lineage", default=str(DEFAULT_SPECIES_LINEAGE_PATH),
-                         help="Species -> NCBI ranked lineage TSV (default: bundled data/species_lineage.tsv, "
-                              "see build_species_lineage.py), used to add a client-side 'subdivide by rank' "
-                              "control to any taxonomic group in the page -- pass a nonexistent path to omit it")
+    parser.add_argument("--metazoa-taxonomy", default=str(DEFAULT_METAZOA_TAXONOMY_PATH),
+                         help="Metazoa species -> Phylum TSV (default: bundled data/metadata_metazoa.txt), used "
+                              "to add a client-side 'expand Metazoa into phyla' accordion to the legend -- pass "
+                              "a nonexistent path to omit it")
     parser.add_argument("--ic-threshold", type=float, default=None,
                         help="Minimum IC to include a GO term in the PCA; GOs below this value are dropped from the matrix before fitting")
     parser.add_argument("--top-loadings-n", type=int, default=10,
@@ -198,8 +197,12 @@ def main():
     groups_used = sorted({rec["group"] for rec in species_records})
     groups_hex = {g: rgb_to_hex(color_map[g]) for g in groups_used}
 
-    species_lineage = load_species_lineage(args.species_lineage)
-    assign_kingdom_grouping(species_records, species_lineage)
+    species_lineage = load_metazoa_phylum_lineage(args.metazoa_taxonomy)
+    for rec in species_records:
+        rec["base_group"] = rec["group"]
+        lineage = species_lineage.get(rec["name"], {})
+        if "phylum" in lineage:
+            rec["phylum"] = lineage["phylum"]
     groups_hex.update(build_lineage_label_colors(species_lineage))
     has_lineage_data = any(
         species_lineage.get(rec["name"]) for rec in species_records
@@ -226,7 +229,7 @@ def main():
             "mode_label": mode_label,
             "filename_base": "general_pca_abundance",
             "has_lineage_data": has_lineage_data,
-            "lineage_ranks": SUBDIVIDE_RANKS,
+            "lineage_ranks": METAZOA_SUBDIVIDE_RANKS,
         },
     }
 

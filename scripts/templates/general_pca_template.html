@@ -3273,7 +3273,13 @@
     }, 0);
   }
 
-  if (HAS_LINEAGE_DATA) {
+  // Hidden whenever only one rank is fed (currently METAZOA_SUBDIVIDE_RANKS
+  // = ["phylum"], see general_pca_common.py): a "Subdivide by" <select>
+  // with a single option is pointless. Nothing here is deleted -- feeding
+  // SUBDIVIDE_RANKS (kingdom/phylum/class/order/family/genus) again, via
+  // assign_kingdom_grouping/load_species_lineage, brings this control back
+  // automatically.
+  if (HAS_LINEAGE_DATA && LINEAGE_RANKS.length > 1) {
     document.getElementById("lineage-rank-row").style.display = "";
     var rankSelect = document.getElementById("lineage-rank-select");
     LINEAGE_RANKS.forEach(function (rank) {

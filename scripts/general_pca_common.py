@@ -19,6 +19,7 @@ DEFAULT_FUNGI_STRUCTURE_PATH = Path(__file__).parent.parent / "fungi_structure.t
 DEFAULT_VIRIDIPLANTAE_STRUCTURE_PATH = Path(__file__).parent.parent / "viridiplantae_structure.txt"
 DEFAULT_SPECIES_ACCESSION_PATH = Path(__file__).parent.parent / "data" / "species_ncbi_accession.tsv"
 DEFAULT_SPECIES_LINEAGE_PATH = Path(__file__).parent.parent / "data" / "species_lineage.tsv"
+DEFAULT_METAZOA_TAXONOMY_PATH = Path(__file__).parent.parent / "data" / "metadata_metazoa.txt"
 DATA_MARKER = "__GENERAL_PCA_DATA__"
 TITLE_MARKER = "__GENERAL_PCA_TITLE__"
 
@@ -32,7 +33,22 @@ LINEAGE_RANKS = ["kingdom", "phylum", "class", "order", "family", "genus"]
 # Ranks offered by the browser's "Subdivide by" control -- kingdom excluded
 # since assign_kingdom_grouping() already uses it as the legend's top level,
 # where subdividing a kingdom bucket by kingdom would always be a no-op.
+# NOT currently wired into general_pca_abundance.py/presence_absence_pca.py
+# (see METAZOA_SUBDIVIDE_RANKS/load_metazoa_phylum_lineage below, which
+# reinstated the original curated-Group/Metazoa-only-phylum behavior) --
+# kept so the full any-group/any-rank accordion can be recovered later just
+# by switching those two scripts back to assign_kingdom_grouping/
+# load_species_lineage/SUBDIVIDE_RANKS.
 SUBDIVIDE_RANKS = [rank for rank in LINEAGE_RANKS if rank != "kingdom"]
+
+# The single rank fed to the same "subdivide by rank" browser mechanism
+# above when restricting it back to its original scope: only the Metazoa
+# group, only by phylum (see load_metazoa_phylum_lineage). A single-entry
+# rank list makes the "Subdivide by" <select> pointless, so the template
+# hides that control whenever LINEAGE_RANKS.length <= 1 -- the control's
+# code isn't removed, just dormant until SUBDIVIDE_RANKS (or another
+# multi-rank list) is fed again.
+METAZOA_SUBDIVIDE_RANKS = ["phylum"]
 
 
 def load_species_ncbi_accessions(path):
@@ -76,6 +92,35 @@ def load_species_lineage(path=DEFAULT_SPECIES_LINEAGE_PATH):
         lineage = {rank: row[rank] for rank in LINEAGE_RANKS if pd.notna(row.get(rank))}
         if lineage:
             out[row["Species"]] = lineage
+    return out
+
+
+def load_metazoa_phylum_lineage(path=DEFAULT_METAZOA_TAXONOMY_PATH):
+    """
+    species -> {"phylum": <value>}, for every Metazoa species in
+    data/metadata_metazoa.txt (columns ID, SCIENTIFIC_NAME, ID_NCBI, Phylum)
+    that has a Phylum value -- the original, Metazoa-only counterpart of
+    load_species_lineage() above, restored because the curated 12-group
+    taxonomy's Fungi/Metazoa/Protists/... top level (merged_taxons_belen.tsv)
+    is the one actually wanted at the legend's top level, with only Metazoa
+    getting a phylum-level accordion, not a full kingdom-anchored, any-rank
+    one. SCIENTIFIC_NAME uses "Genus species" (space-separated); species
+    elsewhere in this pipeline are "Genus_species" (underscore-joined), so
+    the join key is normalized here. Shape-compatible with
+    build_lineage_label_colors() and the browser's generic subdivisionsFor()/
+    isExpandable(), which is why this reuses that same {rank: value} dict
+    shape instead of a flat species->phylum mapping.
+    """
+    path = Path(path)
+    if not path.exists():
+        return {}
+    df = pd.read_csv(path, sep="\t")
+    out = {}
+    for _, row in df.iterrows():
+        species = str(row["SCIENTIFIC_NAME"]).replace(" ", "_")
+        phylum = row.get("Phylum")
+        if pd.notna(phylum):
+            out[species] = {"phylum": phylum}
     return out
 
 
