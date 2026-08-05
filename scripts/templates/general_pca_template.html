@@ -1518,8 +1518,13 @@
     toggleBtn.className = "legend-accordion-toggle";
     toggleBtn.textContent = expandedGroups[baseGroup] ? "▾" : "▸"; // ▾ expanded, ▸ collapsed
     toggleBtn.title = "Click this row to expand and show " + baseGroup + "'s " + currentRank + " individually";
-    summary.appendChild(toggleBtn);
+    // Appended AFTER the drag-handle/checkbox/swatch/label content (not
+    // before it) so every top-level row's drag handle lines up at the same
+    // x position whether or not that row happens to be expandable --
+    // .legend label's flex:1 fills the row, pushing this fixed-width arrow
+    // flush to the right edge instead of indenting the row's own content.
     summary.appendChild(buildGroupRowContent(baseGroup, GROUP_COUNTS[baseGroup] || 0, true, details));
+    summary.appendChild(toggleBtn);
     details.appendChild(summary);
 
     details.addEventListener("dragover", function (evt) {
