@@ -5,8 +5,11 @@ GO term presence/absence across species -- no GO tree, no illumination.
 
 Same input matrix as interactive_go_tree.py (raw GO counts, species x GO
 terms), but each retained GO column is binarized (count > 0 -> 1) instead
-of converted to relative abundance, since presence/absence doesn't need
-the Total_prots normalization the abundance PCA uses.
+of converted to relative abundance -- the PCA itself doesn't use
+--species-stats/Total_prots at all (unlike general_pca_abundance.py),
+only the page's protein-count tooltip/rail does. Takes the same CLI flags
+as general_pca_abundance.py so either script can be run with the same
+command, just swapping the script name.
 """
 
 from pathlib import Path
@@ -18,6 +21,7 @@ from sklearn.decomposition import TruncatedSVD
 from sklearn.preprocessing import StandardScaler
 
 from illuminate_PCA import load_taxonomy, build_global_color_map, remove_outliers, assign_taxonomy_group
+from interactive_go_tree import load_species_stats
 from general_pca_common import (
     TEMPLATE_PATH,
     DEFAULT_IC_PATH,
@@ -27,7 +31,7 @@ from general_pca_common import (
     DATA_MARKER,
     TITLE_MARKER,
     rgb_to_hex,
-    load_go_descriptions,
+    load_go_ic_and_descriptions,
     load_species_ncbi_accessions,
     load_metazoa_phylum_lineage,
     build_lineage_label_colors,
@@ -70,12 +74,24 @@ def parse_args():
         description="Standalone interactive PCA of GO term presence/absence (no GO tree, no illumination)"
     )
     parser.add_argument("--matrix", "-m", required=True, help="Raw GO counts matrix, species x GO terms (TSV)")
+    parser.add_argument("--species-stats", required=True, help="TSV with a Species index and a Total_prots column")
     parser.add_argument("--taxonomy", required=True, help="TSV with Species and Group columns")
     parser.add_argument(
         "-t", "--taxa",
         type=lambda s: [item.strip() for item in s.split(",")],
         default=None,
         help="Comma-separated taxonomic groups to restrict to",
+    )
+    parser.add_argument("--min-go-terms", type=int, default=None,
+                         help="Drop species with fewer than this many GO terms present before fitting the PCA "
+                              "-- weakly-annotated species are a major non-biological confound (they alone can "
+                              "dominate PC1/PC2). Off by default. See --min-go-terms-exempt for groups to spare.")
+    parser.add_argument(
+        "--min-go-terms-exempt",
+        type=lambda s: [item.strip() for item in s.split(",")],
+        default=[],
+        help="Comma-separated taxonomy groups exempt from --min-go-terms (e.g. groups where thin annotation "
+             "is normal for the whole group, not a red flag for that one species -- 'Asgard,Protists')",
     )
     parser.add_argument("--output", default="general_pca_presence_absence.html", help="Output HTML path")
     parser.add_argument("--ic-file", default=str(DEFAULT_IC_PATH), help="GO id -> description TSV (default: bundled data/All_GOs_ic.tsv)")
@@ -88,6 +104,8 @@ def parse_args():
                          help="Metazoa species -> Phylum TSV (default: bundled data/metadata_metazoa.txt), used "
                               "to add a client-side 'expand Metazoa into phyla' accordion to the legend -- pass "
                               "a nonexistent path to omit it")
+    parser.add_argument("--ic-threshold", type=float, default=None,
+                        help="Minimum IC to include a GO term in the PCA; GOs below this value are dropped from the matrix before fitting")
     parser.add_argument("--top-loadings-n", type=int, default=10,
                          help="Number of GO terms to report per direction (positive/negative) per PC (default: 10)")
     parser.add_argument("--loadings-output", default=None,
@@ -102,7 +120,16 @@ def main():
     args = parse_args()
 
     raw_full = pd.read_csv(args.matrix, sep="\t", index_col=0).fillna(0)
+    total_prots = load_species_stats(args.species_stats)
     taxon_dict = load_taxonomy(args.taxonomy)
+
+    go_ic, go_desc_raw = load_go_ic_and_descriptions(args.ic_file)
+    # Embed IC in the description string so it surfaces everywhere the
+    # description is shown: GO search suggestions, top-loadings sidebar, etc.
+    go_desc = {
+        go_id: f"{desc} (IC: {go_ic[go_id]:.2f})" if go_id in go_ic else desc
+        for go_id, desc in go_desc_raw.items()
+    }
 
     # Restrict to the requested taxa *before* running PCA, not after: the
     # whole point of -t/--taxa is to compute the PCA only from variance
@@ -110,6 +137,33 @@ def main():
     # to a sub-region of the same global layout.
     if args.taxa:
         raw_full = raw_full[raw_full.index.map(taxon_dict).isin(args.taxa)]
+
+    # Drop species with too few GO terms annotated *before* fitting, same
+    # reasoning as -t/--taxa above: a weakly-annotated species should not
+    # get to pull on the PCA's variance at all, not be fit in and cropped
+    # out of the plot afterward.
+    if args.min_go_terms is not None:
+        richness_pre_fit = (raw_full > 0).sum(axis=1)
+        species_group = raw_full.index.map(taxon_dict)
+        exempt = set(args.min_go_terms_exempt)
+        keep_mask = (richness_pre_fit >= args.min_go_terms) | species_group.isin(exempt)
+        n_before = raw_full.shape[0]
+        raw_full = raw_full[keep_mask]
+        n_dropped = n_before - raw_full.shape[0]
+        exempt_note = f" (exempt: {', '.join(sorted(exempt))})" if exempt else ""
+        print(f"GO-terms-present filter (< {args.min_go_terms}){exempt_note}: dropped {n_dropped} / {n_before} species")
+
+    # Drop GO terms below the IC threshold before fitting the PCA so that
+    # overly general terms (present in nearly all species, low information
+    # content) don't dominate the variance.
+    n_absent_ic = sum(1 for c in raw_full.columns if c not in go_ic)
+    if n_absent_ic:
+        print(f"Warning: {n_absent_ic} GO terms in matrix have no IC value in {args.ic_file}")
+
+    if args.ic_threshold is not None:
+        n_before = raw_full.shape[1]
+        raw_full = raw_full[[c for c in raw_full.columns if go_ic.get(c, 0.0) >= args.ic_threshold]]
+        print(f"IC filter (≥ {args.ic_threshold}): kept {raw_full.shape[1]} / {n_before} GO terms")
 
     pca_df, explained_variance, richness, loadings = run_pca_on_presence_absence(raw_full)
     n_go_used = loadings.shape[0]
@@ -133,6 +187,7 @@ def main():
             "pc2": float(pca_df.loc[name, "PC2"]),
             "group": pca_df.loc[name, "Group"],
             "go_terms_present": int(richness.get(name, 0)),
+            "total_prots": int(total_prots[name]) if name in total_prots.index else None,
             "ncbi_id": ncbi_accessions.get(name),
         }
         for name in species
@@ -151,9 +206,14 @@ def main():
         species_lineage.get(rec["name"]) for rec in species_records
     )
 
-    go_desc = load_go_descriptions(args.ic_file)
     top_loadings = top_loadings_by_pc(loadings, go_desc, args.top_loadings_n)
     go_search = build_go_search_payload(raw_full, species, go_desc)
+
+    title = "General PCA: GO term presence/absence"
+    mode_label = "presence/absence, not abundance"
+    if args.ic_threshold is not None:
+        title += f" (IC ≥ {args.ic_threshold})"
+        mode_label += f", IC ≥ {args.ic_threshold}"
 
     payload = {
         "species": species_records,
@@ -163,8 +223,8 @@ def main():
         "meta": {
             "n_go_terms_used": int(n_go_used),
             "explained_variance": [float(v) for v in explained_variance],
-            "title": "General PCA: GO term presence/absence",
-            "mode_label": "presence/absence, not abundance",
+            "title": title,
+            "mode_label": mode_label,
             "filename_base": "general_pca_presence_absence",
             "has_lineage_data": has_lineage_data,
             "lineage_ranks": METAZOA_SUBDIVIDE_RANKS,
@@ -172,7 +232,6 @@ def main():
     }
 
     template = TEMPLATE_PATH.read_text()
-    title = payload["meta"]["title"]
     data_json = json.dumps(payload).replace("</", "<\\/")
     html = template.replace(TITLE_MARKER, title).replace(DATA_MARKER, data_json)
 
