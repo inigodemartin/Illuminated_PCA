@@ -306,12 +306,21 @@
   }
   .legend-accordion-toggle {
     cursor: pointer;
-    color: #64748b;
-    font-size: 10px;
-    width: 14px;
+    color: #fff;
+    background: #F5A623;
+    font-size: 9px;
+    font-weight: 700;
+    width: 16px;
+    height: 16px;
+    line-height: 16px;
+    border-radius: 50%;
     text-align: center;
     user-select: none;
     flex-shrink: 0;
+    transition: background-color 0.15s ease;
+  }
+  .legend-accordion > summary:hover .legend-accordion-toggle {
+    background: #d98f1c;
   }
   .legend-nested {
     display: flex;
