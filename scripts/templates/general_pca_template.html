@@ -2966,6 +2966,22 @@
   // template don't, so dragging there stays plain pan, unchanged).
   var HAS_3D = DATA.species.length > 0 &&
     DATA.species.every(function (s) { return s.pc3 !== undefined && s.pc3 !== null; });
+  // rotate3D/rotate3DWithDepth read s.pc3 unconditionally, and so does every
+  // caller of them (applyRotation3D, drawCanvasPreview) -- both run after
+  // ANY pan/zoom/point-size change via exitCanvasPreview(), not just an
+  // actual rotation, regardless of HAS_3D. On a 2D-only page (e.g.
+  // presence_absence_pca.py, no pc3 field at all) s.pc3 was `undefined`,
+  // and `undefined * sin(0)` is NaN, not 0 -- JS doesn't short-circuit that
+  // multiplication just because the angle is zero -- so the very first
+  // zoom/drag permanently set every circle's cx/cy to NaN via
+  // applyRotation3D(), and they never came back (nothing after that ever
+  // recomputes cx/cy from scratch). Defaulting missing pc3 to 0 here makes
+  // that same math an exact identity at yaw=pitch=0 (which it stays at
+  // forever when HAS_3D is false, since only the HAS_3D branch ever changes
+  // td3Yaw/td3Pitch), matching createCircles' plain scaleX(pc1)/scaleY(pc2).
+  DATA.species.forEach(function (s) {
+    if (s.pc3 === undefined || s.pc3 === null) s.pc3 = 0;
+  });
   var info3d = document.getElementById("pc3d-info");
   var info3dReady = false;
   var ROTATE_SPEED = 0.01; // radians per pixel dragged

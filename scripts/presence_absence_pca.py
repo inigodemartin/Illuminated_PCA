@@ -42,17 +42,27 @@ from general_pca_common import (
 )
 
 
-def run_pca_on_presence_absence(raw_df):
+def run_pca_on_presence_absence(raw_df, n_components=2):
     """
     Same rare-GO-term filter as the relative-abundance PCA (keep columns
     with raw count sum > 5 across species), but binarize the retained
     columns to presence/absence (count > 0 -> 1) instead of dividing by
     Total_prots, before StandardScaler + TruncatedSVD.
 
+    n_components=3 (passed by presence_absence_pca.py's main(), same as
+    general_pca_abundance.py) fits an extra PC3 so the page can offer the
+    optional 3D (PC1/PC2/PC3) view -- algorithm="arpack" (exact Lanczos
+    solver), not TruncatedSVD's default "randomized", because the randomized
+    solver is a stochastic approximation whose result depends on how many
+    components you ask for: PC1/PC2 would shift slightly between a
+    2-component and a 3-component fit otherwise. Same fix already applied to
+    interactive_go_tree.run_pca_on_relative_abundance for this exact reason
+    (see general_pca_abundance.py / the 3D-toggle design notes).
+
     Also returns each species' GO-term richness (how many of the retained
     columns it has any annotation for) for the tooltip, and the per-GO-term
     loadings (model.components_, transposed so rows are GO ids): how much
-    each retained GO column contributes to PC1/PC2.
+    each retained GO column contributes to each PC.
     """
     pca_input = raw_df.loc[:, raw_df.sum(axis=0) > 5]
     presence = (pca_input > 0).astype(float)
@@ -60,12 +70,13 @@ def run_pca_on_presence_absence(raw_df):
     scaler = StandardScaler()
     normalized = scaler.fit_transform(presence.values)
 
-    model = TruncatedSVD(n_components=2)
+    model = TruncatedSVD(n_components=n_components, algorithm="arpack")
     components = model.fit_transform(normalized)
 
-    pca_df = pd.DataFrame(components, columns=["PC1", "PC2"], index=raw_df.index)
+    columns = [f"PC{i}" for i in range(1, n_components + 1)]
+    pca_df = pd.DataFrame(components, columns=columns, index=raw_df.index)
     richness = presence.sum(axis=1)
-    loadings = pd.DataFrame(model.components_.T, columns=["PC1", "PC2"], index=pca_input.columns)
+    loadings = pd.DataFrame(model.components_.T, columns=columns, index=pca_input.columns)
     return pca_df, model.explained_variance_ratio_, richness, loadings
 
 
@@ -165,7 +176,7 @@ def main():
         raw_full = raw_full[[c for c in raw_full.columns if go_ic.get(c, 0.0) >= args.ic_threshold]]
         print(f"IC filter (≥ {args.ic_threshold}): kept {raw_full.shape[1]} / {n_before} GO terms")
 
-    pca_df, explained_variance, richness, loadings = run_pca_on_presence_absence(raw_full)
+    pca_df, explained_variance, richness, loadings = run_pca_on_presence_absence(raw_full, n_components=3)
     n_go_used = loadings.shape[0]
     outlier_low, outlier_high = args.outlier_percentile
     n_before_outliers = pca_df.shape[0]
@@ -185,6 +196,7 @@ def main():
             "name": name,
             "pc1": float(pca_df.loc[name, "PC1"]),
             "pc2": float(pca_df.loc[name, "PC2"]),
+            "pc3": float(pca_df.loc[name, "PC3"]),
             "group": pca_df.loc[name, "Group"],
             "go_terms_present": int(richness.get(name, 0)),
             "total_prots": int(total_prots[name]) if name in total_prots.index else None,
