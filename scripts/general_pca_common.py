@@ -106,7 +106,11 @@ def load_metazoa_phylum_lineage(path=DEFAULT_METAZOA_TAXONOMY_PATH):
     getting a phylum-level accordion, not a full kingdom-anchored, any-rank
     one. SCIENTIFIC_NAME uses "Genus species" (space-separated); species
     elsewhere in this pipeline are "Genus_species" (underscore-joined), so
-    the join key is normalized here. Shape-compatible with
+    the join key is normalized here -- data/metadata_metazoa.txt also has a
+    trailing space on some SCIENTIFIC_NAME values (e.g. "Arenicola marina "),
+    stripped first so it doesn't survive as a trailing underscore and break
+    the join (affected 7/961 species before this was added). Shape-compatible
+    with
     build_lineage_label_colors() and the browser's generic subdivisionsFor()/
     isExpandable(), which is why this reuses that same {rank: value} dict
     shape instead of a flat species->phylum mapping.
@@ -117,7 +121,7 @@ def load_metazoa_phylum_lineage(path=DEFAULT_METAZOA_TAXONOMY_PATH):
     df = pd.read_csv(path, sep="\t")
     out = {}
     for _, row in df.iterrows():
-        species = str(row["SCIENTIFIC_NAME"]).replace(" ", "_")
+        species = str(row["SCIENTIFIC_NAME"]).strip().replace(" ", "_")
         phylum = row.get("Phylum")
         if pd.notna(phylum):
             out[species] = {"phylum": phylum}
