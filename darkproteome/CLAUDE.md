@@ -138,6 +138,14 @@ Report: `reports/06_go_taxon_constraint_report_es.{html,pdf}` (Spanish, figures 
 ## Incompatibilities vs dark-proteome size (2026-10-05)
 `scripts/dark_proteome_incompat_vs_size.py` → `incompat_vs_size/results/` (correlations TSV, binned TSV, 4-panel scatter). Spearman rho of % incompatible annotations vs dark share of the proteome (all / Fungi / angiosperms): dark +0.42 / +0.26 / +0.55; both +0.56 / +0.46 / +0.50; homology +0.65 / +0.61 / +0.42; FANTASIA-all +0.68 / +0.63 / +0.74. Binned medians (dark share < 20 % → > 60 %): dark 3.8 → 7.9 %, both 1.3 → 4.4 %, homology 0.16 → 1.85 %. Reading: a big dark proteome marks a species far from the well-annotated organisms, where every source fails (even homology, 11×); the dark-specific error saturates above ~40 % dark share in fungi; dark error tracks dark-protein length (rho −0.29) more than dark-protein count (−0.07). Section 2.3 of the report.
 
+## Protein-level check (script ready 2026-10-05, SERVER RUN PENDING)
+`scripts/dark_proteome_protein_level.py` v0.1.0: per protein → group (dark/both/only_homology/unannotated), length, FANTASIA GO count and how many are taxon-incompatible for that species, same for AHRD GO. Needs the per-protein inputs (FANTASIA files, AHRD tables, .pep) that only exist on the server. Tested locally on the Aegilops_comosa example files (`Aecom_GOs_merged_2025.tsv`, `Aecom.proteins.funct_ahrd.tsv`, `sequences_file.fasta`): 44 % of dark proteins carry ≥ 1 incompatible term although only ~12 % of annotations are incompatible (1.3 incompatible terms per affected protein, spread thin); no monotonic length trend within the species. Server command (repo cloned there; **data/go-basic_2025.obo is gitignored, copy it to the server first** or pass `--obo`):
+```bash
+python3 scripts/dark_proteome_protein_level.py --manifest darkproteome/non_viridi.tsv darkproteome/viridi.tsv \
+    --output darkproteome/protein_level --threads 16 --format png,pdf
+```
+Outputs: `workdir/per_species/{species}.proteins.tsv.gz` (one row per protein, ~0.5 MB each → ~1.5 GB for 2672 species), `results/mod01_protein_level_species_*.tsv`, `results/mod02_protein_level_length_bins_*.tsv/.pdf` (pooled + per Group: % proteins with ≥ 1 incompatible term and % incompatible annotations by length bin, dark / both / homology). Per-species JSON checkpoints; `--force` recomputes. Bring back `results/` (small) to continue locally; the gz tables only if protein-by-protein inspection is wanted.
+
 ## Rules
 - Memory: 3 GB WSL. Never `pd.read_csv` these matrices naively (OOM); stream or use int32. Run PCAs sequentially.
 - PCA/ repo: commit + push directly. IkusiGO repo: confirm with the user before committing.
