@@ -77,6 +77,34 @@ Findings:
 - **Caveat — implausible transfers**: a layer of very specific metazoan/viral/host–pathogen terms is enriched in ~2000 species including fungi and plants at ~0.1–0.9 % of dark proteins each: host cell nucleus/cytoplasm, viral process (slim log2FC +3.4), leukotriene-C4 synthase, endothelin/VEGF receptor, complement binding, chemokine binding, granulosa cell proliferation, syncytial embryo cellularization… 2971/3363 enriched terms are near-absent (< 0.02 %) in the both group. Likely FANTASIA embedding neighbours from animal/viral UniProt entries landing on short lineage-specific proteins (effector-like). Treat high-IC enriched terms with caution; the mid-level (slim) picture is the robust one.
 - Characteristics (n = 2672, per-species medians): length 278 vs 435 aa (shorter in 100 % of species), < 100 aa 8.4 % vs 1.9 %, GO/protein 5.08 vs 5.24, mean IC 13.4 vs 13.3 (higher in 79 % of species), BP/MF/CC shares ≈ equal (40/28/32 %), dark share of proteome 35.7 %, 29 % of dark GO terms absent from both, FANTASIA/homology Jaccard 0.086.
 
+## False positives: GO taxon-constraint check (done 2026-10-05)
+Script `PCA/scripts/dark_proteome_taxon_check.py` (v0.1.0), outputs in `taxon_check/results/` (not in git). Needs the three matrices (dark, both, homology); ~2.7 min, **2.1 GB peak** (close to the WSL ceiling — close other things first). Rerun:
+```bash
+python3 scripts/dark_proteome_taxon_check.py \
+    --only  darkproteome/results/mod01_fantasia_only_counts__clean.tsv \
+    --both  darkproteome/results/mod01_fantasia_both_counts__clean.tsv \
+    --homology darkproteome/results/mod01_homology_all_counts__clean.tsv \
+    --stats darkproteome/results/mod02_dark_proteome_stats__clean.tsv \
+    --taxonomy species_taxonomy.tsv --output darkproteome/taxon_check --format png,pdf
+```
+Reference data (committed, built by `scripts/build_go_taxon_constraints.py` from go-edit.obo + go-taxon-groupings.obo + NCBI taxdump, 2026-10-05): `data/go_taxon_constraints.tsv` (1658 asserted only_in/never_in constraints on 1380 GO terms — they live only in go-edit.obo / go-plus.owl, NOT in go.obo or go-basic), `data/go_taxon_unions.tsv` (15 union taxa such as "Fungi or Bacteria"), `data/species_lineage_taxids.tsv` (full NCBI ancestor taxids for the 3906 species of species_lineage.tsv with a TaxID). Constraints are inherited through is_a + part_of (8553/27693 GO columns end up constrained); a species violates when its lineage lacks the only_in taxon or contains the never_in taxon. 2667/2672 species have a lineage.
+
+**Module 1 — % of GO annotations violating a GO taxon constraint (per-species medians):**
+
+| Group | dark | both | homology | dark>both |
+|---|---|---|---|---|
+| all (2667) | 7.09 | 3.35 | 0.55 | 99 % of species |
+| Fungi (1902) | 7.40 | 3.44 | 0.63 | 100 % |
+| angiosperms (492) | 3.84 | 1.60 | 0.21 | 99 % |
+| Protists (170) | 7.69 | 6.46 | 1.16 | 95 % |
+| chlorophyta (49) | 7.36 | 5.42 | 0.92 | 100 % |
+
+Distinct GO terms violating: 11.4 % dark, 8.2 % both, 3.5 % homology. Ratio dark/both ≈ 2.0 per species, dark/homology ≈ 12. The dark violation rate grows with the dark share of the proteome (Spearman 0.42). Split: only_in 3.4 % + never_in 3.9 % (dark). Biggest offending constraints: only_in Metazoa (23 % of dark violations), never_in Fungi (22 %), only_in Eumetazoa (11 %), never_in Ascomycota (6 %), only_in Arthropoda (5 %). Top offending terms (dark annotations): ciliary plasm (never_in Ascomycota; 174k), kinetoplast (only_in Kinetoplastea; 128k), centrosome (never_in Fungi/Viridiplantae; 84k — also the top homology offender, 29k: SPB→centrosome transfer), regulation of neuronal synaptic plasticity, P granule, spermatogenesis, behavioral response to ethanol, synapse, viral tegument/capsid (never_in cellular organisms), skeletal system morphogenesis, long-term memory, complement binding / C-X-C chemokine binding (never_in Fungi; 0 by homology).
+
+**Module 2 — clade-unsupported terms** (GO never assigned by homology to any species of the clade; soft, includes real novelty): median % of dark annotations on such terms Fungi 3.7 (both 1.1), angiosperms 4.6 (1.4), Protists 6.3 (3.5), chlorophyta 9.3 (5.0). Top in Fungi: symbiont-mediated suppression of host NF-κB, RING-like zinc finger domain binding, 2',3'-cGAMP binding, host cell nuclear envelope, chemokine activity, complement binding; in angiosperms: RING-like zinc finger domain binding (161k), RNR inhibitor activity, muscle system process, chemokine activity, pheromone activity, ergosterol regulation.
+
+Reading: the official constraints alone flag ~7 % of dark annotations (and 11 % of dark terms) as biologically impossible for the organism, twice the rate of FANTASIA on homology-supported proteins and 12× the homology baseline. This is a lower bound: terms without a taxon constraint (e.g. "host cell nucleus", "leukotriene-C4 synthase activity" in a fungus) are not caught; Module 2 covers part of that. Limits: annotation-level counts (not proteins); a few violations may be legitimate (HGT, outdated constraints); the 2026 constraints are applied to the 2025 go-basic hierarchy.
+
 ## Rules
 - Memory: 3 GB WSL. Never `pd.read_csv` these matrices naively (OOM); stream or use int32. Run PCAs sequentially.
 - PCA/ repo: commit + push directly. IkusiGO repo: confirm with the user before committing.

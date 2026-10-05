@@ -1,0 +1,17 @@
+# built 2026-10-05 from go-taxon-groupings.obo
+union	name	member_taxids
+NCBITaxon_Union:0000000	Viridiplantae or Bacteria	2,33090
+NCBITaxon_Union:0000002	Viridiplantae or Cyanobacteria	1117,33090
+NCBITaxon_Union:0000003	Myxininae or Petromyzontidae	7746,7762
+NCBITaxon_Union:0000004	Prokaryota	2,2157
+NCBITaxon_Union:0000006	Viridiplantae or Archaea or Bacteria	2,2157,33090
+NCBITaxon_Union:0000007	Viridiplantae or Bacteria or Euglenozoa	2,33090,33682
+NCBITaxon_Union:0000008	Viridiplantae or Euglenozoa	33090,33682
+NCBITaxon_Union:0000020	Fungi or Bacteria	2,4751
+NCBITaxon_Union:0000021	Viridiplantae or Bacteria or Euglenozoa or Archaea	2,2157,33090,33682
+NCBITaxon_Union:0000022	Fungi or Dictyostelium	4751,5782
+NCBITaxon_Union:0000023	Fungi or Bacteria or Archaea	2,2157,4751
+NCBITaxon_Union:0000024	Unikonta	33154,554915
+NCBITaxon_Union:0000025	Archaea or Eukaryota	2157,2759
+NCBITaxon_Union:0000030	cellular organisms or viruses	10239,131567
+NCBITaxon_Union:0000031	Stramenopiles or Cryptophyta	3027,33634
