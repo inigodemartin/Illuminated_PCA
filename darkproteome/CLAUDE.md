@@ -135,6 +135,9 @@ Consistency check: Fungi here (whole proteome) 4.6 % sits between the dark (7.4 
 
 Report: `reports/06_go_taxon_constraint_report_es.{html,pdf}` (Spanish, figures embedded, built with weasyprint from a template; reports/ is not in git).
 
+## Incompatibilities vs dark-proteome size (2026-10-05)
+`scripts/dark_proteome_incompat_vs_size.py` → `incompat_vs_size/results/` (correlations TSV, binned TSV, 4-panel scatter). Spearman rho of % incompatible annotations vs dark share of the proteome (all / Fungi / angiosperms): dark +0.42 / +0.26 / +0.55; both +0.56 / +0.46 / +0.50; homology +0.65 / +0.61 / +0.42; FANTASIA-all +0.68 / +0.63 / +0.74. Binned medians (dark share < 20 % → > 60 %): dark 3.8 → 7.9 %, both 1.3 → 4.4 %, homology 0.16 → 1.85 %. Reading: a big dark proteome marks a species far from the well-annotated organisms, where every source fails (even homology, 11×); the dark-specific error saturates above ~40 % dark share in fungi; dark error tracks dark-protein length (rho −0.29) more than dark-protein count (−0.07). Section 2.3 of the report.
+
 ## Rules
 - Memory: 3 GB WSL. Never `pd.read_csv` these matrices naively (OOM); stream or use int32. Run PCAs sequentially.
 - PCA/ repo: commit + push directly. IkusiGO repo: confirm with the user before committing.
