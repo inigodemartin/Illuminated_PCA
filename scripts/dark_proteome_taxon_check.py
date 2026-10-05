@@ -31,7 +31,7 @@ Counts are annotation-level (a protein with two violating terms counts
 twice) because the input matrices are Species x GO protein counts.
 """
 
-VERSION = "v0.1.0"
+VERSION = "v0.2.0"
 
 import argparse
 import getpass
@@ -245,7 +245,8 @@ def masked_row_sums(counts: np.ndarray, mask: np.ndarray, chunk: int = 2000):
 # ---------------------------------------------------------------------------
 def run_taxon_check(matrices: dict, union_cols: list, species: list, eff: list,
                     lineages: dict, unions: dict, taxon_names: dict, go_info: dict,
-                    meta: pd.DataFrame, results: Path, prefix: str, force: bool):
+                    meta: pd.DataFrame, results: Path, prefix: str, force: bool,
+                    top_n_per_group: int = 50):
     out_species = results / f"mod01_taxon_violations_species_{prefix}.tsv"
     out_terms   = results / f"mod01_taxon_violations_terms_{prefix}.tsv"
     out_cons    = results / f"mod01_taxon_violations_constraints_{prefix}.tsv"
@@ -317,6 +318,43 @@ def run_taxon_check(matrices: dict, union_cols: list, species: list, eff: list,
         terms_df = terms_df.sort_values(f"viol_annotations_{list(matrices)[0]}", ascending=False)
     terms_df.to_csv(out_terms, sep="\t", index=False, float_format="%.4g")
     _log(f"  Written {out_terms.name} ({len(terms_df)} violating GO terms)")
+
+    # --- per taxonomy group: top offending terms and constraints -------------
+    out_bygroup = results / f"mod01_taxon_violations_terms_by_group_{prefix}.tsv"
+    first = list(matrices)[0]
+    rows_g = []
+    for grp in sorted(sp["tax_group"].dropna().unique()):
+        gmask = ((sp["tax_group"] == grp) & has_lin).to_numpy()
+        if gmask.sum() < 2:
+            continue
+        for label, counts in matrices.items():
+            sub = counts[gmask]
+            viol = sub * V_any[gmask]
+            tot = int(sub.sum(dtype=np.int64))
+            col_sum = viol.sum(axis=0, dtype=np.int64)
+            n_sp = (viol > 0).sum(axis=0)
+            order = np.argsort(-col_sum)[:top_n_per_group]
+            for j in order:
+                if col_sum[j] == 0:
+                    break
+                g = union_cols[j]
+                # which constraint(s) this group actually violates
+                lin_any = set().union(*(lineages.get(species[i], set()) for i in np.flatnonzero(gmask)))
+                viol_cons = []
+                for kind, taxon in eff[j]:
+                    members = taxon_members(taxon, unions)
+                    inside_any = bool(lin_any & members)
+                    if (kind == "only_in" and not inside_any) or (kind == "never_in" and inside_any):
+                        viol_cons.append(f"{kind} {taxon_names.get(taxon, taxon)}")
+                rows_g.append({"group": grp, "n_species_group": int(gmask.sum()), "set": label, "GO": g,
+                               "description": go_info.get(g, ("", 0, np.nan, ""))[3],
+                               "namespace": go_info.get(g, ("", 0, np.nan, ""))[0],
+                               "violated_constraints": "; ".join(sorted(set(viol_cons))),
+                               "viol_annotations": int(col_sum[j]),
+                               "pct_of_group_annotations": 100 * col_sum[j] / max(tot, 1),
+                               "n_species_violating": int(n_sp[j])})
+    pd.DataFrame(rows_g).to_csv(out_bygroup, sep="\t", index=False, float_format="%.4g")
+    _log(f"  Written {out_bygroup.name} (top {top_n_per_group} terms per group and set)")
 
     cons_rows = []
     for (kind, taxon), d in cons_tot.items():
@@ -400,7 +438,7 @@ def plot_top_violating_terms(terms_df: pd.DataFrame, labels: list, out_path: Pat
     _set_plot_style()
     if not len(terms_df):
         return
-    top = terms_df.sort_values("viol_annotations_dark", ascending=False).head(n_top).iloc[::-1]
+    top = terms_df.sort_values(f"viol_annotations_{labels[0]}", ascending=False).head(n_top).iloc[::-1]
     colors = {"dark": COL_DARK, "both": COL_BOTH, "homology": COL_GREY}
     fig, ax = plt.subplots(figsize=(11, 0.34 * len(top) + 1.5))
     y = np.arange(len(top))
@@ -413,7 +451,7 @@ def plot_top_violating_terms(terms_df: pd.DataFrame, labels: list, out_path: Pat
                         for _, r in top.iterrows()], fontsize=7.5)
     ax.set_xscale("log")
     ax.set_xlabel("violating annotations summed over all species (log scale)")
-    ax.set_title(f"Top {len(top)} GO terms by taxon-constraint violations in the dark proteome\n"
+    ax.set_title(f"Top {len(top)} GO terms by taxon-constraint violations ({labels[0]})\n"
                  "(after | : the inherited constraint that is violated)", fontsize=10)
     ax.legend(fontsize=8, frameon=False, loc="lower right")
     fig.tight_layout()
@@ -485,11 +523,17 @@ def parse_args():
         description="Quantify GO annotations that make no sense for the organism "
                     "(taxon-constraint violations, clade-unsupported terms) in the dark "
                     "proteome vs both vs homology.")
-    ap.add_argument("--only", type=Path, required=True, help="mod01_fantasia_only_counts_*_clean.tsv")
-    ap.add_argument("--both", type=Path, required=True, help="mod01_fantasia_both_counts_*_clean.tsv")
+    ap.add_argument("--only", type=Path, default=None, help="mod01_fantasia_only_counts_*_clean.tsv (dark proteome)")
+    ap.add_argument("--both", type=Path, default=None, help="mod01_fantasia_both_counts_*_clean.tsv")
+    ap.add_argument("--matrix", type=Path, default=None,
+                    help="Single-matrix mode: any Species x GO counts TSV (e.g. the whole-proteome "
+                         "FANTASIA matrix); mutually exclusive with --only/--both, Module 2 is skipped")
+    ap.add_argument("--label", default="fantasia",
+                    help="Column label for the --matrix annotation set (default: fantasia)")
     ap.add_argument("--homology", type=Path, default=None,
                     help="mod01_homology_all_counts_*_clean.tsv (reference; required for Module 2)")
-    ap.add_argument("--stats", type=Path, required=True, help="mod02_dark_proteome_stats_*_clean.tsv")
+    ap.add_argument("--stats", type=Path, default=None,
+                    help="mod02_dark_proteome_stats_*_clean.tsv (adds the viridi/non_viridi Group column)")
     ap.add_argument("--taxonomy", type=Path, default=None, help="Species/Group TSV (species_taxonomy.tsv)")
     ap.add_argument("--constraints", type=Path, default=DEFAULT_CONSTRAINTS_PATH,
                     help=f"GO taxon constraints TSV (default: {DEFAULT_CONSTRAINTS_PATH})")
@@ -517,14 +561,23 @@ def main():
     global _LOG_FH
     args = parse_args()
     t_start = time.monotonic()
-    for name in ("only", "both", "homology", "stats", "taxonomy", "constraints", "unions", "lineages", "ic", "obo"):
+    path_args = ("only", "both", "matrix", "homology", "stats", "taxonomy", "constraints", "unions",
+                 "lineages", "ic", "obo")
+    for name in path_args:
         v = getattr(args, name)
         if v is not None:
             setattr(args, name, v.resolve())
-    pairs = [(f"--{n}", getattr(args, n)) for n in
-             ("only", "both", "homology", "stats", "taxonomy", "constraints", "unions", "lineages", "ic", "obo")
-             if getattr(args, n) is not None]
-    _validate_inputs(pairs)
+    _validate_inputs([(f"--{n}", getattr(args, n)) for n in path_args if getattr(args, n) is not None])
+    single = args.matrix is not None
+    if single and (args.only or args.both or args.homology):
+        print("ERROR: --matrix is mutually exclusive with --only/--both/--homology", file=sys.stderr)
+        sys.exit(1)
+    if not single and (args.only is None or args.both is None):
+        print("ERROR: give --only and --both (dark-proteome mode) or --matrix (single-matrix mode)",
+              file=sys.stderr)
+        sys.exit(1)
+    if single and not args.skip_clade_check:
+        args.skip_clade_check = True   # needs the homology reference
     if not args.skip_clade_check and args.homology is None:
         print("ERROR: Module 2 needs --homology (or pass --skip_clade_check)", file=sys.stderr)
         sys.exit(1)
@@ -559,6 +612,7 @@ def main():
 
     if args.dry_run:
         _banner("Dry run — no steps will be executed")
+        _log(f"  Matrix          : {args.matrix}") if single else None
         _log(f"  Dark matrix     : {args.only}")
         _log(f"  Both matrix     : {args.both}")
         _log(f"  Homology matrix : {args.homology}")
@@ -596,7 +650,7 @@ def main():
     _log(f"  {sum(len(v) for v in cons.values())} asserted constraints on {len(cons)} GO terms, "
          f"{len(unions)} union taxa, {len(lineages)} species lineages")
 
-    paths = {"dark": args.only, "both": args.both}
+    paths = {args.label: args.matrix} if single else {"dark": args.only, "both": args.both}
     if args.homology is not None:
         paths["homology"] = args.homology
     raw, species = {}, None
@@ -619,9 +673,12 @@ def main():
         matrices[label] = align_to_columns(m, go_l, union_cols)
     del raw
 
-    stats_df = pd.read_csv(args.stats, sep="\t").set_index("Species")
     meta = pd.DataFrame({"Species": species})
-    meta["Group"] = stats_df.reindex(species)["Group"].to_numpy()
+    if args.stats is not None:
+        stats_df = pd.read_csv(args.stats, sep="\t").set_index("Species")
+        meta["Group"] = stats_df.reindex(species)["Group"].to_numpy()
+    else:
+        meta["Group"] = np.nan
     if args.taxonomy is not None:
         tax = pd.read_csv(args.taxonomy, sep="\t").drop_duplicates("Species").set_index("Species")["Group"]
         tg = tax.reindex(species).fillna("Unclassified")
@@ -629,7 +686,7 @@ def main():
         small = small[small < args.min_group_species].index
         meta["tax_group"] = tg.where(~tg.isin(small), "other").to_numpy()
     else:
-        meta["tax_group"] = meta["Group"]
+        meta["tax_group"] = meta["Group"].fillna("all")
     _log("  Groups: " + ", ".join(f"{g}={n}" for g, n in meta["tax_group"].value_counts().items()))
 
     obo = parse_obo(args.obo)

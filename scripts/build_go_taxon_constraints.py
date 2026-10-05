@@ -26,7 +26,7 @@ Outputs:
                                   data/species_lineage.tsv that has a TaxID
 """
 
-VERSION = "v0.1.0"
+VERSION = "v0.2.0"
 
 import argparse
 import sys
@@ -119,6 +119,10 @@ def main():
                     help="Directory with extracted nodes.dmp, names.dmp, merged.dmp")
     ap.add_argument("--species_lineage", type=Path, default=HERE / "data" / "species_lineage.tsv",
                     help="Species/TaxID table (default: data/species_lineage.tsv)")
+    ap.add_argument("--group_fallback", action="append", default=[],
+                    metavar="GROUP=TAXID",
+                    help="Species of this Group without a TaxID get this group-level taxid "
+                         "(e.g. Asgard=1935183, Promethearchaeati = Asgard archaea); repeatable")
     ap.add_argument("--outdir", type=Path, default=HERE / "data")
     ap.add_argument("--version", action="version", version=f"%(prog)s {VERSION}")
     args = ap.parse_args()
@@ -158,19 +162,32 @@ def main():
             fh.write(f"{u}\t{uname.get(u, '')}\t{','.join(str(t) for t in sorted(unions[u]))}\n")
     print(f"written {out}", file=sys.stderr)
 
+    fallback = {}
+    for item in args.group_fallback:
+        g, t = item.split("=", 1)
+        fallback[g] = int(t)
     sp = pd.read_csv(args.species_lineage, sep="\t").drop_duplicates("Species")
-    sp = sp[sp["TaxID"].notna()]
+    has_tid = sp["TaxID"].notna()
+    fb_mask = ~has_tid & sp["Group"].isin(fallback)
+    sp = sp[has_tid | fb_mask].copy()
+    sp["TaxID"] = np.where(sp["TaxID"].notna(), sp["TaxID"],
+                           sp["Group"].map(fallback)).astype(float)
     out = args.outdir / "species_lineage_taxids.tsv"
     n_missing = 0
     with open(out, "w") as fh:
         fh.write(f"# built {stamp} from NCBI taxdump; lineage = species taxid first, root 1 excluded\n")
+        if fallback:
+            fh.write("# group-level fallback taxid for species without a TaxID: "
+                     + ", ".join(f"{g}={t} ({sci.get(t, '?')}, {int(((sp['Group'] == g) & fb_mask).sum())} species)"
+                                 for g, t in fallback.items()) + "\n")
         fh.write("Species\tTaxID\tlineage_taxids\n")
         for _, r in sp.iterrows():
             lin = lineage(int(r["TaxID"]), parent, merged)
             if not lin:
                 n_missing += 1
             fh.write(f"{r['Species']}\t{int(r['TaxID'])}\t{','.join(map(str, lin))}\n")
-    print(f"written {out}: {len(sp)} species, {n_missing} without lineage", file=sys.stderr)
+    print(f"written {out}: {len(sp)} species ({int(fb_mask.sum())} via group fallback), "
+          f"{n_missing} without lineage", file=sys.stderr)
 
 
 if __name__ == "__main__":

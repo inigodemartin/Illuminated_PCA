@@ -105,6 +105,32 @@ Distinct GO terms violating: 11.4 % dark, 8.2 % both, 3.5 % homology. Ratio dark
 
 Reading: the official constraints alone flag ~7 % of dark annotations (and 11 % of dark terms) as biologically impossible for the organism, twice the rate of FANTASIA on homology-supported proteins and 12× the homology baseline. This is a lower bound: terms without a taxon constraint (e.g. "host cell nucleus", "leukotriene-C4 synthase activity" in a fungus) are not caught; Module 2 covers part of that. Limits: annotation-level counts (not proteins); a few violations may be legitimate (HGT, outdated constraints); the 2026 constraints are applied to the 2025 go-basic hierarchy.
 
+## Taxon-constraint check on the whole-proteome FANTASIA matrix (2026-10-05)
+Same script in single-matrix mode (v0.2.0: `--matrix` + `--label`, Module 2 auto-skipped) on `merged_PCA_belen_fantasia.tsv` (3107 species x 29 724 GO, FANTASIA counts for the whole proteome), stratified by `species_taxonomy.tsv`. Asgard species have no NCBI taxid, so `build_go_taxon_constraints.py --group_fallback Asgard=1935183` (Promethearchaeati) gives them the group-level lineage Asgard → Archaea → cellular organisms; 3101/3107 species evaluated. Output `taxon_check_belen_fantasia/results/` (not in git). Rerun (~1.5 min, 1.5 GB):
+```bash
+python3 scripts/dark_proteome_taxon_check.py --matrix merged_PCA_belen_fantasia.tsv --label fantasia \
+    --taxonomy species_taxonomy.tsv --min_group_species 2 \
+    --output darkproteome/taxon_check_belen_fantasia --format png,pdf
+```
+Median % of FANTASIA annotations violating a GO taxon constraint, per group (only_in / never_in split; % distinct terms):
+
+| Group | n | % annotations | only_in | never_in | % terms |
+|---|---|---|---|---|---|
+| Asgard | 436 | 18.0 | 16.5 | 2.4 | 16.8 |
+| Glaucophyta | 3 | 8.6 | 8.1 | 1.2 | 11.1 |
+| Protists | 220 | 7.3 | 7.1 | 0.3 | 9.6 |
+| Rhodophyta | 36 | 7.1 | 6.7 | 0.2 | 9.2 |
+| bryophytes | 25 | 6.5 | 5.6 | 0.8 | 9.2 |
+| chlorophyta | 49 | 6.2 | 5.1 | 0.9 | 9.2 |
+| lycophytes | 5 | 5.6 | 5.1 | 0.7 | 8.9 |
+| Fungi | 847 | 4.6 | 2.4 | 2.7 | 9.9 |
+| gymnosperms | 8 | 4.6 | 3.8 | 0.9 | 8.9 |
+| Metazoa | 961 | 2.5 | 1.8 | 0.6 | 4.7 |
+| angiosperms | 509 | 2.3 | 1.7 | 0.6 | 7.4 |
+
+Reading: the false-positive rate tracks the distance to the well-annotated model organisms that dominate GO/UniProt. Metazoa and angiosperms (2.3–2.5 %) are the reference clades; fungi double that; protists, red/green algae and bryophytes ~3×; Asgard archaea 18 %, almost entirely `only_in Eukaryota` terms (nucleus 1.6 % of all their annotations, mitochondrion 1.3 %, ER, nucleoplasm, peroxisome, Golgi…). Overall top constraints: only_in Metazoa (15 % of violations), Eumetazoa, Arthropoda, never_in cellular organisms (viral terms: virion membrane / envelope / capsid / tegument / nucleocapsid, each in > 2600 species — 7 %), never_in Fungi, only_in Vertebrata. Per-group top offenders are in `mod01_taxon_violations_terms_by_group_*.tsv` (new in v0.2.0): Metazoa → viral terms, inflammatory response (only_in Vertebrata, in 878 invertebrates), chloroplast; angiosperms → ciliary plasm, centrosome, synaptic terms, kinetoplast; Fungi → ciliary plasm (Ascomycota), spermatogenesis, embryo development, kinetoplast, P granule; Protists/algae → kinetoplast (only_in Kinetoplastea, in every species), metazoan development/synapse terms, "embryo development ending in seed dormancy".
+Consistency check: Fungi here (whole proteome) 4.6 % sits between the dark (7.4 %) and both (3.4 %) values of the dark-proteome dataset, as expected for the mixture.
+
 ## Rules
 - Memory: 3 GB WSL. Never `pd.read_csv` these matrices naively (OOM); stream or use int32. Run PCAs sequentially.
 - PCA/ repo: commit + push directly. IkusiGO repo: confirm with the user before committing.
