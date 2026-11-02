@@ -29,7 +29,7 @@ Total_fan/Unique_fan), not a true proteome size. Perc_fan is trivially 1.0
 as a result -- this is documented, not a bug.
 """
 
-VERSION = "v0.1.0"
+VERSION = "v0.1.1"
 
 import argparse
 import gc
@@ -278,7 +278,6 @@ def parse_args():
 
     ap.add_argument("--force", action="store_true", help="Rerun all steps from scratch even if intermediate outputs exist in workdir/")
     ap.add_argument("--dry_run", action="store_true", help="Validate inputs and print the steps that would run, then exit without executing anything")
-    ap.add_argument("--disable_co2_tracking", action="store_true", help="Disable carbon footprint tracking even if codecarbon is installed")
     ap.add_argument("--version", action="version", version=f"%(prog)s {VERSION}")
     return ap.parse_args()
 
@@ -390,18 +389,6 @@ def main():
         _log("  Exiting (--dry_run).")
         sys.exit(0)
 
-    _tracker = None
-    if args.disable_co2_tracking:
-        _log("  Carbon footprint tracking disabled (--disable_co2_tracking)")
-    else:
-        try:
-            from codecarbon import EmissionsTracker
-            _tracker = EmissionsTracker(output_dir=str(logs_dir), output_file=f"{prefix}.emissions.csv",
-                                        project_name="MergeFantasiaSpecies", log_level="warning")
-            _tracker.start()
-            _log("  codecarbon tracker started")
-        except ImportError:
-            _log("  codecarbon not installed — carbon tracking skipped (conda install -c conda-forge codecarbon)")
 
     t_start = time.monotonic()
 
@@ -526,12 +513,6 @@ def main():
     ru = resource.getrusage(resource.RUSAGE_SELF)
     peak_mem_mb = (ru.ru_maxrss / (1024 * 1024) if platform.system() == "Darwin" else ru.ru_maxrss / 1024)
 
-    emissions_kg = None
-    if _tracker is not None:
-        try:
-            emissions_kg = _tracker.stop()
-        except Exception:
-            pass
 
     summary = {
         "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -549,7 +530,6 @@ def main():
         "resource_usage": {
             "wall_clock_s": round(elapsed_s, 1),
             "peak_mem_mb": round(peak_mem_mb, 1),
-            "emissions_kg_CO2eq": emissions_kg,
         },
     }
     with open(results / f"{prefix}.run_summary.json", "w") as fh:

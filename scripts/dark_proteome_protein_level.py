@@ -24,7 +24,7 @@ Outputs
   results/mod02_protein_level_length_bins_*.pdf   the plot of that table
 """
 
-VERSION = "v0.1.0"
+VERSION = "v0.1.1"
 
 import argparse
 import getpass
@@ -306,7 +306,6 @@ def parse_args():
     ap.add_argument("--format", default="pdf", help="Plot format(s), comma-separated (default: pdf)")
     ap.add_argument("--force", action="store_true", help="Recompute every species even if its checkpoint exists")
     ap.add_argument("--dry_run", action="store_true", help="Validate inputs, print steps, exit")
-    ap.add_argument("--disable_co2_tracking", action="store_true")
     ap.add_argument("--version", action="version", version=f"%(prog)s {VERSION}")
     return ap.parse_args()
 
@@ -367,15 +366,6 @@ def main():
         _log("  Steps: per-protein tables → per-species summary → length-bin table + plot")
         sys.exit(0)
 
-    _tracker = None
-    if not args.disable_co2_tracking:
-        try:
-            from codecarbon import EmissionsTracker
-            _tracker = EmissionsTracker(output_dir=str(logs_dir), output_file=f"{prefix}.emissions.csv",
-                                        project_name="DarkProteomeProteinLevel", log_level="warning")
-            _tracker.start()
-        except ImportError:
-            _log("  codecarbon not installed — carbon tracking skipped")
 
     _banner("Loading constraints, unions, lineages, ontology")
     cons, _ = load_constraints(args.constraints)
@@ -441,20 +431,13 @@ def main():
                  f"{sp[f'Median_length_incompat_{g}'].median():.0f} / {sp[f'Median_length_clean_{g}'].median():.0f} aa; "
                  f"median Spearman(length, share incompat) {sp[f'Spearman_length_vs_frac_incompat_{g}'].median():+.2f}")
 
-    emissions_kg = None
-    if _tracker is not None:
-        try:
-            emissions_kg = _tracker.stop()
-        except Exception:
-            pass
     elapsed_s = time.monotonic() - t_start
     ru = resource.getrusage(resource.RUSAGE_SELF)
     peak_mem_mb = ru.ru_maxrss / (1024 * 1024) if platform.system() == "Darwin" else ru.ru_maxrss / 1024
     summary = {"date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "version": VERSION,
                "n_species_requested": len(entries), "n_species_done": len(sp), "status": dict(status),
                "errors": errors[:50], "parameters": {"threads": args.threads, "proteome_glob": args.proteome_glob},
-               "resource_usage": {"wall_clock_s": round(elapsed_s, 1), "peak_mem_mb": round(peak_mem_mb, 1),
-                                  "emissions_kg_CO2eq": emissions_kg}}
+               "resource_usage": {"wall_clock_s": round(elapsed_s, 1), "peak_mem_mb": round(peak_mem_mb, 1)}}
     with open(results / f"{prefix}.run_summary.json", "w") as fh:
         json.dump(summary, fh, indent=2, default=lambda o: None if pd.isna(o) else float(o))
         fh.write("\n")

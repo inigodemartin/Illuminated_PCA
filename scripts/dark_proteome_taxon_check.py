@@ -31,7 +31,7 @@ Counts are annotation-level (a protein with two violating terms counts
 twice) because the input matrices are Species x GO protein counts.
 """
 
-VERSION = "v0.2.0"
+VERSION = "v0.2.1"
 
 import argparse
 import getpass
@@ -551,8 +551,6 @@ def parse_args():
     ap.add_argument("--format", default="pdf", help="Plot format(s), comma-separated (default: pdf)")
     ap.add_argument("--force", action="store_true", help="Rerun all steps even if outputs exist")
     ap.add_argument("--dry_run", action="store_true", help="Validate inputs, print steps, exit")
-    ap.add_argument("--disable_co2_tracking", action="store_true",
-                    help="Disable carbon footprint tracking even if codecarbon is installed")
     ap.add_argument("--version", action="version", version=f"%(prog)s {VERSION}")
     return ap.parse_args()
 
@@ -627,19 +625,6 @@ def main():
         _log("  Exiting (--dry_run).")
         sys.exit(0)
 
-    _tracker = None
-    if args.disable_co2_tracking:
-        _log("  Carbon footprint tracking disabled (--disable_co2_tracking)")
-    else:
-        try:
-            from codecarbon import EmissionsTracker
-            _tracker = EmissionsTracker(output_dir=str(logs_dir), output_file=f"{prefix}.emissions.csv",
-                                        project_name="DarkProteomeTaxonCheck", log_level="warning")
-            _tracker.start()
-            _log("  codecarbon tracker started")
-        except ImportError:
-            _log("  codecarbon not installed — carbon tracking skipped "
-                 "(conda install -c conda-forge codecarbon)")
 
     # ---- inputs ------------------------------------------------------------
     _banner("Loading inputs")
@@ -729,17 +714,10 @@ def main():
         summary["module2_median_pct_dark"] = float(sp2["pct_clade_unsupported_annotations_dark"].median())
         summary["module2_median_pct_both"] = float(sp2["pct_clade_unsupported_annotations_both"].median())
 
-    emissions_kg = None
-    if _tracker is not None:
-        try:
-            emissions_kg = _tracker.stop()
-        except Exception:
-            pass
     elapsed_s = time.monotonic() - t_start
     ru = resource.getrusage(resource.RUSAGE_SELF)
     peak_mem_mb = (ru.ru_maxrss / (1024 * 1024) if platform.system() == "Darwin" else ru.ru_maxrss / 1024)
-    summary["resource_usage"] = {"wall_clock_s": round(elapsed_s, 1), "peak_mem_mb": round(peak_mem_mb, 1),
-                                 "emissions_kg_CO2eq": emissions_kg}
+    summary["resource_usage"] = {"wall_clock_s": round(elapsed_s, 1), "peak_mem_mb": round(peak_mem_mb, 1)}
     with open(results / f"{prefix}.run_summary.json", "w") as fh:
         json.dump(summary, fh, indent=2, default=lambda o: None if pd.isna(o) else float(o))
         fh.write("\n")
